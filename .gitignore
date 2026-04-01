@@ -64,5 +64,6 @@ Thumbs.db
 *.bak
 
 # 📜 SCRIPTS & TEMP
+.bridge
 temp/
 outputs/strat_cards/
