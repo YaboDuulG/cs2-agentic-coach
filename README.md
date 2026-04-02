@@ -36,7 +36,7 @@ The project is built on a "Horde" of specialized agents managed by **LangGraph**
 ## 🏔️ Project Roadmap
 
 ### Phase 1: The Data Foundation 🟢
-* [x] Set up `awpy` parsing environment in WSL 2.
+* [ ] Set up `awpy` parsing environment in WSL 2.
 * [ ] Automate extraction of "Kill Events" and "Player Coordinates."
 * [ ] Validate JSON output against Faceit/Matchmaking demos.
 
