@@ -2,7 +2,7 @@
 > **"Conquering the server, one data point at a time."**
 
 ![Version](https://img.shields.io/badge/version-0.1.0--alpha-blue)
-![Python](https://img.shields.io/badge/Python-3.12-gold)
+![Python](https://img.shields.io/badge/Python-3.14-gold)
 ![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-red)
 ![License](https://img.shields.io/badge/License-Proprietary-black)
 
