@@ -25,7 +25,7 @@ The project is built on a "Horde" of specialized agents managed by **LangGraph**
 
 | Component | Technology |
 | :--- | :--- |
-| **Language** | Python 3.12 |
+| **Language** | Python 3.14 |
 | **Agent Framework** | LangGraph / LangChain |
 | **Data Extraction** | awpy |
 | **Environment** | Docker, WSL 2 |
