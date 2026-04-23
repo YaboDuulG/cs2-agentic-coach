@@ -21,8 +21,10 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt ruff mypy pytest pytest-asyncio
+      - name: Install CI dependencies
+        # Use requirements-ci.txt — excludes heavy native-binary packages
+        # (pyannote.audio, etc.) that break on fresh runners.
+        run: pip install -r requirements-ci.txt ruff mypy pytest pytest-asyncio httpx
 
       - name: Lint (ruff)
         run: ruff check .
