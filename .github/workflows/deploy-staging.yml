@@ -27,23 +27,23 @@ jobs:
       - name: Build & push API image
         run: |
           docker build -f infra/Dockerfile.api \
-            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-api:${{ github.sha }} \
-            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-api:staging \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-api:${{ github.sha }} \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-api:staging \
             .
-          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-api:${{ github.sha }}
-          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-api:staging
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-api:${{ github.sha }}
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-api:staging
 
       - name: Build & push Scout image
         run: |
           docker build -f services/scout/Dockerfile \
-            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-scout:${{ github.sha }} \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-scout:${{ github.sha }} \
             services/scout/
-          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-scout:${{ github.sha }}
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-scout:${{ github.sha }}
 
       - name: Deploy API to Cloud Run (staging)
         run: |
-          gcloud run deploy chinghis-api-staging \
-            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-api:${{ github.sha }} \
+          gcloud run deploy demosage-api-staging \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-api:${{ github.sha }} \
             --platform managed \
             --region ${{ secrets.GCP_REGION }} \
             --allow-unauthenticated \

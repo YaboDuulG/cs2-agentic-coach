@@ -9,17 +9,17 @@ services:
   # --- PostgreSQL (mirrors Cloud SQL schema) ---
   postgres:
     image: pgvector/pgvector:pg15
-    container_name: chinghis-postgres
+    container_name: demosage-postgres
     environment:
-      POSTGRES_USER: chinghis_user
+      POSTGRES_USER: demosage_user
       POSTGRES_PASSWORD: localdev
-      POSTGRES_DB: chinghis
+      POSTGRES_DB: demosage
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U chinghis_user -d chinghis"]
+      test: ["CMD-SHELL", "pg_isready -U demosage_user -d demosage"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -29,11 +29,11 @@ services:
     build:
       context: ..
       dockerfile: infra/Dockerfile.api
-    container_name: chinghis-api
+    container_name: demosage-api
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL_LOCAL=postgresql://chinghis_user:localdev@postgres:5432/chinghis
+      - DATABASE_URL_LOCAL=postgresql://demosage_user:localdev@postgres:5432/demosage
       - APP_ENV=development
     env_file:
       - ../.env

@@ -1,5 +1,5 @@
 """
-Chinghis Scan — FastAPI Application Entry Point
+DemoSage — FastAPI Application Entry Point
 """
 
 import os
@@ -12,7 +12,7 @@ from api.routes import upload, health
 load_dotenv()
 
 app = FastAPI(
-    title="Chinghis Scan API",
+    title="DemoSage API",
     description="CS2 Agentic Coaching Platform — Backend API",
     version="0.1.0",
 )
@@ -33,7 +33,7 @@ app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
 @app.get("/")
 async def root():
     return {
-        "service": "Chinghis Scan API",
+        "service": "DemoSage API",
         "version": "0.1.0",
         "status": "online",
         "environment": os.getenv("APP_ENV", "development"),

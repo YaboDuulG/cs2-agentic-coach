@@ -1,5 +1,5 @@
 # ============================================================
-# Chinghis Scan — Root Requirements
+# DemoSage — Root Requirements
 # API + Agent layer dependencies
 # ============================================================
 

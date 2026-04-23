@@ -1,5 +1,5 @@
 """
-Chinghis Scan — LangGraph Global State Schema
+DemoSage — LangGraph Global State Schema
 =============================================
 Single TypedDict shared across ALL agents.
 The Great Khan owns this schema — no agent may add fields without updating here.

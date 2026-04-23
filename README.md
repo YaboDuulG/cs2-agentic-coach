@@ -1,4 +1,4 @@
-# 🏹 Chinghis Scan: CS2 Agentic Coach
+# 🏹 DemoSage: CS2 Agentic Coach
 > **"Conquering the server, one data point at a time."**
 
 ![Version](https://img.shields.io/badge/version-0.1.0--alpha-blue)
@@ -6,7 +6,7 @@
 ![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-red)
 ![License](https://img.shields.io/badge/License-Proprietary-black)
 
-**Chinghis Scan** is a state-of-the-art AI coaching ecosystem that transforms raw `.dem` files into elite tactical intelligence. By utilizing a **multi-agent orchestration layer**, it identifies patterns that traditional statistics miss—focusing on the "why" behind rotations, utility timing, and map control.
+**DemoSage** is a state-of-the-art AI coaching ecosystem that transforms raw `.dem` files into elite tactical intelligence. By utilizing a **multi-agent orchestration layer**, it identifies patterns that traditional statistics miss—focusing on the "why" behind rotations, utility timing, and map control.
 
 ---
 
@@ -56,7 +56,7 @@ The project is built on a "Horde" of specialized agents managed by **LangGraph**
 
 This repository is **Private** and **Proprietary**.
 
-* **Owner:** Chinghis Scan
+* **Owner:** DemoSage
 * **License:** All Rights Reserved. See `LICENSE` file for full legal terms.
 * **Status:** Confidential Alpha.
 
