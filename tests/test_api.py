@@ -3,7 +3,6 @@ Smoke tests for the FastAPI application.
 These run in CI without any GCP credentials or cloud services.
 """
 
-import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app

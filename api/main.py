@@ -3,11 +3,12 @@ DemoSage — FastAPI Application Entry Point
 """
 
 import os
+
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 
-from api.routes import upload, health
+from api.routes import health, upload
 
 load_dotenv()
 

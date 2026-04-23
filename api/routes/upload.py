@@ -3,10 +3,11 @@ Upload endpoints for demo (.dem) and audio files.
 Validates → uploads to GCS → queues a Scout parse job via Cloud Tasks.
 """
 
+import logging
 import os
 import uuid
-import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

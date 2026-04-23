@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 from agents.state import MatchState
 

@@ -8,6 +8,7 @@ The Great Khan owns this schema — no agent may add fields without updating her
 from __future__ import annotations
 
 from typing import Any, Literal, Optional
+
 from typing_extensions import TypedDict
 
 

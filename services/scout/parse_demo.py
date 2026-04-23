@@ -16,10 +16,10 @@ Usage:
     python parse_demo.py --demo /path/to/match.dem --match-id match-001 --upload
 """
 
-import os
-import json
 import argparse
+import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
