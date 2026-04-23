@@ -7,7 +7,6 @@ import os
 import uuid
 import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from google.cloud import storage
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -17,7 +16,9 @@ ALLOWED_AUDIO_TYPES = {".mp3", ".wav", ".ogg"}
 MAX_AUDIO_SIZE_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 
 
-def _get_gcs_client() -> storage.Client:
+def _get_gcs_client():
+    """Lazy import so GCP SDK is not required in CI/test environments."""
+    from google.cloud import storage  # noqa: PLC0415
     return storage.Client()
 
 

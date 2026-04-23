@@ -12,7 +12,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from langchain_google_vertexai import ChatVertexAI
 from langgraph.graph import StateGraph, END
 
 from agents.state import MatchState
