@@ -1,0 +1,56 @@
+name: HLTV Nightly Ingestion
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 02:00 UTC nightly
+  workflow_dispatch:        # Allow manual trigger
+
+jobs:
+  ingest:
+    name: Scrape HLTV & update knowledge base
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Run HLTV watcher (via Apify)
+        id: hltv
+        run: python services/hltv_watcher/main.py --mode=scheduled
+        env:
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          APIFY_HLTV_ACTOR_ID: ${{ secrets.APIFY_HLTV_ACTOR_ID }}
+          GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
+
+      - name: Queue new match demo parse jobs
+        run: python scripts/queue_demo_jobs.py
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          CLOUD_TASKS_QUEUE: ${{ secrets.CLOUD_TASKS_QUEUE }}
+
+      - name: Update pgvector embeddings
+        run: python scripts/update_knowledge_base.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_EMBEDDING_MODEL: text-embedding-004
+
+      - name: Regenerate meta snapshot
+        if: ${{ steps.hltv.outputs.new_matches > 0 }}
+        run: python scripts/generate_meta_snapshot.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GCS_BUCKET: ${{ secrets.GCS_BUCKET }}

@@ -1,0 +1,52 @@
+name: Deploy — Cloud Run (Staging)
+
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  deploy-staging:
+    name: Build & deploy to staging
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker gcr.io --quiet
+
+      - name: Build & push API image
+        run: |
+          docker build -f infra/Dockerfile.api \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-api:${{ github.sha }} \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-api:staging \
+            .
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-api:${{ github.sha }}
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-api:staging
+
+      - name: Build & push Scout image
+        run: |
+          docker build -f services/scout/Dockerfile \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-scout:${{ github.sha }} \
+            services/scout/
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-scout:${{ github.sha }}
+
+      - name: Deploy API to Cloud Run (staging)
+        run: |
+          gcloud run deploy chinghis-api-staging \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/chinghis-api:${{ github.sha }} \
+            --platform managed \
+            --region ${{ secrets.GCP_REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars APP_ENV=staging \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest,GCS_BUCKET=GCS_BUCKET:latest \
+            --quiet

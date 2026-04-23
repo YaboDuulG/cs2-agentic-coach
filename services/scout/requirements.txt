@@ -1,0 +1,5 @@
+awpy==2.0.0
+demoparser2
+google-cloud-storage==2.18.2
+psycopg2-binary==2.9.9
+python-dotenv==1.0.1
