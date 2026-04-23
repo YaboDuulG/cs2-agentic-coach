@@ -1,5 +1,5 @@
 # 🏹 DemoSage — Technical Specification & Progress Tracker
-> **Version:** 0.2.0-spec | **Status:** Pre-Development | **Last Updated:** 2026-04-17
+> **Version:** 0.3.0-spec | **Status:** Phase 0 Complete / Phase 1 In Progress | **Last Updated:** 2026-04-23
 
 ---
 
@@ -506,30 +506,30 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 ## 10. Progress Tracker
 
 ### Phase 0: Foundation & Scaffolding
-- [ ] Initialize monorepo structure (`/agents`, `/services`, `/plugins`, `/frontend`, `/infra`)
+- [x] Initialize monorepo structure (`/agents`, `/services`, `/plugins`, `/frontend`, `/infra`)
 - [ ] Create GCP project + enable billing
 - [ ] Enable APIs: Cloud SQL, Cloud Storage, Cloud Tasks, Cloud Run, Vertex AI
 - [ ] Provision Cloud SQL instance (PostgreSQL 15, Enterprise shared-core) + enable pgvector extension
 - [ ] Create GCS bucket (`cs2-demosage`) for demo and audio file storage
 - [ ] Set up Cloud Tasks queue for async job dispatch
 - [ ] Configure local `.env` with GCP credentials (Application Default Credentials)
-- [ ] Set up Docker Compose for **local dev only** (mirrors Cloud SQL schema locally with PostgreSQL)
+- [x] Set up Docker Compose for **local dev only** (mirrors Cloud SQL schema locally with PostgreSQL)
 - [ ] Set up LangSmith project + connect API key
-- [ ] Scaffold FastAPI app with health check endpoint → deploy to Cloud Run
-- [ ] Create base GitHub Actions (CI lint/test + Cloud Run deploy on push to `main`)
+- [x] Scaffold FastAPI app with health check endpoint → deploy to Cloud Run
+- [x] Create base GitHub Actions (CI lint/test + Cloud Run deploy on push to `staging`)
 
 ### Phase 1: The Scout — Demo Pipeline
-- [ ] Set up awpy + demoparser2 Docker image
-- [ ] Implement kill event extraction
+- [x] Set up awpy + demoparser2 Docker image
+- [x] Implement kill event extraction
 - [ ] Implement player coordinate streaming
-- [ ] Implement utility event extraction (grenade throws, lands, type)
-- [ ] Implement round metadata extraction (economy, outcome)
-- [ ] Implement "First Contact" event detection
+- [x] Implement utility event extraction (grenade throws, lands, type)
+- [x] Implement round metadata extraction (economy, outcome)
+- [x] Implement "First Contact" event detection
 - [ ] Validate output against FACEIT and Matchmaking demos
 - [ ] Expose Scout as internal service with queue interface
 
 ### Phase 2: The Great Khan — Orchestrator
-- [ ] Define global LangGraph state schema
+- [x] Define global LangGraph state schema
 - [ ] Implement supervisor node with tool-calling handoffs
 - [ ] Implement router logic (stat query vs. tactical vs. server request)
 - [ ] Integrate PostgresSaver for persistent state
@@ -625,6 +625,11 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 | **HLTV Scraping** | Apify actor | Managed service; no proxy/maintenance overhead |
 | **Audio Recording Workflow** | Manual file upload | Record externally (Craig, OBS, etc.), upload post-match |
 | **Player Report Visibility** | Player-only (private) | Coach gets a separate aggregate report of all players |
+| **Project Name** | DemoSage | Renamed from Chinghis Scan on 2026-04-23 |
+| **CI Requirements Split** | `requirements-ci.txt` (minimal) + `requirements.txt` (full) | Python 3.14 locally can't build native wheels (pydantic-core, numpy); CI uses 3.12 |
+| **GCP SDK Imports** | Lazy imports (inside functions) | Allows modules to be imported in CI without GCP packages installed |
+| **CI/CD Flow** | `feature branch` → `main` (PR) → `staging` branch → prod | Strict staging gate before any production deploy |
+| **Commit Convention** | Conventional Commits with full body descriptions | Each commit references the spec phase it belongs to |
 
 ---
 
