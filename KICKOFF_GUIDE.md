@@ -23,12 +23,12 @@ Install these before starting:
 
 ### 1.1 Create the project
 ```bash
-gcloud projects create chinghis-scan --name="Chinghis Scan"
-gcloud config set project chinghis-scan
+gcloud projects create demosage --name="DemoSage"
+gcloud config set project demosage
 ```
 
 ### 1.2 Link billing
-Go to [console.cloud.google.com/billing](https://console.cloud.google.com/billing) and link a billing account to `chinghis-scan`.
+Go to [console.cloud.google.com/billing](https://console.cloud.google.com/billing) and link a billing account to `demosage`.
 > New accounts get $300 free credits — this entire Phase 0+1 costs nothing under that.
 
 ### 1.3 Enable required APIs
@@ -43,21 +43,21 @@ gcloud services enable \
 
 ### 1.4 Create a service account for local dev
 ```bash
-gcloud iam service-accounts create chinghis-dev \
-  --display-name="Chinghis Scan Dev"
+gcloud iam service-accounts create demosage-dev \
+  --display-name="DemoSage Dev"
 
-gcloud projects add-iam-policy-binding chinghis-scan \
-  --member="serviceAccount:chinghis-dev@chinghis-scan.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding demosage \
+  --member="serviceAccount:demosage-dev@demosage.iam.gserviceaccount.com" \
   --role="roles/editor"
 
 gcloud iam service-accounts keys create ./infra/gcp-key.json \
-  --iam-account=chinghis-dev@chinghis-scan.iam.gserviceaccount.com
+  --iam-account=demosage-dev@demosage.iam.gserviceaccount.com
 ```
 
 Add to your `.env`:
 ```env
 GOOGLE_APPLICATION_CREDENTIALS=./infra/gcp-key.json
-GCP_PROJECT_ID=chinghis-scan
+GCP_PROJECT_ID=demosage
 GCP_REGION=us-central1
 ```
 
@@ -69,7 +69,7 @@ GCP_REGION=us-central1
 
 ### 2.1 Create the instance
 ```bash
-gcloud sql instances create chinghis-db \
+gcloud sql instances create demosage-db \
   --database-version=POSTGRES_15 \
   --edition=ENTERPRISE \
   --tier=db-f1-micro \
@@ -81,17 +81,17 @@ gcloud sql instances create chinghis-db \
 
 ### 2.2 Create database and user
 ```bash
-gcloud sql databases create chinghis --instance=chinghis-db
+gcloud sql databases create demosage --instance=demosage-db
 
-gcloud sql users create chinghis_user \
-  --instance=chinghis-db \
+gcloud sql users create demosage_user \
+  --instance=demosage-db \
   --password=YOUR_SECURE_PASSWORD
 ```
 
 ### 2.3 Enable pgvector extension
 Connect to the instance:
 ```bash
-gcloud sql connect chinghis-db --user=chinghis_user --database=chinghis
+gcloud sql connect demosage-db --user=demosage_user --database=demosage
 ```
 
 Then run:
@@ -101,8 +101,8 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 ### 2.4 Add connection string to `.env`
 ```env
-DATABASE_URL=postgresql://chinghis_user:YOUR_PASSWORD@/chinghis?host=/cloudsql/chinghis-scan:us-central1:chinghis-db
-DATABASE_URL_LOCAL=postgresql://chinghis_user:YOUR_PASSWORD@localhost:5432/chinghis
+DATABASE_URL=postgresql://demosage_user:YOUR_PASSWORD@/demosage?host=/cloudsql/demosage:us-central1:demosage-db
+DATABASE_URL_LOCAL=postgresql://demosage_user:YOUR_PASSWORD@localhost:5432/demosage
 ```
 
 ---
@@ -110,14 +110,14 @@ DATABASE_URL_LOCAL=postgresql://chinghis_user:YOUR_PASSWORD@localhost:5432/ching
 ## Step 3 — GCS Bucket for File Storage (5 min)
 
 ```bash
-gcloud storage buckets create gs://cs2-chinghis-scan \
+gcloud storage buckets create gs://cs2-demosage \
   --location=US-CENTRAL1 \
   --uniform-bucket-level-access
 ```
 
 Add to `.env`:
 ```env
-GCS_BUCKET=cs2-chinghis-scan
+GCS_BUCKET=cs2-demosage
 ```
 
 ---
@@ -299,7 +299,7 @@ if __name__ == "__main__":
 ### 5.4 Build the Scout image
 ```bash
 cd services/scout
-docker build -t chinghis-scout .
+docker build -t demosage-scout .
 ```
 
 ---
@@ -313,8 +313,8 @@ docker run --rm \
   -v /path/to/your/match.dem:/demo/match.dem \
   -v $(pwd)/infra/gcp-key.json:/app/gcp-key.json \
   -e GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-key.json \
-  -e GCS_BUCKET=cs2-chinghis-scan \
-  chinghis-scout \
+  -e GCS_BUCKET=cs2-demosage \
+  demosage-scout \
   python parse_demo.py --demo /demo/match.dem --match-id match-001 --upload
 ```
 
@@ -324,8 +324,8 @@ docker run --rm `
   -v C:\path\to\match.dem:/demo/match.dem `
   -v ${PWD}\infra\gcp-key.json:/app/gcp-key.json `
   -e GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-key.json `
-  -e GCS_BUCKET=cs2-chinghis-scan `
-  chinghis-scout `
+  -e GCS_BUCKET=cs2-demosage `
+  demosage-scout `
   python parse_demo.py --demo /demo/match.dem --match-id match-001 --upload
 ```
 
@@ -336,7 +336,7 @@ Saved locally: /tmp/match-001_scout.json
   Rounds: 24
   Kills:  312
   Grenades: 187
-Uploaded to gs://cs2-chinghis-scan/parsed/match-001/scout_output.json
+Uploaded to gs://cs2-demosage/parsed/match-001/scout_output.json
 ```
 
 ---
@@ -345,12 +345,12 @@ Uploaded to gs://cs2-chinghis-scan/parsed/match-001/scout_output.json
 
 ### Check GCS
 ```bash
-gcloud storage ls gs://cs2-chinghis-scan/parsed/match-001/
-gcloud storage cat gs://cs2-chinghis-scan/parsed/match-001/scout_output.json | head -50
+gcloud storage ls gs://cs2-demosage/parsed/match-001/
+gcloud storage cat gs://cs2-demosage/parsed/match-001/scout_output.json | head -50
 ```
 
 ### Or view in browser
-Go to [console.cloud.google.com/storage](https://console.cloud.google.com/storage) → `cs2-chinghis-scan` bucket → `parsed/match-001/`
+Go to [console.cloud.google.com/storage](https://console.cloud.google.com/storage) → `cs2-demosage` bucket → `parsed/match-001/`
 
 ---
 

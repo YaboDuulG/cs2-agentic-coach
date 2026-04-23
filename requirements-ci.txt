@@ -1,6 +1,6 @@
 # ============================================================
-# DemoSage — Root Requirements
-# API + Agent layer dependencies
+# CI requirements — lightweight, no native binary deps
+# Used by GitHub Actions: lint + type-check + unit tests only
 # ============================================================
 
 # --- Web Framework ---
@@ -8,13 +8,13 @@ fastapi==0.115.0
 uvicorn[standard]==0.30.6
 python-multipart==0.0.9
 
-# --- LangGraph / LangChain ---
+# --- LangGraph / LangChain (pure Python wheels) ---
 langgraph==0.2.50
 langchain==0.3.7
 langchain-google-vertexai==2.0.5
 langchain-community==0.3.7
 
-# --- Google Cloud ---
+# --- Google Cloud (auth + clients) ---
 google-cloud-storage==2.18.2
 google-cloud-tasks==2.16.3
 google-cloud-aiplatform==1.70.0
@@ -24,13 +24,6 @@ google-auth==2.35.0
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.36
 pgvector==0.3.5
-langgraph-checkpoint-postgres==2.0.6
-
-# --- Task Processing ---
-celery==5.4.0       # Kept as fallback; Cloud Tasks is primary
-
-# --- Audio Processing ---
-pyannote.audio==3.3.2
 
 # --- Utilities ---
 python-dotenv==1.0.1
@@ -41,3 +34,8 @@ tenacity==9.0.0
 
 # --- Observability ---
 langsmith==0.1.143
+
+# NOTE: The following are excluded from CI to avoid native binary build failures.
+# Install manually in full dev / production environments:
+#   pip install pyannote.audio==3.3.2
+#   pip install langgraph-checkpoint-postgres==2.0.6

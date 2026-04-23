@@ -140,7 +140,7 @@ def upload_to_gcs(data: dict, match_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="Chinghis Scout — CS2 demo parser")
+    ap = argparse.ArgumentParser(description="DemoSage Scout — CS2 demo parser")
     ap.add_argument("--demo",     required=True,  help="Absolute path to .dem file")
     ap.add_argument("--match-id", required=True,  help="Unique match identifier (UUID or slug)")
     ap.add_argument("--upload",   action="store_true", help="Upload result to GCS after parsing")

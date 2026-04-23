@@ -1,4 +1,4 @@
-# 🏹 Chinghis Scan — Technical Specification & Progress Tracker
+# 🏹 DemoSage — Technical Specification & Progress Tracker
 > **Version:** 0.2.0-spec | **Status:** Pre-Development | **Last Updated:** 2026-04-17
 
 ---
@@ -21,7 +21,7 @@
 
 ## 1. Project Vision
 
-**Chinghis Scan** is an AI-powered CS2 coaching ecosystem that ingests match demos, team communications, and live competitive intelligence to deliver actionable, context-aware coaching feedback — covering both individual and team-level performance.
+**DemoSage** is an AI-powered CS2 coaching ecosystem that ingests match demos, team communications, and live competitive intelligence to deliver actionable, context-aware coaching feedback — covering both individual and team-level performance.
 
 ### Core Pillars
 
@@ -399,7 +399,7 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 !help                   - Show all commands
 ```
 
-### 7.4 Chatbot Commands (via Chinghis Scan UI)
+### 7.4 Chatbot Commands (via DemoSage UI)
 
 ```
 "Spin up a prefire server on Mirage"
@@ -510,7 +510,7 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - [ ] Create GCP project + enable billing
 - [ ] Enable APIs: Cloud SQL, Cloud Storage, Cloud Tasks, Cloud Run, Vertex AI
 - [ ] Provision Cloud SQL instance (PostgreSQL 15, Enterprise shared-core) + enable pgvector extension
-- [ ] Create GCS bucket (`cs2-chinghis-scan`) for demo and audio file storage
+- [ ] Create GCS bucket (`cs2-demosage`) for demo and audio file storage
 - [ ] Set up Cloud Tasks queue for async job dispatch
 - [ ] Configure local `.env` with GCP credentials (Application Default Credentials)
 - [ ] Set up Docker Compose for **local dev only** (mirrors Cloud SQL schema locally with PostgreSQL)
@@ -584,7 +584,7 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - [ ] Integrate CS2PracticeMod plugin
 - [ ] Build Warlord agent (server provisioning via FastAPI)
 - [ ] Implement all 7 practice modes
-- [ ] Implement chat command parser in Chinghis Scan UI
+- [ ] Implement chat command parser in DemoSage UI
 - [ ] Build utility auto-updater pipeline
 - [ ] Set up CS2 update detection GitHub Action
 
