@@ -517,16 +517,21 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - [ ] Set up LangSmith project + connect API key
 - [x] Scaffold FastAPI app with health check endpoint → deploy to Cloud Run
 - [x] Create base GitHub Actions (CI lint/test + Cloud Run deploy on push to `staging`)
+- [x] Define full SQLAlchemy ORM schema (`db/models.py`) — Match, Kill, Grenade, Round, FirstContact, PlayerTrajectory
+- [x] Create one-shot GCP provisioning script (`scripts/setup_gcp.py`)
+- [x] Create local end-to-end pipeline runner (`scripts/run_local.py`)
 
 ### Phase 1: The Scout — Demo Pipeline
-- [x] Set up awpy + demoparser2 Docker image
+- [x] Set up demoparser2 Docker image (switched from awpy — Python 3.14 compatible, faster Rust parser)
 - [x] Implement kill event extraction
-- [ ] Implement player coordinate streaming
+- [x] Implement player coordinate trajectory streaming (sampled per N ticks)
 - [x] Implement utility event extraction (grenade throws, lands, type)
 - [x] Implement round metadata extraction (economy, outcome)
 - [x] Implement "First Contact" event detection
-- [ ] Validate output against FACEIT and Matchmaking demos
-- [ ] Expose Scout as internal service with queue interface
+- [x] Expose Scout as internal HTTP service with Cloud Tasks queue interface (`services/scout/service.py`)
+- [x] Validate output against local demo — de_nuke 64tick: 26 rounds, 185 kills, 232 grenades ✓
+- [ ] Validate output against real CS2 FACEIT / Matchmaking demo
+- [ ] Validate output against FACEIT and Matchmaking demos (cloud — pending GCP)
 
 ### Phase 2: The Great Khan — Orchestrator
 - [x] Define global LangGraph state schema
@@ -626,10 +631,15 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 | **Audio Recording Workflow** | Manual file upload | Record externally (Craig, OBS, etc.), upload post-match |
 | **Player Report Visibility** | Player-only (private) | Coach gets a separate aggregate report of all players |
 | **Project Name** | DemoSage | Renamed from Chinghis Scan on 2026-04-23 |
-| **CI Requirements Split** | `requirements-ci.txt` (minimal) + `requirements.txt` (full) | Python 3.14 locally can't build native wheels (pydantic-core, numpy); CI uses 3.12 |
+| **CI Requirements Split** | `requirements-ci.txt` (minimal) + `requirements.txt` (full) | Python 3.14 locally can't build native wheels; CI uses 3.12 |
 | **GCP SDK Imports** | Lazy imports (inside functions) | Allows modules to be imported in CI without GCP packages installed |
 | **CI/CD Flow** | `feature branch` → `main` (PR) → `staging` branch → prod | Strict staging gate before any production deploy |
 | **Commit Convention** | Conventional Commits with full body descriptions | Each commit references the spec phase it belongs to |
+| **Import Sort Rule** | `force-sort-within-sections = true` in pyproject.toml | All imports sort purely alphabetically by module name — eliminates `import X` vs `from X import Y` ambiguity |
+| **Demo Parser** | `demoparser2` (Rust, direct) replacing `awpy` | `awpy 1.3.1` fails on Python 3.14 (matplotlib→numpy build error); demoparser2 has native 3.14 wheel and is what awpy wraps internally |
+| **DB Schema** | SQLAlchemy 2.0 ORM with SQLite fallback for CI | `DATABASE_URL_TEST=sqlite:///:memory:` allows full model tests in CI without PostgreSQL or psycopg2 |
+| **Trajectory Sampling** | Every 8 ticks by default (`TRAJECTORY_SAMPLE_TICKS` env var) | ~8 positions/sec at 64tick — good heatmap resolution without excessive storage |
+| **GCP Provisioning** | `scripts/setup_gcp.py` one-shot script | Runs all gcloud commands in sequence; billing link step is interactive (cannot be automated) |
 
 ---
 
