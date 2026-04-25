@@ -43,9 +43,14 @@ KEY_PATH = Path("infra/gcp-key.json")
 
 
 def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
-    """Run a shell command, printing it first."""
-    print(f"\n$ {' '.join(cmd)}")
-    return subprocess.run(cmd, check=check, capture_output=False)
+    """Run a shell command, printing it first.
+
+    Uses shell=True on all platforms so Windows can resolve gcloud.cmd,
+    kubectl.cmd and other .cmd wrappers that subprocess can't find directly.
+    """
+    cmd_str = " ".join(cmd)
+    print(f"\n$ {cmd_str}")
+    return subprocess.run(cmd_str, check=check, capture_output=False, shell=True)
 
 
 def main() -> None:
