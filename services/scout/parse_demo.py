@@ -274,8 +274,8 @@ def upload_to_gcs(data: dict, match_id: str) -> str:
 
 def write_to_db(data: dict, match_id: str) -> None:
     """Write parsed Scout output to PostgreSQL (or SQLite in local/test mode)."""
-    import sys
     from pathlib import Path as _Path
+    import sys
 
     # Ensure repo root on path for db imports when called as module
     _repo = _Path(__file__).parent.parent.parent.resolve()

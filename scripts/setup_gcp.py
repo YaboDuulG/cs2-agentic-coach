@@ -59,7 +59,7 @@ def main() -> None:
 
     # --- 1. Create project ---
     print("\n[1/8] Creating GCP project...")
-    run(["gcloud", "projects", "create", PROJECT_ID, f"--name=DemoSage"], check=False)
+    run(["gcloud", "projects", "create", PROJECT_ID, "--name=DemoSage"], check=False)
     run(["gcloud", "config", "set", "project", PROJECT_ID])
 
     # --- 2. Billing reminder ---
@@ -82,7 +82,7 @@ def main() -> None:
     # --- 4. Service account ---
     print("\n[4/8] Creating service account...")
     run(["gcloud", "iam", "service-accounts", "create", SA_NAME,
-         f"--display-name=DemoSage Dev"], check=False)
+         "--display-name=DemoSage Dev"], check=False)
     run([
         "gcloud", "projects", "add-iam-policy-binding", PROJECT_ID,
         f"--member=serviceAccount:{SA_NAME}@{PROJECT_ID}.iam.gserviceaccount.com",
@@ -138,14 +138,14 @@ def main() -> None:
 
     print("\n" + "=" * 60)
     print("✅ GCP setup complete!")
-    print(f"\nNext steps:")
-    print(f"  1. Copy .env.example to .env and fill in:")
+    print("\nNext steps:")
+    print("  1. Copy .env.example to .env and fill in:")
     print(f"     GCP_PROJECT_ID={PROJECT_ID}")
     print(f"     GCP_REGION={REGION}")
     print(f"     GCS_BUCKET={GCS_BUCKET}")
     print(f"     DATABASE_URL=postgresql://{DB_USER}:<password>@/demosage?host=/cloudsql/{PROJECT_ID}:{REGION}:{DB_INSTANCE}")
-    print(f"  2. Enable pgvector (see step 6 above)")
-    print(f"  3. Run: python scripts/run_local.py --help")
+    print("  2. Enable pgvector (see step 6 above)")
+    print("  3. Run: python scripts/run_local.py --help")
     print("=" * 60)
 
 
