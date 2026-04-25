@@ -68,8 +68,8 @@ def main() -> None:
     run(["gcloud", "config", "set", "project", PROJECT_ID])
 
     # --- 2. Billing reminder ---
-    print("\n[2/8] ⚠️  Billing must be linked manually:")
-    print(f"      → https://console.cloud.google.com/billing/linkedaccount?project={PROJECT_ID}")
+    print("\n[2/8] ** Billing must be linked manually:")
+    print(f"      -> https://console.cloud.google.com/billing/linkedaccount?project={PROJECT_ID}")
     input("      Press Enter once billing is linked...")
 
     # --- 3. Enable APIs ---
@@ -98,19 +98,18 @@ def main() -> None:
         "gcloud", "iam", "service-accounts", "keys", "create", str(KEY_PATH),
         f"--iam-account={SA_NAME}@{PROJECT_ID}.iam.gserviceaccount.com",
     ])
-    print(f"\n      ✅ Key written to {KEY_PATH}")
-    print("      ⚠️  Make sure infra/gcp-key.json is in .gitignore (it is by default)")
+    print("\n      [OK] Key written to " + str(KEY_PATH))
+    print("      ** Make sure infra/gcp-key.json is in .gitignore (it is by default)")
 
     # --- 5. Cloud SQL ---
     print("\n[5/8] Provisioning Cloud SQL (this takes ~5 minutes)...")
     run([
         "gcloud", "sql", "instances", "create", DB_INSTANCE,
         "--database-version=POSTGRES_15",
-        "--edition=ENTERPRISE",
-        "--tier=db-f1-micro",
+        "--tier=db-f1-micro",           # shared-core — cheapest tier (~$7/mo)
         f"--region={REGION}",
-        "--storage-type=HDD",
-        "--storage-size=10GB",
+        "--storage-size=10",            # 10 GB HDD minimum
+        f"--project={PROJECT_ID}",
     ])
     run(["gcloud", "sql", "databases", "create", DB_NAME, f"--instance={DB_INSTANCE}"])
     run([
@@ -142,7 +141,7 @@ def main() -> None:
     ], check=False)
 
     print("\n" + "=" * 60)
-    print("✅ GCP setup complete!")
+    print("[OK] GCP setup complete!")
     print("\nNext steps:")
     print("  1. Copy .env.example to .env and fill in:")
     print(f"     GCP_PROJECT_ID={PROJECT_ID}")
