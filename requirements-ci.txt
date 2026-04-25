@@ -1,15 +1,18 @@
 # ============================================================
-# CI requirements — pure Python, no native C extensions
+# CI requirements — pure Python only, no native C extensions
 # Used by GitHub Actions: lint + type-check + unit tests only
 #
 # Deliberately minimal: only what the test suite actually imports.
 # Full stack (langchain, GCP, pyannote, etc.) → requirements.txt
 # ============================================================
 
-# --- Web Framework (FastAPI test client needs these) ---
+# --- Web Framework ---
 fastapi==0.115.0
 python-multipart==0.0.9
 httpx==0.27.2
+
+# --- Database (pure Python ORM — SQLite fallback for CI) ---
+sqlalchemy==2.0.36
 
 # --- Utilities ---
 python-dotenv==1.0.1

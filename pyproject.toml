@@ -8,6 +8,10 @@ ignore = [
     "E501",  # line too long — handled by formatter
 ]
 
+[tool.ruff.lint.isort]
+force-sort-within-sections = true  # sort import X and from X import Y together by module name
+
+
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true

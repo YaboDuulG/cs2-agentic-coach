@@ -1,0 +1,220 @@
+"""
+DemoSage — SQLAlchemy ORM Models
+==================================
+Defines the full database schema for parsed CS2 match data.
+
+Tables:
+    matches          - Match metadata and processing status
+    kills            - Per-kill events with positions
+    grenades         - Utility/grenade events
+    rounds           - Round economy and outcome
+    first_contacts   - First engagement per round (FCR data for Tactician)
+    trajectories     - Player movement paths per round (heatmap data)
+
+Notes:
+    - All tables use match_id (UUID string) as the foreign key to matches
+    - Coordinate columns use Float; JSON columns use Text in SQLite, JSON in Postgres
+    - pgvector columns (for RAG embeddings) will be added in Phase 3
+"""
+
+from datetime import datetime
+import enum
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+class MatchStatus(str, enum.Enum):
+    PENDING = "pending"         # Uploaded, not yet parsed
+    PARSING = "parsing"         # Scout is actively parsing
+    COMPLETE = "complete"       # Parsing done, data written
+    FAILED = "failed"           # Parse failed — see error_message
+
+
+class WinnerSide(str, enum.Enum):
+    CT = "CT"
+    T = "T"
+    DRAW = "DRAW"
+
+
+# ---------------------------------------------------------------------------
+# Match — top-level record
+# ---------------------------------------------------------------------------
+
+class Match(Base):
+    __tablename__ = "matches"
+
+    match_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    map_name: Mapped[str] = mapped_column(String(64), nullable=False, default="unknown")
+    tickrate: Mapped[int] = mapped_column(Integer, nullable=False, default=64)
+    total_rounds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(
+        Enum(MatchStatus), nullable=False, default=MatchStatus.PENDING
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gcs_demo_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gcs_audio_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gcs_parsed_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    # Relationships
+    kills: Mapped[list["Kill"]] = relationship(
+        "Kill", back_populates="match", cascade="all, delete-orphan"
+    )
+    grenades: Mapped[list["Grenade"]] = relationship(
+        "Grenade", back_populates="match", cascade="all, delete-orphan"
+    )
+    rounds: Mapped[list["Round"]] = relationship(
+        "Round", back_populates="match", cascade="all, delete-orphan"
+    )
+    first_contacts: Mapped[list["FirstContact"]] = relationship(
+        "FirstContact", back_populates="match", cascade="all, delete-orphan"
+    )
+    trajectories: Mapped[list["PlayerTrajectory"]] = relationship(
+        "PlayerTrajectory", back_populates="match", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<Match {self.match_id} map={self.map_name} status={self.status}>"
+
+
+# ---------------------------------------------------------------------------
+# Kill — individual kill events
+# ---------------------------------------------------------------------------
+
+class Kill(Base):
+    __tablename__ = "kills"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    round_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    tick: Mapped[int] = mapped_column(Integer, nullable=False)
+    attacker: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    attacker_team: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    victim: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    victim_team: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    weapon: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    headshot: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    attacker_x: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    attacker_y: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    attacker_z: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    victim_x: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    victim_y: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    victim_z: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+    match: Mapped["Match"] = relationship("Match", back_populates="kills")
+
+
+# ---------------------------------------------------------------------------
+# Grenade — utility events
+# ---------------------------------------------------------------------------
+
+class Grenade(Base):
+    __tablename__ = "grenades"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    round_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    tick: Mapped[int] = mapped_column(Integer, nullable=False)
+    thrower: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    team: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    grenade_type: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    throw_x: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    throw_y: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+    match: Mapped["Match"] = relationship("Match", back_populates="grenades")
+
+
+# ---------------------------------------------------------------------------
+# Round — round-level economy + outcome
+# ---------------------------------------------------------------------------
+
+class Round(Base):
+    __tablename__ = "rounds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    round_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    winner_side: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    reason: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    ct_eq_val: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    t_eq_val: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ct_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    t_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    match: Mapped["Match"] = relationship("Match", back_populates="rounds")
+
+
+# ---------------------------------------------------------------------------
+# FirstContact — first kill per round (seeds FCR analysis for Tactician)
+# ---------------------------------------------------------------------------
+
+class FirstContact(Base):
+    __tablename__ = "first_contacts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    round_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    tick: Mapped[int] = mapped_column(Integer, nullable=False)
+    attacker: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    attacker_team: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    victim: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    weapon: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    headshot: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    attacker_x: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    attacker_y: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    victim_x: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    victim_y: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+    match: Mapped["Match"] = relationship("Match", back_populates="first_contacts")
+
+
+# ---------------------------------------------------------------------------
+# PlayerTrajectory — sampled movement path per player per round
+# ---------------------------------------------------------------------------
+
+class PlayerTrajectory(Base):
+    __tablename__ = "trajectories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    round_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    player: Mapped[str] = mapped_column(String(64), nullable=False)
+    team: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    # JSON-encoded list of {"tick": int, "x": float, "y": float, "z": float}
+    # Sampled at every TRAJECTORY_SAMPLE_TICKS ticks to keep storage manageable
+    positions_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+
+    match: Mapped["Match"] = relationship("Match", back_populates="trajectories")

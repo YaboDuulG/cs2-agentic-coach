@@ -30,7 +30,7 @@ jobs:
         run: ruff check .
 
       - name: Type check (mypy)
-        run: mypy agents/ api/ --ignore-missing-imports
+        run: mypy agents/ api/ db/ --ignore-missing-imports
 
       - name: Run unit tests
         run: pytest tests/ -v --tb=short

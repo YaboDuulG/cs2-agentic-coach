@@ -20,6 +20,7 @@ MAX_AUDIO_SIZE_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 def _get_gcs_client():
     """Lazy import so GCP SDK is not required in CI/test environments."""
     from google.cloud import storage  # noqa: PLC0415
+
     return storage.Client()
 
 
@@ -38,6 +39,11 @@ async def upload_demo(file: UploadFile = File(...)):
     """
     Accept a .dem file, upload to GCS, and queue a Scout parse job.
     Returns a match_id for tracking.
+
+    In LOCAL_MODE (LOCAL_MODE=true env var):
+        - Skips GCS upload
+        - Skips Cloud Tasks enqueue
+        - Returns match_id for use with scripts/run_local.py
     """
     suffix = os.path.splitext(file.filename or "")[-1].lower()
     if suffix not in ALLOWED_DEMO_TYPES:
@@ -45,23 +51,38 @@ async def upload_demo(file: UploadFile = File(...)):
 
     match_id = str(uuid.uuid4())
     file_bytes = await file.read()
-    gcs_path = f"demos/raw/{match_id}/{file.filename}"
+    local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
 
-    try:
-        gcs_uri = _upload_to_gcs(file_bytes, gcs_path, "application/octet-stream")
-        logger.info(f"Demo uploaded: {gcs_uri}")
-    except Exception as e:
-        logger.error(f"GCS upload failed: {e}")
-        raise HTTPException(status_code=500, detail="File upload failed.")
+    gcs_uri = None
 
-    # TODO: Enqueue Scout parse job via Cloud Tasks
-    # queue_scout_job(match_id=match_id, gcs_uri=gcs_uri)
+    if not local_mode:
+        gcs_path = f"demos/raw/{match_id}/{file.filename}"
+        try:
+            gcs_uri = _upload_to_gcs(file_bytes, gcs_path, "application/octet-stream")
+            logger.info(f"Demo uploaded: {gcs_uri}")
+        except Exception as e:
+            logger.error(f"GCS upload failed: {e}")
+            raise HTTPException(status_code=500, detail="File upload failed.")
+
+        # Enqueue Scout parse job via Cloud Tasks
+        try:
+            from api.queue import enqueue_scout_job
+
+            enqueue_scout_job(match_id, gcs_uri)
+        except Exception as e:
+            logger.error(f"Cloud Tasks enqueue failed: {e}")
+            # Don't fail the upload — log and continue. Operator can re-queue.
 
     return {
         "match_id": match_id,
-        "status": "queued",
+        "status": "queued" if not local_mode else "uploaded_local",
         "gcs_uri": gcs_uri,
-        "message": "Demo uploaded. Scout parse job queued.",
+        "local_mode": local_mode,
+        "message": (
+            "Demo uploaded. Scout parse job queued."
+            if not local_mode
+            else f"LOCAL_MODE: run `python scripts/run_local.py --demo <path> --match-id {match_id}`"
+        ),
     }
 
 
@@ -89,21 +110,26 @@ async def upload_audio(file: UploadFile = File(...), match_id: str = ""):
     if len(file_bytes) > MAX_AUDIO_SIZE_BYTES:
         raise HTTPException(status_code=413, detail="File exceeds 2 GB limit.")
 
-    gcs_path = f"audio/raw/{match_id}/{file.filename}"
+    local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
+    gcs_uri = None
 
-    try:
-        gcs_uri = _upload_to_gcs(file_bytes, gcs_path, "audio/mpeg")
-        logger.info(f"Audio uploaded: {gcs_uri}")
-    except Exception as e:
-        logger.error(f"GCS upload failed: {e}")
-        raise HTTPException(status_code=500, detail="File upload failed.")
+    if not local_mode:
+        gcs_path = f"audio/raw/{match_id}/{file.filename}"
+        try:
+            gcs_uri = _upload_to_gcs(file_bytes, gcs_path, "audio/mpeg")
+            logger.info(f"Audio uploaded: {gcs_uri}")
+        except Exception as e:
+            logger.error(f"GCS upload failed: {e}")
+            raise HTTPException(status_code=500, detail="File upload failed.")
 
-    # TODO: Enqueue Comms Analyst job via Cloud Tasks
-    # queue_comms_job(match_id=match_id, gcs_uri=gcs_uri)
+        # TODO (Phase 5): Enqueue Comms Analyst job via Cloud Tasks
+        # from api.queue import enqueue_comms_job
+        # enqueue_comms_job(match_id, gcs_uri)
 
     return {
         "match_id": match_id,
-        "status": "queued",
+        "status": "queued" if not local_mode else "uploaded_local",
         "gcs_uri": gcs_uri,
+        "local_mode": local_mode,
         "message": "Audio uploaded. Comms Analyst job queued.",
     }
