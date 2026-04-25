@@ -1,20 +1,20 @@
 """
 The Scout — CS2 Demo Parser
 ===========================
-Parses a CS2 .dem file using awpy + demoparser2 and outputs structured JSON.
+Parses a CS2 .dem file using demoparser2 (pure Rust, Python 3.12+ compatible).
 No LLM is used here — this is deterministic data extraction.
 
 Outputs:
     - metadata       : map name, tickrate, total rounds
     - kills          : per-kill events with positions, weapon, headshot flag
-    - grenades       : throw/land positions, grenade type
+    - grenades       : throw positions, grenade type
     - rounds         : economy, winner side, end reason
     - first_contacts : first kill event per round (FCR seed data for Tactician)
     - trajectories   : sampled player movement per round (heatmap-ready)
 
 Usage:
     python parse_demo.py --demo /path/to/match.dem --match-id match-001
-    python parse_demo.py --demo /path/to/match.dem --match-id match-001 --upload
+    python parse_demo.py --demo /path/to/match.dem --match-id match-001 --write-db
 """
 
 import argparse
@@ -24,7 +24,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from awpy import Demo
+from demoparser2 import DemoParser
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -33,8 +33,30 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger("scout")
 
 # Sample every N ticks for trajectory data to keep JSON manageable.
-# At 64 tick, sampling every 8 ticks ≈ 8 positions/second — good heatmap resolution.
+# At 64 tick, sampling every 8 ticks ≈ 8 positions/second
 TRAJECTORY_SAMPLE_TICKS = int(os.getenv("TRAJECTORY_SAMPLE_TICKS", "8"))
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    try:
+        return float(val) if val is not None else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_int(val: Any, default: int = 0) -> int:
+    try:
+        return int(val) if val is not None else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_str(val: Any, default: str = "") -> str:
+    return str(val) if val is not None else default
 
 
 # ---------------------------------------------------------------------------
@@ -42,15 +64,22 @@ TRAJECTORY_SAMPLE_TICKS = int(os.getenv("TRAJECTORY_SAMPLE_TICKS", "8"))
 # ---------------------------------------------------------------------------
 
 def parse_demo(dem_path: str) -> dict[str, Any]:
-    """Parse a CS2 demo file and return structured event data."""
+    """Parse a CS2 demo file using demoparser2 and return structured event data."""
     logger.info(f"Parsing demo: {dem_path}")
-    demo = Demo(dem_path)
+    parser = DemoParser(dem_path)
+
+    # --- Header / metadata ---
+    header = parser.parse_header()
+    map_name = _safe_str(header.get("map_name", "unknown"))
+    playback_ticks = _safe_int(header.get("playback_ticks", 0))
+    # CS2 runs at 64 tick for matchmaking, 128 tick for FACEIT
+    tickrate = 128 if playback_ticks > 100000 else 64
 
     output: dict[str, Any] = {
         "metadata": {
-            "map": demo.header.get("map_name", "unknown"),
-            "tickrate": demo.header.get("tickrate", 64),
-            "total_rounds": len(demo.rounds) if demo.rounds is not None else 0,
+            "map": map_name,
+            "tickrate": tickrate,
+            "total_rounds": 0,
         },
         "kills": [],
         "grenades": [],
@@ -59,27 +88,36 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         "trajectories": [],
     }
 
-    # --- Kill events ---
-    if demo.kills is not None:
-        for _, row in demo.kills.iterrows():
-            output["kills"].append({
-                "round":         int(row.get("round", 0)),
-                "tick":          int(row.get("tick", 0)),
-                "attacker":      row.get("attackerName", ""),
-                "attacker_team": row.get("attackerTeam", ""),
-                "victim":        row.get("victimName", ""),
-                "victim_team":   row.get("victimTeam", ""),
-                "weapon":        row.get("weapon", ""),
-                "headshot":      bool(row.get("headshot", False)),
-                "attacker_x":    float(row.get("attackerX", 0)),
-                "attacker_y":    float(row.get("attackerY", 0)),
-                "attacker_z":    float(row.get("attackerZ", 0)),
-                "victim_x":      float(row.get("victimX", 0)),
-                "victim_y":      float(row.get("victimY", 0)),
-                "victim_z":      float(row.get("victimZ", 0)),
-            })
+    # --- Kill events (player_death) ---
+    try:
+        kills_df = parser.parse_event(
+            "player_death",
+            player=["X", "Y", "Z", "team_name"],
+            other=["total_rounds_played"],
+        )
+        if kills_df is not None and not kills_df.empty:
+            for _, row in kills_df.iterrows():
+                kill = {
+                    "round":          _safe_int(row.get("total_rounds_played")),
+                    "tick":           _safe_int(row.get("tick")),
+                    "attacker":       _safe_str(row.get("attacker_name")),
+                    "attacker_team":  _safe_str(row.get("attacker_team_name")),
+                    "victim":         _safe_str(row.get("user_name")),
+                    "victim_team":    _safe_str(row.get("user_team_name")),
+                    "weapon":         _safe_str(row.get("weapon")),
+                    "headshot":       bool(row.get("headshot", False)),
+                    "attacker_x":     _safe_float(row.get("attacker_X")),
+                    "attacker_y":     _safe_float(row.get("attacker_Y")),
+                    "attacker_z":     _safe_float(row.get("attacker_Z")),
+                    "victim_x":       _safe_float(row.get("user_X")),
+                    "victim_y":       _safe_float(row.get("user_Y")),
+                    "victim_z":       _safe_float(row.get("user_Z")),
+                }
+                output["kills"].append(kill)
+    except Exception as e:
+        logger.warning(f"Kill events skipped: {e}")
 
-    # --- First contact per round (first kill event per round) ---
+    # --- First contact per round ---
     seen_rounds: set[int] = set()
     for kill in sorted(output["kills"], key=lambda k: (k["round"], k["tick"])):
         r = kill["round"]
@@ -87,45 +125,99 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             seen_rounds.add(r)
             output["first_contacts"].append({**kill, "is_first_contact": True})
 
-    # --- Grenade / utility events ---
-    if demo.grenades is not None:
-        for _, row in demo.grenades.iterrows():
-            output["grenades"].append({
-                "round":       int(row.get("round", 0)),
-                "tick":        int(row.get("tick", 0)),
-                "thrower":     row.get("throwerName", ""),
-                "team":        row.get("throwerTeam", ""),
-                "type":        row.get("grenadeType", ""),
-                "throw_x":     float(row.get("throwerX", 0)),
-                "throw_y":     float(row.get("throwerY", 0)),
-            })
+    # --- Grenade events ---
+    for event_name in ["hegrenade_detonate", "smokegrenade_detonate",
+                       "flashbang_detonate", "molotov_detonate"]:
+        try:
+            g_df = parser.parse_event(
+                event_name,
+                player=["X", "Y", "Z", "team_name"],
+                other=["total_rounds_played"],
+            )
+            if g_df is not None and not g_df.empty:
+                grenade_type = event_name.replace("_detonate", "").replace("_extinguish", "")
+                for _, row in g_df.iterrows():
+                    output["grenades"].append({
+                        "round":   _safe_int(row.get("total_rounds_played")),
+                        "tick":    _safe_int(row.get("tick")),
+                        "thrower": _safe_str(row.get("user_name")),
+                        "team":    _safe_str(row.get("user_team_name")),
+                        "type":    grenade_type,
+                        "throw_x": _safe_float(row.get("user_X")),
+                        "throw_y": _safe_float(row.get("user_Y")),
+                    })
+        except Exception:
+            pass  # Not all demo types have all grenade events
 
-    # --- Round metadata ---
-    if demo.rounds is not None:
-        for _, row in demo.rounds.iterrows():
-            output["rounds"].append({
-                "round_num":   int(row.get("roundNum", 0)),
-                "winner_side": row.get("winnerSide", ""),
-                "reason":      row.get("reason", ""),
-                "ct_eq_val":   int(row.get("ctEqVal", 0)),
-                "t_eq_val":    int(row.get("tEqVal", 0)),
-                "ct_score":    int(row.get("ctScore", 0)),
-                "t_score":     int(row.get("tScore", 0)),
-            })
+    # --- Round events ---
+    # Build economy lookup from round_freeze_end separately so it can't crash round_end parsing
+    eco_lookup: dict[int, dict] = {}
+    try:
+        freeze_df = parser.parse_event(
+            "round_freeze_end",
+            player=["current_equip_value", "team_name"],
+            other=["total_rounds_played"],
+        )
+        if freeze_df is not None and not freeze_df.empty and "team_name" in freeze_df.columns:
+            for rnd_num, grp in freeze_df.groupby("total_rounds_played"):
+                ct_val = grp[grp["team_name"] == "CT"]["current_equip_value"].sum()
+                t_val = grp[grp["team_name"] == "TERRORIST"]["current_equip_value"].sum()
+                eco_lookup[int(rnd_num)] = {"ct": int(ct_val), "t": int(t_val)}
+    except Exception as e:
+        logger.debug(f"Economy data unavailable (older demo format): {e}")
 
-    # --- Player trajectory streaming (sampled per TRAJECTORY_SAMPLE_TICKS) ---
-    # awpy exposes per-tick player state via demo.ticks — a large DataFrame with
-    # columns: tick, name, team, X, Y, Z (among others).
-    # We group by (round, name) and sample every N ticks to produce heatmap-ready data.
-    if hasattr(demo, "ticks") and demo.ticks is not None:
-        ticks_df = demo.ticks
-        required_cols = {"round", "name", "team", "X", "Y", "Z", "tick"}
+    try:
+        round_df = parser.parse_event(
+            "round_end",
+            other=["winner", "reason", "total_rounds_played"],
+        )
+        if round_df is not None and not round_df.empty:
+            ct_score = t_score = 0
+            for _, row in round_df.sort_values("total_rounds_played").iterrows():
+                rnd_num = _safe_int(row.get("total_rounds_played"))
+                winner = _safe_int(row.get("winner"))
+                # CS2: winner=3 → CT, winner=2 → T
+                winner_side = "CT" if winner == 3 else "T" if winner == 2 else ""
+                if winner_side == "CT":
+                    ct_score += 1
+                elif winner_side == "T":
+                    t_score += 1
 
-        if required_cols.issubset(set(ticks_df.columns)):
-            # Sample every TRAJECTORY_SAMPLE_TICKS ticks
-            sampled = ticks_df[ticks_df["tick"] % TRAJECTORY_SAMPLE_TICKS == 0]
+                eco = eco_lookup.get(rnd_num, {})
+                output["rounds"].append({
+                    "round_num":   rnd_num,
+                    "winner_side": winner_side,
+                    "reason":      _safe_str(row.get("reason")),
+                    "ct_eq_val":   eco.get("ct", 0),
+                    "t_eq_val":    eco.get("t", 0),
+                    "ct_score":    ct_score,
+                    "t_score":     t_score,
+                })
+    except Exception as e:
+        logger.warning(f"Round events unavailable: {e}")
+        # Fall back: infer round count from kills
+        if output["kills"]:
+            max_round = max(k["round"] for k in output["kills"])
+            for i in range(1, max_round + 1):
+                output["rounds"].append({
+                    "round_num": i, "winner_side": "", "reason": "",
+                    "ct_eq_val": 0, "t_eq_val": 0, "ct_score": 0, "t_score": 0,
+                })
 
-            for (round_num, player), group in sampled.groupby(["round", "name"]):
+
+    output["metadata"]["total_rounds"] = len(output["rounds"])
+
+    # --- Player trajectories (sampled per TRAJECTORY_SAMPLE_TICKS) ---
+    try:
+        tick_data = parser.parse_ticks(
+            ["X", "Y", "Z", "name", "team_name"],
+        )
+        if tick_data is not None and not tick_data.empty:
+            # Filter to every Nth tick
+            sampled = tick_data[tick_data["tick"] % TRAJECTORY_SAMPLE_TICKS == 0]
+            # We don't have round from ticks directly — use kill/round data to bucket
+            # For now, output all positions without round grouping (Phase 3 refinement)
+            for player_name, grp in sampled.groupby("name"):
                 positions = [
                     {
                         "tick": int(r["tick"]),
@@ -133,26 +225,26 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                         "y":    round(float(r["Y"]), 2),
                         "z":    round(float(r["Z"]), 2),
                     }
-                    for _, r in group.iterrows()
+                    for _, r in grp.iterrows()
+                    if r.get("X") is not None
                 ]
                 if positions:
-                    team = str(group["team"].iloc[0]) if len(group) > 0 else ""
+                    team = _safe_str(grp["team_name"].iloc[0]) if len(grp) > 0 else ""
                     output["trajectories"].append({
-                        "round":   int(round_num),
-                        "player":  str(player),
-                        "team":    team,
+                        "round":     0,  # Full-match trajectory — refined in Phase 3
+                        "player":    str(player_name),
+                        "team":      team,
                         "positions": positions,
                     })
-        else:
-            missing = required_cols - set(ticks_df.columns)
-            logger.warning(f"Trajectory skipped — missing columns in demo.ticks: {missing}")
+    except Exception as e:
+        logger.warning(f"Trajectory data skipped: {e}")
 
     logger.info(
         f"Parsed — Rounds: {output['metadata']['total_rounds']} | "
         f"Kills: {len(output['kills'])} | "
         f"Grenades: {len(output['grenades'])} | "
         f"First Contacts: {len(output['first_contacts'])} | "
-        f"Trajectories: {len(output['trajectories'])} player-rounds"
+        f"Trajectories: {len(output['trajectories'])} players"
     )
     return output
 
@@ -182,7 +274,13 @@ def upload_to_gcs(data: dict, match_id: str) -> str:
 
 def write_to_db(data: dict, match_id: str) -> None:
     """Write parsed Scout output to PostgreSQL (or SQLite in local/test mode)."""
-    import json as _json
+    import sys
+    from pathlib import Path as _Path
+
+    # Ensure repo root on path for db imports when called as module
+    _repo = _Path(__file__).parent.parent.parent.resolve()
+    if str(_repo) not in sys.path:
+        sys.path.insert(0, str(_repo))
 
     from db.database import SessionLocal
     from db.models import (
@@ -197,7 +295,6 @@ def write_to_db(data: dict, match_id: str) -> None:
 
     db = SessionLocal()
     try:
-        # Upsert match metadata
         match = db.get(Match, match_id)
         if match is None:
             match = Match(match_id=match_id)
@@ -209,7 +306,6 @@ def write_to_db(data: dict, match_id: str) -> None:
         match.total_rounds = meta.get("total_rounds", 0)
         match.status = MatchStatus.COMPLETE
 
-        # Clear existing child rows (re-parse safety)
         db.query(Kill).filter(Kill.match_id == match_id).delete()
         db.query(Grenade).filter(Grenade.match_id == match_id).delete()
         db.query(Round).filter(Round.match_id == match_id).delete()
@@ -218,70 +314,43 @@ def write_to_db(data: dict, match_id: str) -> None:
 
         for k in data.get("kills", []):
             db.add(Kill(
-                match_id=match_id,
-                round_num=k["round"],
-                tick=k["tick"],
-                attacker=k["attacker"],
-                attacker_team=k["attacker_team"],
-                victim=k["victim"],
-                victim_team=k["victim_team"],
-                weapon=k["weapon"],
-                headshot=k["headshot"],
-                attacker_x=k["attacker_x"],
-                attacker_y=k["attacker_y"],
-                attacker_z=k["attacker_z"],
-                victim_x=k["victim_x"],
-                victim_y=k["victim_y"],
-                victim_z=k["victim_z"],
+                match_id=match_id, round_num=k["round"], tick=k["tick"],
+                attacker=k["attacker"], attacker_team=k["attacker_team"],
+                victim=k["victim"], victim_team=k["victim_team"],
+                weapon=k["weapon"], headshot=k["headshot"],
+                attacker_x=k["attacker_x"], attacker_y=k["attacker_y"], attacker_z=k["attacker_z"],
+                victim_x=k["victim_x"], victim_y=k["victim_y"], victim_z=k["victim_z"],
             ))
 
         for g in data.get("grenades", []):
             db.add(Grenade(
-                match_id=match_id,
-                round_num=g["round"],
-                tick=g["tick"],
-                thrower=g["thrower"],
-                team=g["team"],
-                grenade_type=g["type"],
-                throw_x=g["throw_x"],
-                throw_y=g["throw_y"],
+                match_id=match_id, round_num=g["round"], tick=g["tick"],
+                thrower=g["thrower"], team=g["team"], grenade_type=g["type"],
+                throw_x=g["throw_x"], throw_y=g["throw_y"],
             ))
 
         for r in data.get("rounds", []):
             db.add(Round(
-                match_id=match_id,
-                round_num=r["round_num"],
-                winner_side=r["winner_side"],
-                reason=r["reason"],
-                ct_eq_val=r["ct_eq_val"],
-                t_eq_val=r["t_eq_val"],
-                ct_score=r["ct_score"],
-                t_score=r["t_score"],
+                match_id=match_id, round_num=r["round_num"],
+                winner_side=r["winner_side"], reason=r["reason"],
+                ct_eq_val=r["ct_eq_val"], t_eq_val=r["t_eq_val"],
+                ct_score=r["ct_score"], t_score=r["t_score"],
             ))
 
         for fc in data.get("first_contacts", []):
             db.add(FirstContact(
-                match_id=match_id,
-                round_num=fc["round"],
-                tick=fc["tick"],
-                attacker=fc["attacker"],
-                attacker_team=fc["attacker_team"],
-                victim=fc["victim"],
-                weapon=fc["weapon"],
-                headshot=fc["headshot"],
-                attacker_x=fc["attacker_x"],
-                attacker_y=fc["attacker_y"],
-                victim_x=fc["victim_x"],
-                victim_y=fc["victim_y"],
+                match_id=match_id, round_num=fc["round"], tick=fc["tick"],
+                attacker=fc["attacker"], attacker_team=fc["attacker_team"],
+                victim=fc["victim"], weapon=fc["weapon"], headshot=fc["headshot"],
+                attacker_x=fc["attacker_x"], attacker_y=fc["attacker_y"],
+                victim_x=fc["victim_x"], victim_y=fc["victim_y"],
             ))
 
         for traj in data.get("trajectories", []):
             db.add(PlayerTrajectory(
-                match_id=match_id,
-                round_num=traj["round"],
-                player=traj["player"],
-                team=traj["team"],
-                positions_json=_json.dumps(traj["positions"]),
+                match_id=match_id, round_num=traj["round"],
+                player=traj["player"], team=traj["team"],
+                positions_json=json.dumps(traj["positions"]),
             ))
 
         db.commit()
@@ -300,15 +369,14 @@ def write_to_db(data: dict, match_id: str) -> None:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="DemoSage Scout — CS2 demo parser")
-    ap.add_argument("--demo",     required=True,  help="Absolute path to .dem file")
-    ap.add_argument("--match-id", required=True,  help="Unique match identifier (UUID or slug)")
-    ap.add_argument("--upload",   action="store_true", help="Upload result to GCS after parsing")
-    ap.add_argument("--write-db", action="store_true", help="Write parsed data to database")
+    ap.add_argument("--demo",     required=True, help="Absolute path to .dem file")
+    ap.add_argument("--match-id", required=True, help="Unique match identifier")
+    ap.add_argument("--upload",   action="store_true", help="Upload result to GCS")
+    ap.add_argument("--write-db", action="store_true", help="Write parsed data to DB")
     args = ap.parse_args()
 
     result = parse_demo(args.demo)
 
-    # Always persist locally
     out_path = Path(f"/tmp/{args.match_id}_scout.json")
     out_path.write_text(json.dumps(result, indent=2))
     logger.info(f"Saved locally: {out_path}")

@@ -29,15 +29,20 @@ import subprocess
 import sys
 import uuid
 
+# --- Ensure repo root is on sys.path so db/, api/, services/ are importable ---
+REPO_ROOT = Path(__file__).parent.parent.resolve()
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from dotenv import load_dotenv
 
-# Load .env from repo root (two levels up from scripts/)
-load_dotenv(Path(__file__).parent.parent / ".env")
+# Load .env from repo root
+load_dotenv(REPO_ROOT / ".env")
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger("run_local")
 
-COMPOSE_FILE = Path(__file__).parent.parent / "infra" / "docker-compose.local.yml"
+COMPOSE_FILE = REPO_ROOT / "infra" / "docker-compose.local.yml"
 
 
 def start_docker_compose() -> None:
@@ -97,7 +102,7 @@ def print_summary(match_id: str) -> None:
     db.close()
 
     print("\n" + "=" * 55)
-    print("✅ DemoSage Scout — Parse Complete")
+    print("[OK] DemoSage Scout -- Parse Complete")
     print("=" * 55)
     print(f"  Match ID    : {match_id}")
     print(f"  Map         : {match.map_name}")
