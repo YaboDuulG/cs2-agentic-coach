@@ -17,7 +17,7 @@ Notes:
     - pgvector columns (for RAG embeddings) will be added in Phase 3
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 import enum
 
 from sqlalchemy import (
@@ -73,10 +73,10 @@ class Match(Base):
     gcs_audio_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     gcs_parsed_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     # Relationships
