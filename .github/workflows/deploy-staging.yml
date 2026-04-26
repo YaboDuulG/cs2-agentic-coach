@@ -34,65 +34,28 @@ jobs:
       # -------------------------------------------------------
       - name: Build & push API image
         run: |
-          docker build -f infra/Dockerfile.api \
-            -t gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} \
-            -t gcr.io/${{ env.PROJECT_ID }}/demosage-api:staging \
-            .
+          docker build -f infra/Dockerfile.api -t gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} -t gcr.io/${{ env.PROJECT_ID }}/demosage-api:staging .
           docker push gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }}
           docker push gcr.io/${{ env.PROJECT_ID }}/demosage-api:staging
 
       - name: Deploy API to Cloud Run (staging)
         run: |
-          gcloud run deploy demosage-api-staging \
-            --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} \
-            --platform managed \
-            --region ${{ env.REGION }} \
-            --allow-unauthenticated \
-            --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
-            --set-env-vars APP_ENV=staging,LOCAL_MODE=false \
-            --set-secrets DATABASE_URL=DATABASE_URL:latest \
-            --set-secrets GCS_BUCKET=GCS_BUCKET:latest \
-            --set-secrets API_SECRET_KEY=API_SECRET_KEY:latest \
-            --quiet
+          gcloud run deploy demosage-api-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} --platform managed --region ${{ env.REGION }} --allow-unauthenticated --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=staging,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL:latest --set-secrets GCS_BUCKET=GCS_BUCKET:latest --set-secrets API_SECRET_KEY=API_SECRET_KEY:latest --quiet
 
       - name: Run DB migrations (create tables)
         run: |
-          gcloud run jobs create demosage-migrate-staging \
-            --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} \
-            --region ${{ env.REGION }} \
-            --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
-            --set-secrets DATABASE_URL=DATABASE_URL:latest \
-            --command python \
-            --args "-c,from db.database import engine; from db.models import Base; Base.metadata.create_all(engine); print('Tables OK')" \
-            --project ${{ env.PROJECT_ID }} \
-            --quiet || true
-          gcloud run jobs execute demosage-migrate-staging \
-            --region ${{ env.REGION }} \
-            --project ${{ env.PROJECT_ID }} \
-            --wait \
-            --quiet
+          gcloud run jobs create demosage-migrate-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} --region ${{ env.REGION }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-secrets DATABASE_URL=DATABASE_URL:latest --command python --args "-c,from db.database import engine; from db.models import Base; Base.metadata.create_all(engine); print('Tables OK')" --project ${{ env.PROJECT_ID }} --quiet || true
+          gcloud run jobs execute demosage-migrate-staging --region ${{ env.REGION }} --project ${{ env.PROJECT_ID }} --wait --quiet
 
       # -------------------------------------------------------
       # Scout Service (internal — no unauthenticated access)
       # -------------------------------------------------------
       - name: Build & push Scout image
         run: |
-          docker build -f services/scout/Dockerfile \
-            -t gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} \
-            -t gcr.io/${{ env.PROJECT_ID }}/demosage-scout:staging \
-            .
+          docker build -f services/scout/Dockerfile -t gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} -t gcr.io/${{ env.PROJECT_ID }}/demosage-scout:staging .
           docker push gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }}
           docker push gcr.io/${{ env.PROJECT_ID }}/demosage-scout:staging
 
       - name: Deploy Scout to Cloud Run (staging)
         run: |
-          gcloud run deploy demosage-scout-staging \
-            --image gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} \
-            --platform managed \
-            --region ${{ env.REGION }} \
-            --no-allow-unauthenticated \
-            --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
-            --set-env-vars APP_ENV=staging,LOCAL_MODE=false \
-            --set-secrets DATABASE_URL=DATABASE_URL:latest \
-            --set-secrets GCS_BUCKET=GCS_BUCKET:latest \
-            --quiet
+          gcloud run deploy demosage-scout-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} --platform managed --region ${{ env.REGION }} --no-allow-unauthenticated --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=staging,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL:latest --set-secrets GCS_BUCKET=GCS_BUCKET:latest --quiet
