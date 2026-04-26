@@ -4,6 +4,11 @@ on:
   push:
     branches: [staging]
 
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION }}
+  CLOUD_SQL_INSTANCE: ${{ secrets.GCP_PROJECT_ID }}:${{ secrets.GCP_REGION }}:demosage-db
+
 jobs:
   deploy-staging:
     name: Build & deploy to staging
@@ -24,29 +29,53 @@ jobs:
       - name: Configure Docker for GCR
         run: gcloud auth configure-docker gcr.io --quiet
 
+      # -------------------------------------------------------
+      # API Service
+      # -------------------------------------------------------
       - name: Build & push API image
         run: |
           docker build -f infra/Dockerfile.api \
-            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-api:${{ github.sha }} \
-            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-api:staging \
+            -t gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} \
+            -t gcr.io/${{ env.PROJECT_ID }}/demosage-api:staging \
             .
-          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-api:${{ github.sha }}
-          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-api:staging
-
-      - name: Build & push Scout image
-        run: |
-          docker build -f services/scout/Dockerfile \
-            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-scout:${{ github.sha }} \
-            services/scout/
-          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-scout:${{ github.sha }}
+          docker push gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }}
+          docker push gcr.io/${{ env.PROJECT_ID }}/demosage-api:staging
 
       - name: Deploy API to Cloud Run (staging)
         run: |
           gcloud run deploy demosage-api-staging \
-            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/demosage-api:${{ github.sha }} \
+            --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} \
             --platform managed \
-            --region ${{ secrets.GCP_REGION }} \
+            --region ${{ env.REGION }} \
             --allow-unauthenticated \
-            --set-env-vars APP_ENV=staging \
-            --set-secrets DATABASE_URL=DATABASE_URL:latest,GCS_BUCKET=GCS_BUCKET:latest \
+            --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
+            --set-env-vars APP_ENV=staging,LOCAL_MODE=false \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest \
+            --set-secrets GCS_BUCKET=GCS_BUCKET:latest \
+            --set-secrets API_SECRET_KEY=API_SECRET_KEY:latest \
+            --quiet
+
+      # -------------------------------------------------------
+      # Scout Service (internal — no unauthenticated access)
+      # -------------------------------------------------------
+      - name: Build & push Scout image
+        run: |
+          docker build -f services/scout/Dockerfile \
+            -t gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} \
+            -t gcr.io/${{ env.PROJECT_ID }}/demosage-scout:staging \
+            .
+          docker push gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }}
+          docker push gcr.io/${{ env.PROJECT_ID }}/demosage-scout:staging
+
+      - name: Deploy Scout to Cloud Run (staging)
+        run: |
+          gcloud run deploy demosage-scout-staging \
+            --image gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --no-allow-unauthenticated \
+            --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
+            --set-env-vars APP_ENV=staging,LOCAL_MODE=false \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest \
+            --set-secrets GCS_BUCKET=GCS_BUCKET:latest \
             --quiet
