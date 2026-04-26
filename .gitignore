@@ -10,6 +10,7 @@ ENV/
 *.pem
 *.key
 auth.json
+infra/gcp-key.json
 
 # 🏗️ PYTHON SPECIFIC
 __pycache__/
