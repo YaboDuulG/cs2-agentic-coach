@@ -55,6 +55,23 @@ jobs:
             --set-secrets API_SECRET_KEY=API_SECRET_KEY:latest \
             --quiet
 
+      - name: Run DB migrations (create tables)
+        run: |
+          gcloud run jobs create demosage-migrate-staging \
+            --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest \
+            --command python \
+            --args "-c,from db.database import engine; from db.models import Base; Base.metadata.create_all(engine); print('Tables OK')" \
+            --project ${{ env.PROJECT_ID }} \
+            --quiet || true
+          gcloud run jobs execute demosage-migrate-staging \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --wait \
+            --quiet
+
       # -------------------------------------------------------
       # Scout Service (internal — no unauthenticated access)
       # -------------------------------------------------------
