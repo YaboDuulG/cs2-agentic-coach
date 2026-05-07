@@ -27,6 +27,13 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Sanitize env vars (strip hidden \r from secrets)
+        run: |
+          echo "PROJECT_ID=$(echo "$PROJECT_ID" | tr -d '\r')" >> $GITHUB_ENV
+          echo "REGION=$(echo "$REGION" | tr -d '\r')" >> $GITHUB_ENV
+          echo "CLOUD_SQL_INSTANCE=$(echo "$CLOUD_SQL_INSTANCE" | tr -d '\r')" >> $GITHUB_ENV
+          echo "SA_EMAIL=$(echo "$SA_EMAIL" | tr -d '\r')" >> $GITHUB_ENV
+
       - name: Configure Docker for GCR
         run: gcloud auth configure-docker gcr.io --quiet
 
