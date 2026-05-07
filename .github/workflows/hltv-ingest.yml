@@ -2,7 +2,7 @@ name: HLTV Nightly Ingestion
 
 on:
   schedule:
-    - cron: "0 2 * * *"   # 02:00 UTC nightly
+    - cron: "0 2 * * 0"   # 02:00 UTC every Sunday (was nightly — reduced until HLTV pipeline is stable)
   workflow_dispatch:        # Allow manual trigger
 
 jobs:
