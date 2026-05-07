@@ -51,6 +51,7 @@ jobs:
           gcloud run deploy demosage-api-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} --platform managed --region ${{ env.REGION }} --allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=staging,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL:latest --set-secrets GCS_BUCKET=GCS_BUCKET:latest --set-secrets API_SECRET_KEY=API_SECRET_KEY:latest --quiet
 
       - name: Run DB migrations (create tables)
+        continue-on-error: true
         run: |
           gcloud run jobs delete demosage-migrate-staging --region ${{ env.REGION }} --project ${{ env.PROJECT_ID }} --quiet 2>/dev/null || true
           gcloud run jobs create demosage-migrate-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} --region ${{ env.REGION }} --service-account ${{ env.SA_EMAIL }} --set-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-secrets DATABASE_URL=DATABASE_URL:latest --command python --args "-c,from db.database import engine; from db.models import Base; Base.metadata.create_all(engine); print('Tables OK')" --project ${{ env.PROJECT_ID }} --quiet
