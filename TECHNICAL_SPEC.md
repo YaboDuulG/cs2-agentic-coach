@@ -507,15 +507,15 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 
 ### Phase 0: Foundation & Scaffolding
 - [x] Initialize monorepo structure (`/agents`, `/services`, `/plugins`, `/frontend`, `/infra`)
-- [ ] Create GCP project + enable billing
-- [ ] Enable APIs: Cloud SQL, Cloud Storage, Cloud Tasks, Cloud Run, Vertex AI
-- [ ] Provision Cloud SQL instance (PostgreSQL 15, Enterprise shared-core) + enable pgvector extension
-- [ ] Create GCS bucket (`cs2-demosage`) for demo and audio file storage
-- [ ] Set up Cloud Tasks queue for async job dispatch
-- [ ] Configure local `.env` with GCP credentials (Application Default Credentials)
+- [x] Create GCP project + enable billing
+- [x] Enable APIs: Cloud SQL, Cloud Storage, Cloud Tasks, Cloud Run, Vertex AI, Artifact Registry, Secret Manager
+- [x] Provision Cloud SQL instance (PostgreSQL 15, db-f1-micro shared-core) + pgvector pending
+- [x] Create GCS bucket (`cs2-demosage`) for demo and audio file storage
+- [x] Set up Cloud Tasks queue for async job dispatch
+- [x] Configure local `.env` with GCP credentials
 - [x] Set up Docker Compose for **local dev only** (mirrors Cloud SQL schema locally with PostgreSQL)
 - [ ] Set up LangSmith project + connect API key
-- [x] Scaffold FastAPI app with health check endpoint → deploy to Cloud Run
+- [x] Scaffold FastAPI app with health check endpoint → deployed to Cloud Run (staging)
 - [x] Create base GitHub Actions (CI lint/test + Cloud Run deploy on push to `staging`)
 - [x] Define full SQLAlchemy ORM schema (`db/models.py`) — Match, Kill, Grenade, Round, FirstContact, PlayerTrajectory
 - [x] Create one-shot GCP provisioning script (`scripts/setup_gcp.py`)
@@ -530,8 +530,8 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - [x] Implement "First Contact" event detection
 - [x] Expose Scout as internal HTTP service with Cloud Tasks queue interface (`services/scout/service.py`)
 - [x] Validate output against local demo — de_nuke 64tick: 26 rounds, 185 kills, 232 grenades ✓
-- [ ] Validate output against real CS2 FACEIT / Matchmaking demo
-- [ ] Validate output against FACEIT and Matchmaking demos (cloud — pending GCP)
+- [x] Scout deployed to Cloud Run staging (internal, no-allow-unauthenticated)
+- [ ] Validate output against real CS2 FACEIT / Matchmaking demo (pending FACEIT integration)
 
 ### Phase 2: The Great Khan — Orchestrator
 - [x] Define global LangGraph state schema
