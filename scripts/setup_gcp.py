@@ -82,6 +82,8 @@ def main() -> None:
         "run.googleapis.com",
         "aiplatform.googleapis.com",
         "cloudbuild.googleapis.com",
+        "artifactregistry.googleapis.com",   # Required for gcr.io / docker push
+        "secretmanager.googleapis.com",       # Required for Cloud Run --set-secrets
     ])
 
     # --- 4. Service account ---
