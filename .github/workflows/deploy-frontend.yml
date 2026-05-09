@@ -1,24 +1,23 @@
-name: Deploy Frontend — Vercel (Staging)
-
-on:
-  push:
-    branches: [main, staging]
-    paths:
-      - "frontend/**"
-
-jobs:
-  deploy:
-    name: Deploy to Vercel
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          working-directory: ./frontend
-          vercel-args: ${{ github.ref == 'refs/heads/main' && '--prod' || '' }}
+# NOTE: Vercel deployment is handled natively by Vercel's GitHub integration.
+# When the repo is connected via vercel.com dashboard, every push to main
+# triggers a production deploy automatically — no secrets or custom action needed.
+#
+# This file is kept as a placeholder. If you ever need to customize the deploy
+# pipeline (e.g. run tests before deploy), re-enable the job below.
+#
+# name: Deploy Frontend — Vercel (Staging)
+# on:
+#   push:
+#     branches: [main, staging]
+#     paths: ["frontend/**"]
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: amondnet/vercel-action@v25
+#         with:
+#           vercel-token: ${{ secrets.VERCEL_TOKEN }}
+#           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+#           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+#           working-directory: ./frontend
