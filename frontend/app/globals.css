@@ -1,0 +1,270 @@
+@import "tailwindcss";
+
+/* ============================================================
+   DemoSage Design System — Mongol Empire Theme
+   Fonts loaded via next/font/google in layout.tsx:
+     --font-cinzel  → Cinzel (headings)
+     --font-inter   → Inter (body)
+     --font-mono    → JetBrains Mono (stats)
+   ============================================================ */
+
+@theme inline {
+  /* --- Color Palette --- */
+  --color-bg-deep:        #080E1A;
+  --color-bg-surface:     #0D1825;
+  --color-bg-elevated:    #142135;
+  --color-border:         #1E3A5F;
+  --color-border-subtle:  #152A45;
+
+  --color-primary:        #2D7DD2;
+  --color-primary-light:  #5BA3E8;
+  --color-primary-glow:   rgba(45, 125, 210, 0.25);
+
+  --color-gold:           #C9A227;
+  --color-gold-light:     #E8C547;
+  --color-gold-subtle:    rgba(201, 162, 39, 0.12);
+
+  --color-white:          #F0F4FF;
+  --color-muted:          #8BA7CC;
+  --color-muted-dark:     #4A6A8A;
+
+  --color-success:        #22D3A0;
+  --color-warning:        #F59E0B;
+  --color-destructive:    #FF4D6D;
+
+  /* --- Typography --- */
+  --font-display: var(--font-cinzel), serif;
+  --font-sans:    var(--font-inter), sans-serif;
+  --font-mono:    var(--font-mono), monospace;
+
+  /* --- Spacing & Radius --- */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  24px;
+}
+
+/* ============================================================
+   Base Styles
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #080E1A;
+  color: #F0F4FF;
+  font-family: var(--font-inter), 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(45, 125, 210, 0.35);
+  color: #F0F4FF;
+}
+
+/* ============================================================
+   Mongolian Pattern Utilities
+   ============================================================ */
+
+/* Ulzii (endless knot) — section divider pattern */
+.pattern-ulzii {
+  background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23F0F4FF' stroke-width='0.8' opacity='0.08'%3E%3Crect x='2' y='2' width='16' height='16'/%3E%3Crect x='6' y='6' width='8' height='8'/%3E%3Crect x='22' y='2' width='16' height='16'/%3E%3Crect x='26' y='6' width='8' height='8'/%3E%3Crect x='2' y='22' width='16' height='16'/%3E%3Crect x='6' y='26' width='8' height='8'/%3E%3Crect x='22' y='22' width='16' height='16'/%3E%3Crect x='26' y='26' width='8' height='8'/%3E%3Cline x1='10' y1='2' x2='10' y2='0'/%3E%3Cline x1='10' y1='18' x2='10' y2='22'/%3E%3Cline x1='30' y1='2' x2='30' y2='0'/%3E%3Cline x1='30' y1='18' x2='30' y2='22'/%3E%3Cline x1='2' y1='10' x2='0' y2='10'/%3E%3Cline x1='18' y1='10' x2='22' y2='10'/%3E%3Cline x1='2' y1='30' x2='0' y2='30'/%3E%3Cline x1='18' y1='30' x2='22' y2='30'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+/* Step border — top/bottom section separator */
+.border-step-top {
+  border-top: 2px solid;
+  border-image: repeating-linear-gradient(
+    90deg,
+    #1E3A5F 0px, #1E3A5F 8px,
+    #2D7DD2 8px, #2D7DD2 12px,
+    #1E3A5F 12px, #1E3A5F 20px
+  ) 1;
+}
+
+.border-step-bottom {
+  border-bottom: 2px solid;
+  border-image: repeating-linear-gradient(
+    90deg,
+    #1E3A5F 0px, #1E3A5F 8px,
+    #2D7DD2 8px, #2D7DD2 12px,
+    #1E3A5F 12px, #1E3A5F 20px
+  ) 1;
+}
+
+/* ============================================================
+   Component Layer
+   ============================================================ */
+
+@layer components {
+  /* Glass card */
+  .card {
+    background: #0D1825;
+    border: 1px solid #1E3A5F;
+    border-radius: 12px;
+  }
+
+  .card-elevated {
+    background: #142135;
+    border: 1px solid #1E3A5F;
+    border-radius: 12px;
+  }
+
+  /* Primary button */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #2D7DD2;
+    color: #F0F4FF;
+    font-family: var(--font-inter), sans-serif;
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .btn-primary:hover {
+    background: #5BA3E8;
+    box-shadow: 0 0 20px rgba(45, 125, 210, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  /* Ghost button */
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: transparent;
+    color: #8BA7CC;
+    font-family: var(--font-inter), sans-serif;
+    font-weight: 500;
+    font-size: 0.875rem;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 1px solid #1E3A5F;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .btn-ghost:hover {
+    color: #F0F4FF;
+    border-color: #2D7DD2;
+    background: rgba(45, 125, 210, 0.08);
+  }
+
+  /* Gold badge */
+  .badge-gold {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(201, 162, 39, 0.12);
+    color: #C9A227;
+    border: 1px solid rgba(201, 162, 39, 0.3);
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* Stat number */
+  .stat-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: #F0F4FF;
+  }
+
+  /* Section heading */
+  .heading-display {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    color: #F0F4FF;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+
+  /* Glow text */
+  .text-glow-blue {
+    color: #5BA3E8;
+    text-shadow: 0 0 30px rgba(45, 125, 210, 0.6);
+  }
+
+  .text-glow-gold {
+    color: #C9A227;
+    text-shadow: 0 0 20px rgba(201, 162, 39, 0.5);
+  }
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(45, 125, 210, 0.3); }
+  50%       { box-shadow: 0 0 30px rgba(45, 125, 210, 0.6); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
+.animate-float      { animation: float 4s ease-in-out infinite; }
+.animate-fade-in-up { animation: fade-in-up 0.6s ease forwards; }
+
+.shimmer-text {
+  background: linear-gradient(90deg, #F0F4FF 0%, #C9A227 40%, #5BA3E8 60%, #F0F4FF 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
+}
+
+/* Stagger children */
+.stagger-children > *:nth-child(1) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.3s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.4s; }
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #080E1A; }
+::-webkit-scrollbar-thumb { background: #1E3A5F; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2D7DD2; }

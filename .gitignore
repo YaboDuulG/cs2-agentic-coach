@@ -23,8 +23,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# Python lib dirs only (not frontend/lib)
 lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -36,9 +38,12 @@ share/python-wheels/
 MANIFEST
 
 # 🐎 AWPY & CS2 DATA (Prevents massive demo uploads)
+# Large CS2 data files — but NOT frontend config files
 *.dem
-*.json
-!metadata.json  # Optional: keep if you want to track schema definitions
+data/raw/*.json
+data/processed/*.json
+data/embeddings/*.json
+# Legacy: *.json was too broad — frontend package.json/tsconfig.json need tracking
 data/raw/
 data/processed/
 data/embeddings/
