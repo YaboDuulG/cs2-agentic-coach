@@ -88,7 +88,6 @@ async def parse_from_pubsub(request: dict):
     import base64
     import json as _json
 
-    from parse_demo import parse_demo, upload_to_gcs, write_to_db
 
     try:
         message = request.get("message", {})

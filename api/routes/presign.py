@@ -3,10 +3,10 @@ Presigned GCS upload URL endpoint.
 Browser uploads .dem files directly to GCS — bypasses Vercel's 4.5MB body limit.
 """
 
+from datetime import timedelta
 import logging
 import os
 import uuid
-from datetime import timedelta
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -91,8 +91,9 @@ async def stub_upload(match_id: str):
 def _create_match_record(match_id: str, filename: str) -> None:
     """Insert a queued match row so /api/jobs/{id} returns 'queued' immediately."""
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         from sqlalchemy import text  # noqa: PLC0415
+
+        from db.database import SessionLocal  # noqa: PLC0415
 
         db = SessionLocal()
         try:
