@@ -2,7 +2,7 @@ name: Deploy — Cloud Run (Staging)
 
 on:
   push:
-    branches: [staging]
+    branches: [main, staging]
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
