@@ -43,6 +43,9 @@ async def presign_demo_upload(body: PresignRequest):
     bucket_name = os.environ.get("GCS_BUCKET", "")
     local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
 
+    # Create match record in DB immediately so jobs endpoint returns 'queued'
+    _create_match_record(match_id, body.filename)
+
     if local_mode or not bucket_name:
         # Local dev: return a fake presigned URL
         return {
@@ -83,3 +86,27 @@ async def presign_demo_upload(body: PresignRequest):
 async def stub_upload(match_id: str):
     """Local dev stub — accepts the PUT from the browser in LOCAL_MODE."""
     return {"ok": True, "match_id": match_id}
+
+
+def _create_match_record(match_id: str, filename: str) -> None:
+    """Insert a queued match row so /api/jobs/{id} returns 'queued' immediately."""
+    try:
+        from db.database import SessionLocal  # noqa: PLC0415
+        from sqlalchemy import text  # noqa: PLC0415
+
+        db = SessionLocal()
+        try:
+            db.execute(
+                text("""
+                    INSERT INTO matches (id, demo_filename, status, created_at)
+                    VALUES (:id, :filename, 'queued', NOW())
+                    ON CONFLICT (id) DO NOTHING
+                """),
+                {"id": match_id, "filename": filename},
+            )
+            db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        # Non-fatal — DB might not have tables yet (first deploy)
+        logger.warning(f"Could not create match record for {match_id}: {e}")

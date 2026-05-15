@@ -38,6 +38,8 @@ DB_NAME = "demosage"
 DB_USER = "demosage_user"
 GCS_BUCKET = os.getenv("GCS_BUCKET", "cs2-demosage")
 TASKS_QUEUE = os.getenv("CLOUD_TASKS_QUEUE", "demosage-scan-queue")
+PUBSUB_TOPIC = "demo-uploaded"
+PUBSUB_SUBSCRIPTION = "demo-uploaded-scout-push"
 SA_NAME = "demosage-dev"
 KEY_PATH = Path("infra/gcp-key.json")
 
@@ -136,11 +138,52 @@ def main() -> None:
     ], check=False)
 
     # --- 8. Cloud Tasks queue ---
-    print("\n[8/8] Creating Cloud Tasks queue...")
+    print("\n[8/9] Creating Cloud Tasks queue...")
     run([
         "gcloud", "tasks", "queues", "create", TASKS_QUEUE,
         f"--location={REGION}",
     ], check=False)
+
+    # --- 9. GCS → Pub/Sub → Scout pipeline ---
+    print("\n[9/9] Setting up GCS → Pub/Sub → Scout trigger pipeline...")
+
+    # Enable Pub/Sub API
+    run(["gcloud", "services", "enable", "pubsub.googleapis.com",
+         f"--project={PROJECT_ID}"], check=False)
+
+    # Create Pub/Sub topic
+    run([
+        "gcloud", "pubsub", "topics", "create", PUBSUB_TOPIC,
+        f"--project={PROJECT_ID}",
+    ], check=False)
+
+    # Grant GCS permission to publish to the topic
+    # (GCS uses a dedicated service account: service-{project_number}@gs-project-accounts.iam.gserviceaccount.com)
+    print("  NOTE: GCS Pub/Sub notification requires the GCS service account to have")
+    print("  pubsub.publisher on the topic. Run after getting your project number:")
+    print(f"    gcloud projects describe {PROJECT_ID} --format='value(projectNumber)'")
+    print(f"    Then: gcloud pubsub topics add-iam-policy-binding {PUBSUB_TOPIC} \\")
+    print(f"      --member='serviceAccount:service-NUMBER@gs-project-accounts.iam.gserviceaccount.com' \\")
+    print( "      --role='roles/pubsub.publisher'")
+
+    # GCS bucket notification (finalize = object created)
+    # Requires the Pub/Sub topic and GCS publisher permission to be set first
+    run([
+        "gcloud", "storage", "buckets", "notifications", "create",
+        f"gs://{GCS_BUCKET}",
+        f"--topic={PUBSUB_TOPIC}",
+        "--event-types=OBJECT_FINALIZE",
+        "--object-prefix=demos/raw/",
+        f"--project={PROJECT_ID}",
+    ], check=False)
+
+    print("  Pub/Sub push subscription must be created after Scout is deployed.")
+    print("  Run this after getting your Scout Cloud Run URL:")
+    print(f"    gcloud pubsub subscriptions create {PUBSUB_SUBSCRIPTION} \\")
+    print(f"      --topic={PUBSUB_TOPIC} \\")
+    print( "      --push-endpoint=SCOUT_URL/internal/scout/parse-from-gcs \\")
+    print( "      --push-auth-service-account=demosage-dev@PROJECT.iam.gserviceaccount.com \\")
+    print(f"      --project={PROJECT_ID}")
 
     print("\n" + "=" * 60)
     print("[OK] GCP setup complete!")
@@ -149,9 +192,11 @@ def main() -> None:
     print(f"     GCP_PROJECT_ID={PROJECT_ID}")
     print(f"     GCP_REGION={REGION}")
     print(f"     GCS_BUCKET={GCS_BUCKET}")
+    print(f"     PUBSUB_TOPIC={PUBSUB_TOPIC}")
     print(f"     DATABASE_URL=postgresql://{DB_USER}:<password>@/demosage?host=/cloudsql/{PROJECT_ID}:{REGION}:{DB_INSTANCE}")
     print("  2. Enable pgvector (see step 6 above)")
-    print("  3. Run: python scripts/run_local.py --help")
+    print("  3. Create the Pub/Sub push subscription (see step 9 above — needs Scout URL)")
+    print("  4. Run: python scripts/run_local.py --help")
     print("=" * 60)
 
 

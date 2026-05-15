@@ -73,6 +73,55 @@ async def health():
     return {"status": "ok", "service": "scout"}
 
 
+@app.post("/internal/scout/parse-from-gcs", include_in_schema=False)
+async def parse_from_pubsub(request: dict):
+    """
+    Pub/Sub push subscription endpoint.
+    Called automatically when a .dem file lands in GCS demos/raw/.
+
+    Pub/Sub push format:
+      { "message": { "data": "<base64 JSON>", ... }, "subscription": "..." }
+
+    GCS notification data (decoded):
+      { "bucket": "cs2-demosage", "name": "demos/raw/{match_id}/{file}.dem", ... }
+    """
+    import base64
+    import json as _json
+
+    from parse_demo import parse_demo, upload_to_gcs, write_to_db
+
+    try:
+        message = request.get("message", {})
+        raw = message.get("data", "")
+        gcs_event = _json.loads(base64.b64decode(raw).decode("utf-8"))
+    except Exception as e:
+        logger.error(f"[Scout] Failed to decode Pub/Sub message: {e}")
+        # Return 200 so Pub/Sub doesn't retry a malformed message
+        return {"status": "skipped", "reason": "decode_error"}
+
+    bucket = gcs_event.get("bucket", "")
+    obj_path = gcs_event.get("name", "")  # demos/raw/{match_id}/{filename}
+
+    # Only process files in the demos/raw/ prefix
+    if not obj_path.startswith("demos/raw/") or not obj_path.endswith(".dem"):
+        logger.info(f"[Scout] Skipping non-demo object: {obj_path}")
+        return {"status": "skipped", "reason": "not_a_demo"}
+
+    # Extract match_id from path: demos/raw/{match_id}/{filename}.dem
+    parts = obj_path.split("/")
+    if len(parts) < 3:
+        logger.error(f"[Scout] Unexpected GCS path format: {obj_path}")
+        return {"status": "skipped", "reason": "bad_path"}
+
+    match_id = parts[2]
+    gcs_uri = f"gs://{bucket}/{obj_path}"
+
+    logger.info(f"[Scout] GCS trigger: match={match_id} uri={gcs_uri}")
+
+    # Reuse the existing parse logic
+    return await parse_match(ParseRequest(match_id=match_id, gcs_uri=gcs_uri))
+
+
 @app.post("/internal/scout/parse", response_model=ParseResponse)
 async def parse_match(req: ParseRequest):
     """
