@@ -1,11 +1,22 @@
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+exclude = [
+    "frontend",
+    ".next",
+    "node_modules",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 ignore = [
     "E501",  # line too long — handled by formatter
+    "E402",  # module-level import not at top (we use intentional lazy imports)
 ]
 
 [tool.ruff.lint.isort]
@@ -16,6 +27,11 @@ force-sort-within-sections = true  # sort import X and from X import Y together 
 python_version = "3.12"
 ignore_missing_imports = true
 explicit_package_bases = true
+exclude = [
+    "services/",  # Scout has its own dep set, checked in its own Docker env
+    "frontend/",
+    "migrations/",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
