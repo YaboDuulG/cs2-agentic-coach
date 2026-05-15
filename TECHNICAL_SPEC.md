@@ -1,5 +1,5 @@
 # 🏹 DemoSage — Technical Specification & Progress Tracker
-> **Version:** 0.3.0-spec | **Status:** Phase 0 Complete / Phase 1 In Progress | **Last Updated:** 2026-04-23
+> **Version:** 0.4.0-beta | **Status:** Phase A Complete — Live at Vercel | **Last Updated:** 2026-05-15
 
 ---
 
@@ -522,7 +522,7 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - [x] Create local end-to-end pipeline runner (`scripts/run_local.py`)
 
 ### Phase 1: The Scout — Demo Pipeline
-- [x] Set up demoparser2 Docker image (switched from awpy — Python 3.14 compatible, faster Rust parser)
+- [x] Set up demoparser2 Docker image (switched from awpy — Python 3.12 compatible, faster Rust parser)
 - [x] Implement kill event extraction
 - [x] Implement player coordinate trajectory streaming (sampled per N ticks)
 - [x] Implement utility event extraction (grenade throws, lands, type)
@@ -531,6 +531,7 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - [x] Expose Scout as internal HTTP service with Cloud Tasks queue interface (`services/scout/service.py`)
 - [x] Validate output against local demo — de_nuke 64tick: 26 rounds, 185 kills, 232 grenades ✓
 - [x] Scout deployed to Cloud Run staging (internal, no-allow-unauthenticated)
+- [x] Pub/Sub push trigger: GCS OBJECT_FINALIZE → `demo-uploaded` topic → Scout `/parse-from-gcs`
 - [ ] Validate output against real CS2 FACEIT / Matchmaking demo (pending FACEIT integration)
 
 ### Phase 2: The Great Khan — Orchestrator
@@ -593,14 +594,28 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - [ ] Build utility auto-updater pipeline
 - [ ] Set up CS2 update detection GitHub Action
 
-### Phase 9: Frontend
-- [ ] Next.js 15 project scaffold
-- [ ] Chat interface (WebSocket to Great Khan)
-- [ ] Demo + audio upload portal
-- [ ] Coaching report dashboard
-- [ ] Practice server control panel
-- [ ] FACEIT/SCL account linking UI
-- [ ] Real-time report streaming (SSE)
+### Phase A: Beta Frontend — Path to Beta ✅ COMPLETE
+- [x] Next.js 15 scaffold (App Router, TypeScript, Tailwind v4)
+- [x] Mongol Empire design system (CSS tokens, Cinzel/Inter/JetBrains Mono fonts)
+- [x] Mongolian pattern components: Soyombo icon, Ulzii dividers, cloud motifs
+- [x] Landing page: hero with drag-and-drop upload, features grid, CTA, footer
+- [x] Presigned GCS URL upload flow (bypasses Vercel 4.5MB limit — browser → GCS direct)
+- [x] Analysis results page: real-time job polling, kill feed, economy bar chart
+- [x] API proxy routes: `/api/upload` → FastAPI presign, `/api/jobs/{id}` → FastAPI
+- [x] Feature flags (`lib/flags.ts`): free/pro plan limits, billing-ready from day one
+- [x] Deployed to Vercel (auto-deploys on push to main)
+- [ ] End-to-end upload test with real demo on live URL
+- [ ] Add Clerk auth (sign-up/sign-in, user sessions)
+- [ ] Store `user_id` on match records — "My Analyses" dashboard
+- [ ] Stripe billing integration (gated by feature flags)
+
+### Phase B: Accounts & Billing (Next)
+- [ ] Clerk auth: sign-up, sign-in, session management
+- [ ] `user_id` on Match model + row-level security
+- [ ] "My Analyses" history page (per-user)
+- [ ] Stripe checkout + webhook handler
+- [ ] Pro plan feature gates (AI coaching, audio, extended history)
+- [ ] Usage tracking (uploads per day enforced server-side)
 
 ### Phase 10: Production Hardening
 - [ ] Kubernetes deployment manifests

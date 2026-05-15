@@ -1,63 +1,87 @@
-# 🏹 DemoSage: CS2 Agentic Coach
-> **"Conquering the server, one data point at a time."**
+# DemoSage
 
-![Version](https://img.shields.io/badge/version-0.1.0--alpha-blue)
-![Python](https://img.shields.io/badge/Python-3.14-gold)
-![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-red)
-![License](https://img.shields.io/badge/License-Proprietary-black)
+> **"Analyze like a Khan. Dominate like Vitality."**
 
-**DemoSage** is a state-of-the-art AI coaching ecosystem that transforms raw `.dem` files into elite tactical intelligence. By utilizing a **multi-agent orchestration layer**, it identifies patterns that traditional statistics miss—focusing on the "why" behind rotations, utility timing, and map control.
+AI-powered CS2 demo analysis. Upload a `.dem` file → get round-by-round coaching on kills, economy, and utility.
 
----
-
-## 🏗️ System Architecture
-
-The project is built on a "Horde" of specialized agents managed by **LangGraph**, ensuring that match analysis is context-aware and logically sound.
-
-* **🛰️ The Great Khan (Orchestrator):** Routes user queries and maintains state across the analysis loop.
-* **🐎 The Scout (Data Parser):** A Dockerized `awpy` environment that extracts spatial and event data from CS2 demos.
-* **🛡️ The Tactician (Agentic Analyst):** Evaluates "First Contact" success and mid-round rotation efficiency.
-* **📜 The Scribe (Strategist):** Generates automated, markdown-ready "Strat Cards" for team preparation.
+[![CI](https://github.com/YaboDuulG/cs2-agentic-coach/actions/workflows/ci.yml/badge.svg)](https://github.com/YaboDuulG/cs2-agentic-coach/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.12-blue)
+![Next.js](https://img.shields.io/badge/Frontend-Next.js%2015-black)
+![GCP](https://img.shields.io/badge/Infra-Google%20Cloud-blue)
 
 ---
 
-## 🛠️ Tech Stack
+## Live
 
-| Component | Technology |
-| :--- | :--- |
-| **Language** | Python 3.14 |
-| **Agent Framework** | LangGraph / LangChain |
-| **Data Extraction** | awpy |
-| **Environment** | Docker, WSL 2 |
-| **Storage** | Structured JSON / Vector Embeddings |
+| | URL |
+|---|---|
+| **Frontend** | https://cs2-agentic-coach-25vuneach-manduul-g-s-projects.vercel.app |
+| **API** | https://demosage-api-staging-dsr6wo6mta-uc.a.run.app |
 
 ---
 
-## 🏔️ Project Roadmap
+## Architecture
 
-### Phase 1: The Data Foundation 🟢
-* [ ] Set up `awpy` parsing environment in WSL 2.
-* [ ] Automate extraction of "Kill Events" and "Player Coordinates."
-* [ ] Validate JSON output against Faceit/Matchmaking demos.
+```
+Browser  ──presigned URL──▶  GCS (demos/raw/{match_id}/)
+                                      │
+                              OBJECT_FINALIZE event
+                                      │
+                            Pub/Sub topic: demo-uploaded
+                                      │
+                             push subscription (auth'd)
+                                      │
+                            Scout Service (Cloud Run)
+                              /internal/scout/parse-from-gcs
+                                      │
+                            Parse .dem → PostgreSQL
+                                      │
+                            Frontend polls /api/jobs/{id}
+                                      │
+                            Results page: kill feed + economy
+```
 
-### Phase 2: The Agentic Loop 🟡
-* [ ] Define global state schema for the LangGraph.
-* [ ] Implement **Router Logic** to distinguish between tactical vs. statistical queries.
-* [ ] Build hallucination guardrails for agent responses.
+## Services
 
-### Phase 3: Tactical Intelligence ⚪
-* [ ] Deploy **FCR (First Contact Resolution)** analysis module.
-* [ ] Automated "Early Rotation" detection logic.
-* [ ] High-fidelity Markdown "Strat Card" generation.
+| Service | Description | Runtime |
+|---|---|---|
+| **API** (`api/`) | FastAPI — upload presign, job status | Cloud Run |
+| **Scout** (`services/scout/`) | Demo parser — demoparser2 → DB | Cloud Run |
+| **Frontend** (`frontend/`) | Next.js 15 — Mongol Empire UI | Vercel |
+| **DB** | PostgreSQL 15 + pgvector | Cloud SQL |
+
+## Local Dev
+
+```bash
+# Backend
+pip install -r requirements.txt
+uvicorn api.main:app --reload
+
+# Frontend
+cd frontend
+npm install
+npm run dev        # http://localhost:3000
+```
+
+Set `LOCAL_MODE=true` in `.env` to skip GCS and Cloud Tasks.
+
+## Deploy
+
+- **Frontend**: Automatic on push to `main` via Vercel GitHub integration
+- **Backend**: `deploy-staging.yml` GitHub Action → Cloud Run
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Agent framework | LangGraph / LangChain |
+| Demo parsing | demoparser2 |
+| API | FastAPI + SQLAlchemy |
+| Frontend | Next.js 15 + Tailwind v4 |
+| Auth (planned) | Clerk |
+| Billing (planned) | Stripe |
+| Infra | GCP (Cloud Run, Cloud SQL, GCS, Pub/Sub) |
 
 ---
 
-## 🔐 Intellectual Property
-
-This repository is **Private** and **Proprietary**.
-
-* **Owner:** DemoSage
-* **License:** All Rights Reserved. See `LICENSE` file for full legal terms.
-* **Status:** Confidential Alpha.
-
----
+See [`TECHNICAL_SPEC.md`](./TECHNICAL_SPEC.md) for the full architecture and roadmap.
