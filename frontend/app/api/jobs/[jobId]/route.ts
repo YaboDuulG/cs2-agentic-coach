@@ -8,7 +8,7 @@ export async function GET(
 ) {
   const { jobId } = await params;
   try {
-    const res = await fetch(`${API_URL}/jobs/${jobId}`, { cache: "no-store" });
+    const res = await fetch(`${API_URL}/api/jobs/${jobId}`, { cache: "no-store" });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch {

@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import health, upload
+from api.routes import health, jobs, presign, upload
 
 load_dotenv()
 
@@ -29,6 +29,8 @@ app.add_middleware(
 # --- Routers ---
 app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
+app.include_router(presign.router, prefix="/api/upload", tags=["Upload"])
+app.include_router(jobs.router, prefix="/api/jobs", tags=["Jobs"])
 
 
 @app.get("/")

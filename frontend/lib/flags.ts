@@ -4,14 +4,14 @@
 export const PLAN_LIMITS = {
   free: {
     uploadsPerDay: 3,
-    maxFileSizeMB: 150,
+    maxFileSizeMB: 1024,   // CS2 demos are 200–800MB — 150MB was too small
     historyDays: 7,
     aiCoaching: false,
     audioAnalysis: false,
   },
   pro: {
     uploadsPerDay: Infinity,
-    maxFileSizeMB: 500,
+    maxFileSizeMB: 2048,
     historyDays: 90,
     aiCoaching: true,
     audioAnalysis: true,

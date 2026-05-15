@@ -60,11 +60,24 @@ export default function LandingPage() {
       setError(null);
       setUploading(true);
       try {
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch("/api/upload", { method: "POST", body: form });
-        if (!res.ok) throw new Error(await res.text());
-        const { job_id } = await res.json();
+        // Step 1: Get presigned GCS upload URL
+        const presignRes = await fetch("/api/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: file.name, size_bytes: file.size }),
+        });
+        if (!presignRes.ok) throw new Error(await presignRes.text());
+        const { job_id, upload_url } = await presignRes.json();
+
+        // Step 2: Upload directly to GCS (bypasses Vercel size limits)
+        const gcsRes = await fetch(upload_url, {
+          method: "PUT",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: file,
+        });
+        if (!gcsRes.ok) throw new Error("GCS upload failed.");
+
+        // Step 3: Navigate to results page (Scout job auto-triggered on GCS upload)
         router.push(`/analysis/${job_id}`);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Upload failed. Please try again.");
@@ -122,10 +135,10 @@ export default function LandingPage() {
           {/* Headline */}
           <h1 className="heading-display mb-6" style={{ fontSize: "clamp(2.4rem, 5vw, 4rem)" }}>
             Analyze like a{" "}
-            <span className="shimmer-text">Khan.</span>
+            <span className="text-glow-blue">Khan.</span>
             <br />
-            Dominate like an{" "}
-            <span style={{ color: "#2D7DD2" }}>Empire.</span>
+            Dominate like{" "}
+            <span style={{ color: "#FFE135", textShadow: "0 0 30px rgba(255,225,53,0.5)" }}>Vitality.</span>
           </h1>
 
           <p style={{ color: "#8BA7CC", fontSize: "1.1rem", maxWidth: 560, margin: "0 auto 40px", lineHeight: 1.7 }}>
