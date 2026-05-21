@@ -5,10 +5,9 @@ These run in CI without GCP credentials (LOCAL_MODE=true stub paths are tested).
 
 import os
 
-import pytest
 from fastapi.testclient import TestClient
 
-# Force LOCAL_MODE so no GCP calls are made
+# Force LOCAL_MODE so no GCP calls are made in CI
 os.environ["LOCAL_MODE"] = "true"
 
 from api.main import app  # noqa: E402
