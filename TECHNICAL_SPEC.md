@@ -602,20 +602,21 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - [x] Presigned GCS URL upload flow (bypasses Vercel 4.5MB limit — browser → GCS direct)
 - [x] Analysis results page: real-time job polling, kill feed, economy bar chart
 - [x] API proxy routes: `/api/upload` → FastAPI presign, `/api/jobs/{id}` → FastAPI
-- [x] Feature flags (`lib/flags.ts`): free/pro plan limits, billing-ready from day one
+- [x] Feature flags (`lib/flags.ts`): free/basic/pro plan limits (2 / 10 / unlimited demos/mo)
 - [x] Deployed to Vercel (auto-deploys on push to main)
 - [ ] End-to-end upload test with real demo on live URL
-- [ ] Add Clerk auth (sign-up/sign-in, user sessions)
-- [ ] Store `user_id` on match records — "My Analyses" dashboard
-- [ ] Stripe billing integration (gated by feature flags)
 
-### Phase B: Accounts & Billing (Next)
-- [ ] Clerk auth: sign-up, sign-in, session management
-- [ ] `user_id` on Match model + row-level security
-- [ ] "My Analyses" history page (per-user)
-- [ ] Stripe checkout + webhook handler
-- [ ] Pro plan feature gates (AI coaching, audio, extended history)
-- [ ] Usage tracking (uploads per day enforced server-side)
+### Phase B: Accounts & Billing ✅ Complete
+- [x] Clerk auth: sign-up, sign-in, session management (`frontend/proxy.ts` + `ClerkProvider`)
+- [x] `user_id` (nullable) on Match model — links matches to Clerk users
+- [x] "My Analyses" dashboard (`/dashboard`) — per-user match history + usage meter
+- [x] Stripe checkout + webhook handler — upgrades/downgrades plan in Clerk `publicMetadata`
+- [x] 3-tier plan gates: Free (2/mo), Basic $5 (10/mo), Pro $20 (unlimited)
+- [x] Upload quota enforcement server-side — 429 + upgrade URL when limit hit
+- [x] Stripe products + prices created: Basic `price_1TZdccK81lqFuAqaUpBtDmvt`, Pro `price_1TZdcdK81lqFuAqa5aXKj8F6`
+- [x] Navbar with plan badge, `UserButton`, and `SignInButton`
+- [x] Sign-in / Sign-up pages themed to Mongol Empire dark design
+- [x] `/billing/success` post-checkout confirmation page
 
 ### Phase 10: Production Hardening
 - [ ] Kubernetes deployment manifests
