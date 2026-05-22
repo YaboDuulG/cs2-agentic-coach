@@ -3,9 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { PLAN_LIMITS } from "@/lib/flags";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
 export async function POST(req: NextRequest) {
+  // Lazy-init Stripe so it's never evaluated at build time
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+  // --- Auth ---
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
