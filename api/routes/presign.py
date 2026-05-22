@@ -8,7 +8,7 @@ import logging
 import os
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -23,15 +23,10 @@ class PresignRequest(BaseModel):
 
 
 @router.post("/presign", summary="Get a presigned GCS URL for direct browser upload")
-async def presign_demo_upload(body: PresignRequest):
+async def presign_demo_upload(body: PresignRequest, request: Request):
     """
     Returns a short-lived presigned PUT URL so the browser can upload
     directly to GCS without proxying through the API server.
-
-    Flow:
-      1. Browser POST /api/upload/presign → gets { match_id, upload_url }
-      2. Browser PUT upload_url (with file bytes) → file lands in GCS
-      3. Browser POST /api/jobs/{match_id}/start → triggers Scout parse job
     """
     if not body.filename.endswith(".dem"):
         raise HTTPException(status_code=400, detail="Only .dem files are accepted.")
@@ -42,9 +37,10 @@ async def presign_demo_upload(body: PresignRequest):
     match_id = str(uuid.uuid4())
     bucket_name = os.environ.get("GCS_BUCKET", "")
     local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
+    user_id = request.headers.get("x-clerk-user-id")
 
     # Create match record in DB immediately so jobs endpoint returns 'queued'
-    _create_match_record(match_id, body.filename)
+    _create_match_record(match_id, body.filename, user_id)
 
     if local_mode or not bucket_name:
         # Local dev: return a fake presigned URL
@@ -88,22 +84,21 @@ async def stub_upload(match_id: str):
     return {"ok": True, "match_id": match_id}
 
 
-def _create_match_record(match_id: str, filename: str) -> None:
+def _create_match_record(match_id: str, filename: str, user_id: str | None = None) -> None:
     """Insert a queued match row so /api/jobs/{id} returns 'queued' immediately."""
     try:
-        from sqlalchemy import text  # noqa: PLC0415
-
         from db.database import SessionLocal  # noqa: PLC0415
+        from sqlalchemy import text  # noqa: PLC0415
 
         db = SessionLocal()
         try:
             db.execute(
                 text("""
-                    INSERT INTO matches (id, demo_filename, status, created_at)
-                    VALUES (:id, :filename, 'queued', NOW())
+                    INSERT INTO matches (id, demo_filename, status, user_id, created_at)
+                    VALUES (:id, :filename, 'queued', :user_id, NOW())
                     ON CONFLICT (id) DO NOTHING
                 """),
-                {"id": match_id, "filename": filename},
+                {"id": match_id, "filename": filename, "user_id": user_id},
             )
             db.commit()
         finally:

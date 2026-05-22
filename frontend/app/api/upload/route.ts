@@ -1,19 +1,35 @@
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { PLAN_LIMITS } from "@/lib/flags";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-/**
- * POST /api/upload
- *
- * Step 1: Ask the FastAPI backend for a presigned GCS upload URL.
- * Step 2: Return the presigned URL + match_id to the browser.
- * Step 3: Browser uploads the .dem file DIRECTLY to GCS (no Vercel size limit).
- * Step 4: Browser calls POST /api/jobs/[match_id]/start to trigger Scout parsing.
- *
- * Why: Vercel serverless functions cap request bodies at 4.5MB.
- * CS2 demos are 200–800MB — they must bypass Vercel entirely.
- */
 export async function POST(req: NextRequest) {
+  // --- Auth ---
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Sign in to upload demos." }, { status: 401 });
+  }
+
+  // --- Plan & quota check ---
+  const clerk = await clerkClient();
+  const user = await clerk.users.getUser(userId);
+  const plan = (user.publicMetadata?.plan as string) ?? "free";
+  const planLimits = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] ?? PLAN_LIMITS.free;
+  const uploadsThisMonth = (user.publicMetadata?.uploadsThisMonth as number) ?? 0;
+  const limit = planLimits.uploadsPerMonth;
+
+  if (limit !== Infinity && uploadsThisMonth >= limit) {
+    return NextResponse.json(
+      {
+        error: `Upload limit reached (${limit}/month on ${plan} plan). Upgrade to upload more.`,
+        upgrade_url: "/billing",
+      },
+      { status: 429 }
+    );
+  }
+
+  // --- Validate request ---
   try {
     const { filename, size_bytes } = await req.json();
 
@@ -21,10 +37,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Only .dem files are accepted." }, { status: 400 });
     }
 
-    // Request presigned URL from FastAPI backend
+    // --- Get presigned URL from FastAPI ---
     const res = await fetch(`${API_URL}/api/upload/presign`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-clerk-user-id": userId,
+      },
       body: JSON.stringify({ filename, size_bytes }),
     });
 
@@ -33,9 +52,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(data, { status: res.status });
     }
 
-    // Returns { match_id, upload_url, gcs_path }
+    // --- Increment usage counter ---
+    await clerk.users.updateUserMetadata(userId, {
+      publicMetadata: {
+        ...user.publicMetadata,
+        uploadsThisMonth: uploadsThisMonth + 1,
+        uploadsResetDate: getResetDate(),
+      },
+    });
+
     return NextResponse.json({ job_id: data.match_id, ...data });
   } catch {
-    return NextResponse.json({ error: "Failed to get upload URL" }, { status: 502 });
+    return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 502 });
   }
+}
+
+/** First day of next month at midnight UTC */
+function getResetDate(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
 }

@@ -3,18 +3,31 @@
 
 export const PLAN_LIMITS = {
   free: {
-    uploadsPerDay: 3,
-    maxFileSizeMB: 1024,   // CS2 demos are 200–800MB — 150MB was too small
+    uploadsPerMonth: 2,
+    maxFileSizeMB: 1024,
     historyDays: 7,
     aiCoaching: false,
     audioAnalysis: false,
+    stripePriceId: null,
+    displayPrice: "Free",
+  },
+  basic: {
+    uploadsPerMonth: 10,
+    maxFileSizeMB: 1024,
+    historyDays: 30,
+    aiCoaching: false,
+    audioAnalysis: false,
+    stripePriceId: "price_1TZdccK81lqFuAqaUpBtDmvt",
+    displayPrice: "$5 / month",
   },
   pro: {
-    uploadsPerDay: Infinity,
+    uploadsPerMonth: Infinity,
     maxFileSizeMB: 2048,
-    historyDays: 90,
+    historyDays: 365,
     aiCoaching: true,
     audioAnalysis: true,
+    stripePriceId: "price_1TZdcdK81lqFuAqa5aXKj8F6",
+    displayPrice: "$20 / month",
   },
 } as const;
 

@@ -4,7 +4,7 @@ DemoSage — SQLAlchemy ORM Models
 Defines the full database schema for parsed CS2 match data.
 
 Tables:
-    matches          - Match metadata and processing status
+    matches          - Match metadata and processing status (includes user_id FK to Clerk)
     kills            - Per-kill events with positions
     grenades         - Utility/grenade events
     rounds           - Round economy and outcome
@@ -62,6 +62,8 @@ class Match(Base):
     __tablename__ = "matches"
 
     match_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    # Clerk user ID — nullable so old anonymous rows are unaffected
+    user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     map_name: Mapped[str] = mapped_column(String(64), nullable=False, default="unknown")
     tickrate: Mapped[int] = mapped_column(Integer, nullable=False, default=64)
     total_rounds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

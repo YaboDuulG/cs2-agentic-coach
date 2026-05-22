@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Cinzel, Inter, JetBrains_Mono } from "next/font/google";
+import { Navbar } from "@/components/Navbar";
 import "./globals.css";
 
 const cinzel = Cinzel({ subsets: ["latin"], weight: ["400", "600", "700", "900"], variable: "--font-cinzel" });
@@ -7,7 +9,7 @@ const inter = Inter({ subsets: ["latin"], weight: ["300", "400", "500", "600", "
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "600"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "DemoSage — Analyze like a Khan. Dominate like an Empire.",
+  title: "DemoSage — Analyze like a Khan. Dominate like Vitality.",
   description:
     "AI-powered CS2 demo analysis and coaching. Upload your match demo and receive tactical coaching powered by the Great Khan AI orchestrator.",
   keywords: ["CS2", "Counter-Strike", "demo analysis", "coaching", "AI", "tactics"],
@@ -22,10 +24,13 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`dark ${cinzel.variable} ${inter.variable} ${jetbrains.variable}`}>
-      <body className="antialiased">
-        {children}
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" className={`dark ${cinzel.variable} ${inter.variable} ${jetbrains.variable}`}>
+        <body className="antialiased">
+          <Navbar />
+          {children}
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

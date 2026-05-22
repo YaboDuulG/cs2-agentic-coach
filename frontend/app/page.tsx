@@ -207,7 +207,7 @@ export default function LandingPage() {
           )}
 
           <p style={{ color: "#4A6A8A", fontSize: "0.75rem", marginTop: 16 }}>
-            Free tier: {PLAN_LIMITS.free.uploadsPerDay} demos/day · No account required to start
+            Free tier: {PLAN_LIMITS.free.uploadsPerMonth} demos/month · Sign in to start
           </p>
         </div>
       </section>
