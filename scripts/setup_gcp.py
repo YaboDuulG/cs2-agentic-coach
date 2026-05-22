@@ -163,7 +163,8 @@ def main() -> None:
     print("  pubsub.publisher on the topic. Run after getting your project number:")
     print(f"    gcloud projects describe {PROJECT_ID} --format='value(projectNumber)'")
     print(f"    Then: gcloud pubsub topics add-iam-policy-binding {PUBSUB_TOPIC} \\")
-    print(f"      --member='serviceAccount:service-NUMBER@gs-project-accounts.iam.gserviceaccount.com' \\")
+    print("      --member='serviceAccount:service-NUMBER@gs-project-accounts.iam.gserviceaccount.com' \\")
+
     print( "      --role='roles/pubsub.publisher'")
 
     # GCS bucket notification (finalize = object created)

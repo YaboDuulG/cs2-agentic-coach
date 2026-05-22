@@ -87,8 +87,9 @@ async def stub_upload(match_id: str):
 def _create_match_record(match_id: str, filename: str, user_id: str | None = None) -> None:
     """Insert a queued match row so /api/jobs/{id} returns 'queued' immediately."""
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         from sqlalchemy import text  # noqa: PLC0415
+
+        from db.database import SessionLocal  # noqa: PLC0415
 
         db = SessionLocal()
         try:
