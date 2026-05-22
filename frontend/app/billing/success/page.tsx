@@ -19,7 +19,7 @@ export default function BillingSuccessPage() {
             Upload a Demo
           </Link>
           <Link
-            href="/dashboard"
+            href="/profile"
             className="rounded-xl border border-white/10 px-8 py-3 font-semibold text-slate-300 transition-all hover:bg-white/5"
           >
             My Analyses

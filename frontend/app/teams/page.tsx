@@ -57,10 +57,10 @@ export default function TeamsPage() {
     if (!inviteCode.trim()) return;
     setSaving(true); setError(null);
     try {
-      const res = await fetch("/api/teams", {
+      const res = await fetch("/api/teams/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ join: true, invite_code: inviteCode.trim() }),
+        body: JSON.stringify({ invite_code: inviteCode.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Invalid code");
@@ -68,6 +68,7 @@ export default function TeamsPage() {
     } catch (e) { setError(e instanceof Error ? e.message : "Error"); }
     setSaving(false);
   }
+
 
   function copyCode(code: string) {
     navigator.clipboard.writeText(code);
