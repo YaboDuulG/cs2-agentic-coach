@@ -35,9 +35,14 @@ export function Navbar() {
             Upload
           </Link>
           {user && (
-            <Link href="/dashboard" className={`transition-colors ${isActive("/dashboard")}`}>
-              My Analyses
-            </Link>
+            <>
+              <Link href="/dashboard" className={`transition-colors ${isActive("/dashboard")}`}>
+                My Analyses
+              </Link>
+              <Link href="/teams" className={`transition-colors ${isActive("/teams")}`}>
+                Teams
+              </Link>
+            </>
           )}
           <Link href="/billing" className={`transition-colors ${isActive("/billing")}`}>
             Pricing

@@ -168,7 +168,7 @@ async def parse_match(req: ParseRequest):
             logger.info(f"Local output: {out}")
 
         meta = result.get("metadata", {})
-        return ParseResponse(
+        response = ParseResponse(
             match_id=req.match_id,
             status="complete",
             map=meta.get("map", "unknown"),
@@ -178,6 +178,12 @@ async def parse_match(req: ParseRequest):
             trajectories=len(result.get("trajectories", [])),
             gcs_parsed_uri=gcs_parsed_uri,
         )
+
+        # Trigger AI coaching asynchronously (fire-and-forget)
+        _trigger_coaching(req.match_id)
+
+        return response
+
 
     except Exception as exc:
         logger.error(f"[Scout] Parse failed for {req.match_id}: {exc}")
@@ -216,7 +222,24 @@ def _download_from_gcs(gcs_uri: str, match_id: str) -> str:
     return tmp.name
 
 
+def _trigger_coaching(match_id: str) -> None:
+    """Fire-and-forget: ask the API to run Great Khan coaching for this match."""
+    import threading  # noqa: PLC0415
+
+    def _call():
+        try:
+            import httpx  # noqa: PLC0415
+            api_url = os.getenv("API_INTERNAL_URL", "http://localhost:8000")
+            httpx.post(f"{api_url}/api/coaching/{match_id}", timeout=5)
+            logger.info(f"[Scout] Coaching triggered for {match_id}")
+        except Exception as e:
+            logger.warning(f"[Scout] Coaching trigger failed (non-fatal): {e}")
+
+    threading.Thread(target=_call, daemon=True).start()
+
+
 def _mark_failed(match_id: str, error: str) -> None:
+
     """Update match status to FAILED in the database."""
     try:
         from db.database import SessionLocal

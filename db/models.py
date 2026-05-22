@@ -10,6 +10,8 @@ Tables:
     rounds           - Round economy and outcome
     first_contacts   - First engagement per round (FCR data for Tactician)
     trajectories     - Player movement paths per round (heatmap data)
+    teams            - Team groups (owner + invite code)
+    team_members     - Many-to-many: users ↔ teams
 
 Notes:
     - All tables use match_id (UUID string) as the foreign key to matches
@@ -71,6 +73,8 @@ class Match(Base):
         Enum(MatchStatus), nullable=False, default=MatchStatus.PENDING
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Cached AI coaching output (JSON string) — written by Great Khan after Scout parse
+    coaching_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     gcs_demo_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     gcs_audio_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     gcs_parsed_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -220,3 +224,50 @@ class PlayerTrajectory(Base):
     positions_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
 
     match: Mapped["Match"] = relationship("Match", back_populates="trajectories")
+
+
+# ---------------------------------------------------------------------------
+# Team — group of players sharing analysis history
+# ---------------------------------------------------------------------------
+
+class Team(Base):
+    __tablename__ = "teams"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    owner_user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # 8-char alphanumeric code shared with teammates
+    invite_code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    members: Mapped[list["TeamMember"]] = relationship(
+        "TeamMember", back_populates="team", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<Team {self.id} name={self.name}>"
+
+
+# ---------------------------------------------------------------------------
+# TeamMember — many-to-many join between users (Clerk IDs) and teams
+# ---------------------------------------------------------------------------
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(16), nullable=False, default="member")  # owner | member
+    joined_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    team: Mapped["Team"] = relationship("Team", back_populates="members")
+
+    def __repr__(self) -> str:
+        return f"<TeamMember team={self.team_id} user={self.user_id} role={self.role}>"
