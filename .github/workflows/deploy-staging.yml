@@ -48,7 +48,8 @@ jobs:
 
       - name: Deploy API to Cloud Run (staging)
         run: |
-          gcloud run deploy demosage-api-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} --platform managed --region ${{ env.REGION }} --allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=staging,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL:latest --set-secrets GCS_BUCKET=GCS_BUCKET:latest --set-secrets API_SECRET_KEY=API_SECRET_KEY:latest --quiet
+          gcloud run deploy demosage-api-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} --platform managed --region ${{ env.REGION }} --allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=staging,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL:latest --set-secrets GCS_BUCKET=GCS_BUCKET:latest --set-secrets API_SECRET_KEY=API_SECRET_KEY:latest --set-secrets VULTR_API_KEY=VULTR_API_KEY:latest --quiet
+
 
       - name: Run DB migrations (create tables)
         continue-on-error: true
