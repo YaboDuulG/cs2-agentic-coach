@@ -368,7 +368,7 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - **Base:** CS2 Dedicated Server (Linux, Docker container per session)
 - **Plugin Framework:** MetaMod:Source + CounterStrikeSharp
 - **Provisioning:** Warlord agent calls server management API (custom FastAPI service)
-- **Hosting:** **Hetzner Cloud** (CX21 or CX31 instances) — cheapest reliable European cloud (~€5–12/mo per server, on-demand spin-up/teardown via Hetzner API)
+- **Hosting:** **Vultr** (High Frequency Compute) — excellent North American coverage (Dallas, Chicago, Ashburn, Denver, etc.) via REST API
 - **Lifecycle:** Auto-shutdown after 2h of inactivity; server destroyed after session to avoid idle costs
 
 ### 7.2 Practice Modes

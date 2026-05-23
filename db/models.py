@@ -282,8 +282,9 @@ class PracticeServer(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     team_id: Mapped[str] = mapped_column(String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
-    hetzner_server_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    vultr_instance_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="booting") # booting, active, terminated
     mode: Mapped[str] = mapped_column(String(32), nullable=False, default="practice")
     rcon_password: Mapped[str] = mapped_column(String(32), nullable=False)

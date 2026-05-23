@@ -57,8 +57,9 @@ export default function TeamDetailPage() {
   const [servers, setServers] = useState<PracticeServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [spinningUp, setSpinningUp] = useState(false);
-  const [region, setRegion] = useState("ash"); // ash = US East, hil = US West
+  const [region, setRegion] = useState("dfw"); // dfw = Dallas (default)
   const [copied, setCopied] = useState(false);
+
 
 
   useEffect(() => {
@@ -208,9 +209,13 @@ export default function TeamDetailPage() {
                         onChange={(e) => setRegion(e.target.value)}
                         className="flex-1 rounded bg-[#0F172A] border border-white/10 px-3 py-2 text-sm text-[#C4CEDD] outline-none focus:border-[#2D7DD2]"
                       >
-                        <option value="ash">US East (Virginia)</option>
-                        <option value="hil">US West (Oregon)</option>
+                        <option value="dfw">US South (Dallas, TX)</option>
+                        <option value="ord">US Central (Chicago, IL)</option>
+                        <option value="ewr">US East (New Jersey/NY)</option>
+                        <option value="sea">US Northwest (Seattle, WA)</option>
+                        <option value="sjc">US Southwest (Silicon Valley, CA)</option>
                       </select>
+
                     </div>
                     <button
                       onClick={spinUpServer}

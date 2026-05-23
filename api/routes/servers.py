@@ -12,9 +12,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from db.models import PracticeServer, TeamMember
-from services.warlord.hcloud_client import provision_practice_server, destroy_practice_server
+from services.warlord.vultr_client import provision_practice_server, destroy_practice_server
 
 logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 class ServerCreateRequest(BaseModel):
@@ -63,7 +64,7 @@ def spin_up_server(team_id: str, req_body: ServerCreateRequest, request: Request
     webhook_url = f"{request.base_url}api/servers/webhook"
     
     try:
-        hetzner_data = provision_practice_server(server_id, webhook_url, region=req_body.region)
+        vultr_data = provision_practice_server(server_id, webhook_url, region=req_body.region)
     except Exception as e:
 
         raise HTTPException(status_code=500, detail=str(e))
@@ -71,14 +72,15 @@ def spin_up_server(team_id: str, req_body: ServerCreateRequest, request: Request
     new_server = PracticeServer(
         id=server_id,
         team_id=team_id,
-        hetzner_server_id=hetzner_data["hetzner_id"],
-        ip_address=hetzner_data["ip_address"],
-        rcon_password=hetzner_data["rcon_password"],
-        server_password=hetzner_data["server_password"],
+        vultr_instance_id=vultr_data["vultr_id"],
+        ip_address=vultr_data["ip_address"],
+        rcon_password=vultr_data["rcon_password"],
+        server_password=vultr_data["server_password"],
         mode=req_body.mode,
         expires_at=datetime.now(UTC) + timedelta(hours=2),
         status="booting"
     )
+
     
     db.add(new_server)
     db.commit()
@@ -112,10 +114,11 @@ def terminate_server(server_id: str, request: Request, db: Session = Depends(get
         
     _verify_team_member(db, user_id, server.team_id)
     
-    if server.hetzner_server_id:
-        destroy_practice_server(server.hetzner_server_id)
+    if server.vultr_instance_id:
+        destroy_practice_server(server.vultr_instance_id)
         
     server.status = "terminated"
+
     db.commit()
     return {"status": "terminated"}
 
@@ -147,10 +150,11 @@ def cron_cleanup(request: Request, db: Session = Depends(get_db)):
     
     count = 0
     for srv in expired:
-        if srv.hetzner_server_id:
+        if srv.vultr_instance_id:
             try:
-                destroy_practice_server(srv.hetzner_server_id)
+                destroy_practice_server(srv.vultr_instance_id)
                 srv.status = "terminated"
+
                 count += 1
             except Exception as e:
                 logger.error(f"Failed to cleanup {srv.id}: {e}")
