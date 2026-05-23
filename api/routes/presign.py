@@ -110,11 +110,10 @@ def _create_match_record(match_id: str, filename: str, user_id: str | None = Non
             db.execute(
                 text("""
                     INSERT INTO matches (match_id, demo_filename, status, user_id, created_at)
-                    VALUES (:id, :filename, 'pending', :user_id, NOW())
+                    VALUES (:id, :filename, 'PENDING', :user_id, NOW())
                     ON CONFLICT (match_id) DO NOTHING
                 """),
                 {"id": match_id, "filename": filename, "user_id": user_id},
-
             )
             db.commit()
         finally:
