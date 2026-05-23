@@ -63,8 +63,9 @@ def spin_up_server(team_id: str, req_body: ServerCreateRequest, request: Request
     webhook_url = f"{request.base_url}api/servers/webhook"
     
     try:
-        hetzner_data = provision_practice_server(server_id, webhook_url)
+        hetzner_data = provision_practice_server(server_id, webhook_url, region=req_body.region)
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
         
     new_server = PracticeServer(

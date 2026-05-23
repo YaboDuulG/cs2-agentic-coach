@@ -14,12 +14,14 @@ def get_hcloud_client() -> Client:
         raise ValueError("HETZNER_API_TOKEN is not set")
     return Client(token=token)
 
-def provision_practice_server(match_id: str, webhook_url: str) -> dict:
+def provision_practice_server(match_id: str, webhook_url: str, region: str = "ash") -> dict:
     """Spins up a Hetzner server with CS2 Cloud Init."""
     client = get_hcloud_client()
     
     server_type_name = os.environ.get("HETZNER_SERVER_TYPE", "cx22")
-    location_name = os.environ.get("HETZNER_LOCATION", "nbg1")
+    location_name = region # e.g. 'ash' or 'hil'
+
+
     
     # RCON and joining passwords
     rcon_password = secrets.token_urlsafe(12)

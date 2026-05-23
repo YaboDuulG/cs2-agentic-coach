@@ -57,7 +57,9 @@ export default function TeamDetailPage() {
   const [servers, setServers] = useState<PracticeServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [spinningUp, setSpinningUp] = useState(false);
+  const [region, setRegion] = useState("ash"); // ash = US East, hil = US West
   const [copied, setCopied] = useState(false);
+
 
   useEffect(() => {
     if (!isLoaded || !user) return;
@@ -79,8 +81,9 @@ export default function TeamDetailPage() {
       const res = await fetch(`/api/teams/${teamId}/servers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "practice", region: "eu" }),
+        body: JSON.stringify({ mode: "practice", region }),
       });
+
       const data = await res.json();
       if (res.ok) setServers([...servers, data]);
     } catch (e) { console.error(e); }
@@ -199,6 +202,16 @@ export default function TeamDetailPage() {
                 ) : (
                   <div className="text-center py-4">
                     <p className="text-sm text-[#8BA7CC] mb-3">No active practice servers.</p>
+                    <div className="flex gap-2 mb-3">
+                      <select 
+                        value={region}
+                        onChange={(e) => setRegion(e.target.value)}
+                        className="flex-1 rounded bg-[#0F172A] border border-white/10 px-3 py-2 text-sm text-[#C4CEDD] outline-none focus:border-[#2D7DD2]"
+                      >
+                        <option value="ash">US East (Virginia)</option>
+                        <option value="hil">US West (Oregon)</option>
+                      </select>
+                    </div>
                     <button
                       onClick={spinUpServer}
                       disabled={spinningUp}
@@ -207,6 +220,7 @@ export default function TeamDetailPage() {
                       {spinningUp ? "Starting..." : "Spin Up Server"}
                     </button>
                   </div>
+
                 )}
               </div>
 
