@@ -11,15 +11,15 @@ export default function SettingsPage() {
   
   if (!isLoaded || !user) return <div className="p-8 text-white">Loading...</div>;
 
-  const publicMetadata = user.publicMetadata || {};
-  const useSkins = !!publicMetadata.use_skins_plugin;
+  const unsafeMetadata = user.unsafeMetadata || {};
+  const useSkins = !!unsafeMetadata.use_skins_plugin;
 
   async function toggleSkins() {
     setSaving(true);
     try {
       await user?.update({
-        publicMetadata: {
-          ...publicMetadata,
+        unsafeMetadata: {
+          ...unsafeMetadata,
           use_skins_plugin: !useSkins,
         },
       });
@@ -28,6 +28,7 @@ export default function SettingsPage() {
     }
     setSaving(false);
   }
+
 
   return (
     <main className="min-h-screen bg-[#080E1A]">
