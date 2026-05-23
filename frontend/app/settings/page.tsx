@@ -2,9 +2,10 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useState } from "react";
-import Navbar from "@/components/Navbar";
+import { Navbar } from "@/components/Navbar";
 
 export default function SettingsPage() {
+
   const { user, isLoaded } = useUser();
   const [saving, setSaving] = useState(false);
   
