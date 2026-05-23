@@ -22,6 +22,30 @@ def run_migrations():
         except Exception as e:
             logger.warning(f"Could not add demo_filename (might already exist): {e}")
 
+        try:
+            conn.execute(text("ALTER TABLE matches ADD COLUMN coaching_notes TEXT;"))
+            logger.info("Added coaching_notes column to matches table")
+        except Exception as e:
+            logger.warning(f"Could not add coaching_notes (might already exist): {e}")
+
+        try:
+            conn.execute(text("ALTER TABLE matches ADD COLUMN gcs_demo_uri TEXT;"))
+            logger.info("Added gcs_demo_uri column to matches table")
+        except Exception as e:
+            logger.warning(f"Could not add gcs_demo_uri (might already exist): {e}")
+
+        try:
+            conn.execute(text("ALTER TABLE matches ADD COLUMN gcs_audio_uri TEXT;"))
+            logger.info("Added gcs_audio_uri column to matches table")
+        except Exception as e:
+            logger.warning(f"Could not add gcs_audio_uri (might already exist): {e}")
+
+        try:
+            conn.execute(text("ALTER TABLE matches ADD COLUMN gcs_parsed_uri TEXT;"))
+            logger.info("Added gcs_parsed_uri column to matches table")
+        except Exception as e:
+            logger.warning(f"Could not add gcs_parsed_uri (might already exist): {e}")
+
     logger.info("Migrations complete!")
 
 if __name__ == "__main__":
