@@ -55,24 +55,28 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
     try:
         from google.cloud import storage  # noqa: PLC0415
 
-        client = storage.Client()
+        import json
+        from google.oauth2 import service_account
+
+        # If GCP_SA_KEY is mounted, use it to initialize client and sign
+        sa_key_json = os.environ.get("GCP_SA_KEY")
+        if sa_key_json:
+            creds = service_account.Credentials.from_service_account_info(json.loads(sa_key_json))
+            client = storage.Client(credentials=creds)
+        else:
+            client = storage.Client()
+
         bucket = client.bucket(bucket_name)
         gcs_path = f"demos/raw/{match_id}/{body.filename}"
         blob = bucket.blob(gcs_path)
-
-        import google.auth
-        credentials, project = google.auth.default()
-        
-        sa_email = getattr(credentials, "service_account_email", "demosage-dev@demosage-cs2.iam.gserviceaccount.com")
 
         upload_url = blob.generate_signed_url(
             version="v4",
             expiration=timedelta(minutes=30),
             method="PUT",
             content_type="application/octet-stream",
-            service_account_email=sa_email,
-            access_token=credentials.token,
         )
+
 
 
         logger.info(f"Presigned URL generated: {gcs_path}")
@@ -106,7 +110,7 @@ def _create_match_record(match_id: str, filename: str, user_id: str | None = Non
             db.execute(
                 text("""
                     INSERT INTO matches (match_id, demo_filename, status, user_id, created_at)
-                    VALUES (:id, :filename, 'queued', :user_id, NOW())
+                    VALUES (:id, :filename, 'pending', :user_id, NOW())
                     ON CONFLICT (match_id) DO NOTHING
                 """),
                 {"id": match_id, "filename": filename, "user_id": user_id},
