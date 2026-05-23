@@ -1,0 +1,34 @@
+name: E2E Production Demo Test
+
+on:
+  workflow_run:
+    workflows: ["Deploy Staging"]
+    types:
+      - completed
+  workflow_dispatch:
+
+jobs:
+  e2e-test:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Download test demo
+        run: |
+          mkdir -p tests/e2e/data
+          curl -sL https://github.com/markus-wa/demoinfocs-golang/raw/master/test/cs2/default.dem -o tests/e2e/data/test.dem
+
+      - name: Run E2E Test
+        run: python tests/e2e/test_prod_pipeline.py --api-url https://demosage-api-staging-827701516570.us-central1.run.app --demo tests/e2e/data/test.dem --user-id "e2e-ci-user"
