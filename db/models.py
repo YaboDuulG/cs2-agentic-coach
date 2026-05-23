@@ -66,6 +66,7 @@ class Match(Base):
     match_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     # Clerk user ID — nullable so old anonymous rows are unaffected
     user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    demo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     map_name: Mapped[str] = mapped_column(String(64), nullable=False, default="unknown")
     tickrate: Mapped[int] = mapped_column(Integer, nullable=False, default=64)
     total_rounds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

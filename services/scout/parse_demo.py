@@ -106,13 +106,14 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                     "victim_team":    _safe_str(row.get("user_team_name")),
                     "weapon":         _safe_str(row.get("weapon")),
                     "headshot":       bool(row.get("headshot", False)),
-                    "attacker_x":     _safe_float(row.get("attacker_X")),
-                    "attacker_y":     _safe_float(row.get("attacker_Y")),
-                    "attacker_z":     _safe_float(row.get("attacker_Z")),
-                    "victim_x":       _safe_float(row.get("user_X")),
-                    "victim_y":       _safe_float(row.get("user_Y")),
-                    "victim_z":       _safe_float(row.get("user_Z")),
+                    "attacker_x":     _safe_float(row.get("attacker_X", row.get("attacker_x"))),
+                    "attacker_y":     _safe_float(row.get("attacker_Y", row.get("attacker_y"))),
+                    "attacker_z":     _safe_float(row.get("attacker_Z", row.get("attacker_z"))),
+                    "victim_x":       _safe_float(row.get("user_X", row.get("user_x"))),
+                    "victim_y":       _safe_float(row.get("user_Y", row.get("user_y"))),
+                    "victim_z":       _safe_float(row.get("user_Z", row.get("user_z"))),
                 }
+
                 output["kills"].append(kill)
     except Exception as e:
         logger.warning(f"Kill events skipped: {e}")
@@ -143,9 +144,10 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                         "thrower": _safe_str(row.get("user_name")),
                         "team":    _safe_str(row.get("user_team_name")),
                         "type":    grenade_type,
-                        "throw_x": _safe_float(row.get("user_X")),
-                        "throw_y": _safe_float(row.get("user_Y")),
+                        "throw_x": _safe_float(row.get("user_X", row.get("user_x"))),
+                        "throw_y": _safe_float(row.get("user_Y", row.get("user_y"))),
                     })
+
         except Exception:
             pass  # Not all demo types have all grenade events
 
