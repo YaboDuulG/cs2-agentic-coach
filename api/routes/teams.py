@@ -166,7 +166,7 @@ async def team_analyses(team_id: str, user_id: str = ""):
             rows = db.execute(
                 text("""
                     SELECT m.match_id, m.map_name, m.status, m.created_at, m.user_id,
-                           m.total_rounds, m.total_kills
+                           m.total_rounds
                     FROM matches m
                     JOIN team_members tm ON m.user_id = tm.user_id
                     WHERE tm.team_id = :team_id
@@ -184,7 +184,6 @@ async def team_analyses(team_id: str, user_id: str = ""):
                     "created_at": r[3].isoformat() if r[3] else None,
                     "user_id": r[4],
                     "total_rounds": r[5],
-                    "total_kills": r[6],
                 }
                 for r in rows
             ]

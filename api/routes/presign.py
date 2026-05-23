@@ -60,12 +60,20 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
         gcs_path = f"demos/raw/{match_id}/{body.filename}"
         blob = bucket.blob(gcs_path)
 
+        import google.auth
+        credentials, project = google.auth.default()
+        
+        sa_email = getattr(credentials, "service_account_email", "demosage-dev@demosage-cs2.iam.gserviceaccount.com")
+
         upload_url = blob.generate_signed_url(
             version="v4",
             expiration=timedelta(minutes=30),
             method="PUT",
             content_type="application/octet-stream",
+            service_account_email=sa_email,
+            access_token=credentials.token,
         )
+
 
         logger.info(f"Presigned URL generated: {gcs_path}")
         return {
