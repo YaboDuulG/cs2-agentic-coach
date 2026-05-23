@@ -12,12 +12,18 @@ def get_vultr_headers() -> dict:
     if not api_key:
         raise ValueError("VULTR_API_KEY is not set")
     return {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {api_key.strip()}",
         "Content-Type": "application/json"
     }
 
 def provision_practice_server(match_id: str, webhook_url: str, region: str = "dfw") -> dict:
     """Spins up a Vultr High-Frequency instance with CS2 Cloud Init."""
+
+    # Map high-level region names to valid Vultr region codes if passed
+    if region == "eu":
+        region = "fra"
+    elif region == "na":
+        region = "dfw"
 
     # RCON and joining passwords
     rcon_password = secrets.token_urlsafe(12)
