@@ -7,8 +7,9 @@ from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from db.database import get_db
+from db.database import get_session
 from sqlalchemy.orm import Session
+
 from sqlalchemy import select
 
 from db.models import PracticeServer, TeamMember
@@ -40,7 +41,7 @@ def _verify_team_member(db: Session, user_id: str, team_id: str):
     return member
 
 @router.post("/teams/{team_id}/servers", response_model=ServerResponse)
-def spin_up_server(team_id: str, req_body: ServerCreateRequest, request: Request, db: Session = Depends(get_db)):
+def spin_up_server(team_id: str, req_body: ServerCreateRequest, request: Request, db: Session = Depends(get_session)):
     user_id = request.headers.get("x-clerk-user-id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
