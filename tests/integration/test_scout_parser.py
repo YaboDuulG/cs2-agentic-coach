@@ -7,7 +7,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from services.scout.parse_demo import parse_demo
+try:
+    from services.scout.parse_demo import parse_demo
+    HAS_DEMOPARSER = True
+except ImportError:
+    HAS_DEMOPARSER = False
+
+pytestmark = pytest.mark.skipif(not HAS_DEMOPARSER, reason="demoparser2 or its dependencies not installed")
 
 
 @pytest.fixture
