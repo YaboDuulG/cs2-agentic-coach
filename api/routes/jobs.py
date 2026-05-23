@@ -45,7 +45,7 @@ async def get_job_status(match_id: str):
         try:
             # Check if match record exists and has been parsed
             result = db.execute(
-                text("SELECT id, map_name, status FROM matches WHERE id = :id"),
+                text("SELECT match_id, map_name, status FROM matches WHERE match_id = :id"),
                 {"id": match_id},
             ).fetchone()
 
@@ -61,9 +61,9 @@ async def get_job_status(match_id: str):
             # Fetch kills
             kills = db.execute(
                 text("""
-                    SELECT killer_name, victim_name, weapon, round_number
+                    SELECT attacker, victim, weapon, round_num, attacker_team, attacker_x, attacker_y, victim_x, victim_y
                     FROM kills WHERE match_id = :id
-                    ORDER BY round_number, id
+                    ORDER BY round_num, id
                     LIMIT 200
                 """),
                 {"id": match_id},
@@ -72,9 +72,9 @@ async def get_job_status(match_id: str):
             # Fetch rounds
             rounds = db.execute(
                 text("""
-                    SELECT round_number, winner_side, ct_spend, t_spend
+                    SELECT round_num, winner_side, ct_eq_val, t_eq_val
                     FROM rounds WHERE match_id = :id
-                    ORDER BY round_number
+                    ORDER BY round_num
                 """),
                 {"id": match_id},
             ).fetchall()
@@ -86,7 +86,17 @@ async def get_job_status(match_id: str):
                 "total_rounds": len(rounds),
                 "total_kills": len(kills),
                 "kills": [
-                    {"killer": k[0], "victim": k[1], "weapon": k[2], "round": k[3]}
+                    {
+                        "killer": k[0],
+                        "victim": k[1],
+                        "weapon": k[2],
+                        "round": k[3],
+                        "killer_team": k[4],
+                        "attacker_x": k[5],
+                        "attacker_y": k[6],
+                        "victim_x": k[7],
+                        "victim_y": k[8],
+                    }
                     for k in kills
                 ],
                 "rounds": [

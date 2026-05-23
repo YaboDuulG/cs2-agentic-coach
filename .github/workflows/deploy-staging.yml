@@ -70,4 +70,4 @@ jobs:
 
       - name: Deploy Scout to Cloud Run (staging)
         run: |
-          gcloud run deploy demosage-scout-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} --platform managed --region ${{ env.REGION }} --no-allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=staging,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL:latest --set-secrets GCS_BUCKET=GCS_BUCKET:latest --quiet
+          gcloud run deploy demosage-scout-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} --platform managed --region ${{ env.REGION }} --no-allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=staging,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL:latest --set-secrets GCS_BUCKET=GCS_BUCKET:latest --memory 2Gi --cpu 2 --quiet

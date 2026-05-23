@@ -24,7 +24,7 @@ async def list_analyses(user_id: str = ""):
         try:
             rows = db.execute(
                 text("""
-                    SELECT id, map_name, status, created_at
+                    SELECT match_id, map_name, status, created_at
                     FROM matches
                     WHERE user_id = :user_id
                     ORDER BY created_at DESC
