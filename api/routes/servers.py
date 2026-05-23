@@ -90,7 +90,7 @@ def spin_up_server(team_id: str, req_body: ServerCreateRequest, request: Request
     return new_server
 
 @router.get("/teams/{team_id}/servers", response_model=List[ServerResponse])
-def list_servers(team_id: str, request: Request, db: Session = Depends(get_db)):
+def list_servers(team_id: str, request: Request, db: Session = Depends(get_session)):
     user_id = request.headers.get("x-clerk-user-id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -104,7 +104,7 @@ def list_servers(team_id: str, request: Request, db: Session = Depends(get_db)):
     return servers
 
 @router.delete("/servers/{server_id}")
-def terminate_server(server_id: str, request: Request, db: Session = Depends(get_db)):
+def terminate_server(server_id: str, request: Request, db: Session = Depends(get_session)):
     user_id = request.headers.get("x-clerk-user-id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -128,7 +128,7 @@ class WebhookPayload(BaseModel):
     status: str
 
 @router.post("/servers/webhook", include_in_schema=False)
-def server_webhook(payload: WebhookPayload, db: Session = Depends(get_db)):
+def server_webhook(payload: WebhookPayload, db: Session = Depends(get_session)):
     """Receives ping from cloud-init when CS2 is up."""
     server = db.execute(select(PracticeServer).where(PracticeServer.id == payload.server_id)).scalar_one_or_none()
     if server:
@@ -137,7 +137,7 @@ def server_webhook(payload: WebhookPayload, db: Session = Depends(get_db)):
     return {"ok": True}
 
 @router.post("/servers/cron/cleanup", include_in_schema=False)
-def cron_cleanup(request: Request, db: Session = Depends(get_db)):
+def cron_cleanup(request: Request, db: Session = Depends(get_session)):
     """Vercel cron endpoint to destroy expired servers."""
     auth_header = request.headers.get("Authorization")
     if auth_header != f"Bearer {os.environ.get('CRON_SECRET')}":
