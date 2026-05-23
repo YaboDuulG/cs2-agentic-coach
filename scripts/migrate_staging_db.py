@@ -1,7 +1,8 @@
-import os
 import logging
-from db.database import engine
+
 from sqlalchemy import text
+
+from db.database import engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,13 +15,13 @@ def run_migrations():
             logger.info("Added user_id column to matches table")
         except Exception as e:
             logger.warning(f"Could not add user_id (might already exist): {e}")
-            
+
         try:
             conn.execute(text("ALTER TABLE matches ADD COLUMN demo_filename VARCHAR(255);"))
             logger.info("Added demo_filename column to matches table")
         except Exception as e:
             logger.warning(f"Could not add demo_filename (might already exist): {e}")
-            
+
     logger.info("Migrations complete!")
 
 if __name__ == "__main__":

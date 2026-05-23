@@ -8,8 +8,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import analyses, coaching, health, jobs, presign, teams, upload, servers
-
+from api.routes import analyses, coaching, health, jobs, presign, servers, teams, upload
 
 load_dotenv()
 

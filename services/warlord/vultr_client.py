@@ -1,7 +1,8 @@
+import base64
+import logging
 import os
 import secrets
-import logging
-import base64
+
 import requests
 
 logger = logging.getLogger(__name__)
@@ -17,23 +18,23 @@ def get_vultr_headers() -> dict:
 
 def provision_practice_server(match_id: str, webhook_url: str, region: str = "dfw") -> dict:
     """Spins up a Vultr High-Frequency instance with CS2 Cloud Init."""
-    
+
     # RCON and joining passwords
     rcon_password = secrets.token_urlsafe(12)
     server_password = secrets.token_urlsafe(8)
-    
+
     # Read and template cloud-init
     cloud_init_path = os.path.join(os.path.dirname(__file__), "cloud_init.yaml")
     with open(cloud_init_path, "r") as f:
         user_data = f.read()
-        
+
     user_data = user_data.replace("__RCON_PASSWORD__", rcon_password)
     user_data = user_data.replace("__SERVER_PASSWORD__", server_password)
     user_data = user_data.replace("__SERVER_ID__", match_id)
     user_data = user_data.replace("__WEBHOOK_URL__", webhook_url)
-    
+
     encoded_user_data = base64.b64encode(user_data.encode("utf-8")).decode("utf-8")
-    
+
     payload = {
         "region": region,
         "plan": "vhf-1c-2gb",  # Vultr High Frequency 1 vCPU, 2GB RAM
@@ -42,7 +43,7 @@ def provision_practice_server(match_id: str, webhook_url: str, region: str = "df
         "user_data": encoded_user_data,
         "tags": ["demosage", "practice-server"]
     }
-    
+
     try:
         response = requests.post(
             "https://api.vultr.com/v2/instances",
@@ -51,12 +52,12 @@ def provision_practice_server(match_id: str, webhook_url: str, region: str = "df
         )
         response.raise_for_status()
         data = response.json()["instance"]
-        
+
         # Vultr API returns the instance object. IP might be "0.0.0.0" while booting
         ip_address = data.get("main_ip")
         if ip_address == "0.0.0.0":
             ip_address = None
-            
+
         logger.info(f"Started Vultr server {data['label']} in {region}")
         return {
             "vultr_id": data["id"],

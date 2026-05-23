@@ -1,19 +1,16 @@
-import os
 from datetime import UTC, datetime, timedelta
 import logging
-
+import os
 from typing import List, Optional
-from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-
-from db.database import get_session
+from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from sqlalchemy import select
-
+from db.database import get_session
 from db.models import PracticeServer, TeamMember
-from services.warlord.vultr_client import provision_practice_server, destroy_practice_server
+from services.warlord.vultr_client import destroy_practice_server, provision_practice_server
 
 logger = logging.getLogger(__name__)
 
@@ -45,31 +42,31 @@ def spin_up_server(team_id: str, req_body: ServerCreateRequest, request: Request
     user_id = request.headers.get("x-clerk-user-id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
-        
+
     _verify_team_member(db, user_id, team_id)
-    
+
     # Check if team already has an active server
     active_server = db.execute(
         select(PracticeServer).where(PracticeServer.team_id == team_id, PracticeServer.status.in_(["booting", "active"]))
     ).scalar_one_or_none()
-    
+
     if active_server:
         raise HTTPException(status_code=400, detail="Team already has an active server. Terminate it first.")
-        
+
     # Generate an ID for the server record
     import uuid
     server_id = str(uuid.uuid4())
-    
+
     # Provision via Hetzner
     # In a real app, we would dynamically set region based on req_body.region
     webhook_url = f"{request.base_url}api/servers/webhook"
-    
+
     try:
         vultr_data = provision_practice_server(server_id, webhook_url, region=req_body.region)
     except Exception as e:
 
         raise HTTPException(status_code=500, detail=str(e))
-        
+
     new_server = PracticeServer(
         id=server_id,
         team_id=team_id,
@@ -82,11 +79,11 @@ def spin_up_server(team_id: str, req_body: ServerCreateRequest, request: Request
         status="booting"
     )
 
-    
+
     db.add(new_server)
     db.commit()
     db.refresh(new_server)
-    
+
     return new_server
 
 @router.get("/teams/{team_id}/servers", response_model=List[ServerResponse])
@@ -94,13 +91,13 @@ def list_servers(team_id: str, request: Request, db: Session = Depends(get_sessi
     user_id = request.headers.get("x-clerk-user-id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
-        
+
     _verify_team_member(db, user_id, team_id)
-    
+
     servers = db.execute(
         select(PracticeServer).where(PracticeServer.team_id == team_id, PracticeServer.status != "terminated")
     ).scalars().all()
-    
+
     return servers
 
 @router.delete("/servers/{server_id}")
@@ -108,16 +105,16 @@ def terminate_server(server_id: str, request: Request, db: Session = Depends(get
     user_id = request.headers.get("x-clerk-user-id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
-        
+
     server = db.execute(select(PracticeServer).where(PracticeServer.id == server_id)).scalar_one_or_none()
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
-        
+
     _verify_team_member(db, user_id, server.team_id)
-    
+
     if server.vultr_instance_id:
         destroy_practice_server(server.vultr_instance_id)
-        
+
     server.status = "terminated"
 
     db.commit()
@@ -148,7 +145,7 @@ def cron_cleanup(request: Request, db: Session = Depends(get_session)):
     expired = db.execute(
         select(PracticeServer).where(PracticeServer.expires_at < datetime.now(UTC), PracticeServer.status != "terminated")
     ).scalars().all()
-    
+
     count = 0
     for srv in expired:
         if srv.vultr_instance_id:
@@ -159,6 +156,6 @@ def cron_cleanup(request: Request, db: Session = Depends(get_session)):
                 count += 1
             except Exception as e:
                 logger.error(f"Failed to cleanup {srv.id}: {e}")
-                
+
     db.commit()
     return {"terminated_count": count}

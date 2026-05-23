@@ -53,9 +53,9 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
         }
 
     try:
-        from google.cloud import storage  # noqa: PLC0415
-
         import json
+
+        from google.cloud import storage  # noqa: PLC0415
         from google.oauth2 import service_account
 
         # If GCP_SA_KEY is mounted, use it to initialize client and sign
