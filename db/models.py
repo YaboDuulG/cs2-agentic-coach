@@ -271,3 +271,25 @@ class TeamMember(Base):
 
     def __repr__(self) -> str:
         return f"<TeamMember team={self.team_id} user={self.user_id} role={self.role}>"
+
+
+# ---------------------------------------------------------------------------
+# PracticeServer — on-demand Hetzner instances
+# ---------------------------------------------------------------------------
+
+class PracticeServer(Base):
+    __tablename__ = "practice_servers"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    team_id: Mapped[str] = mapped_column(String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
+    hetzner_server_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="booting") # booting, active, terminated
+    mode: Mapped[str] = mapped_column(String(32), nullable=False, default="practice")
+    rcon_password: Mapped[str] = mapped_column(String(32), nullable=False)
+    server_password: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<PracticeServer {self.id} status={self.status} ip={self.ip_address}>"

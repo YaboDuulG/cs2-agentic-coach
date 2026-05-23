@@ -25,6 +25,16 @@ interface Analysis {
   total_kills: number;
 }
 
+interface PracticeServer {
+  id: string;
+  status: string;
+  ip_address: string | null;
+  rcon_password: string;
+  server_password: string;
+  mode: string;
+}
+
+
 const STATUS_COLORS: Record<string, string> = {
   done: "#22D3A0", processing: "#2D7DD2", queued: "#8BA7CC", failed: "#FF4D6D",
 };
@@ -44,7 +54,9 @@ export default function TeamDetailPage() {
   const { user, isLoaded } = useUser();
   const [team, setTeam] = useState<TeamDetail | null>(null);
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
+  const [servers, setServers] = useState<PracticeServer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [spinningUp, setSpinningUp] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -52,12 +64,29 @@ export default function TeamDetailPage() {
     Promise.all([
       fetch(`/api/teams/${teamId}`).then(r => r.json()),
       fetch(`/api/teams/${teamId}?view=analyses`).then(r => r.json()),
-    ]).then(([teamData, analysisData]) => {
+      fetch(`/api/teams/${teamId}/servers`).then(r => r.json()),
+    ]).then(([teamData, analysisData, serverData]) => {
       setTeam(teamData);
       setAnalyses(Array.isArray(analysisData) ? analysisData : []);
+      setServers(Array.isArray(serverData) ? serverData : []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [teamId, user, isLoaded]);
+
+  async function spinUpServer() {
+    setSpinningUp(true);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/servers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "practice", region: "eu" }),
+      });
+      const data = await res.json();
+      if (res.ok) setServers([...servers, data]);
+    } catch (e) { console.error(e); }
+    setSpinningUp(false);
+  }
+
 
   function copyInvite() {
     if (!team) return;
@@ -140,6 +169,47 @@ export default function TeamDetailPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Practice Servers panel */}
+              <div className="card p-5 mt-6">
+                <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>
+                  <CloudMotifBg /> Practice Server
+                </h2>
+                
+                {servers.length > 0 ? (
+                  <div className="space-y-3">
+                    {servers.map(s => (
+                      <div key={s.id} className="rounded-lg bg-white/5 p-3 border border-white/10">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs font-bold uppercase text-[#2D7DD2]">{s.mode} Mode</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'active' ? 'bg-[#22D3A0]/20 text-[#22D3A0]' : 'bg-yellow-500/20 text-yellow-500'}`}>
+                            {s.status}
+                          </span>
+                        </div>
+                        {s.ip_address ? (
+                          <div className="bg-black/40 p-2 rounded text-xs font-mono text-[#C4CEDD] break-all select-all">
+                            connect {s.ip_address}; password {s.server_password}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-[#8BA7CC]">Provisioning IP...</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-[#8BA7CC] mb-3">No active practice servers.</p>
+                    <button
+                      onClick={spinUpServer}
+                      disabled={spinningUp}
+                      className="w-full rounded bg-[#2D7DD2] py-2 text-sm font-bold text-white transition hover:bg-[#2D7DD2]/80 disabled:opacity-50"
+                    >
+                      {spinningUp ? "Starting..." : "Spin Up Server"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
 
               {/* Analyses feed */}
               <div className="md:col-span-2">
