@@ -35,9 +35,10 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
         raise HTTPException(status_code=413, detail="File exceeds 2GB limit.")
 
     match_id = str(uuid.uuid4())
-    bucket_name = os.environ.get("GCS_BUCKET", "")
+    bucket_name = os.environ.get("GCS_BUCKET", "").strip()
     local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
     user_id = request.headers.get("x-clerk-user-id")
+
 
     # Create match record in DB immediately so jobs endpoint returns 'queued'
     _create_match_record(match_id, body.filename, user_id)
@@ -78,10 +79,11 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
         raise HTTPException(status_code=500, detail="Failed to generate upload URL.")
 
 
-@router.post("/stub/{match_id}", include_in_schema=False)
+@router.put("/stub/{match_id}", include_in_schema=False)
 async def stub_upload(match_id: str):
     """Local dev stub — accepts the PUT from the browser in LOCAL_MODE."""
     return {"ok": True, "match_id": match_id}
+
 
 
 def _create_match_record(match_id: str, filename: str, user_id: str | None = None) -> None:
@@ -95,11 +97,12 @@ def _create_match_record(match_id: str, filename: str, user_id: str | None = Non
         try:
             db.execute(
                 text("""
-                    INSERT INTO matches (id, demo_filename, status, user_id, created_at)
+                    INSERT INTO matches (match_id, demo_filename, status, user_id, created_at)
                     VALUES (:id, :filename, 'queued', :user_id, NOW())
-                    ON CONFLICT (id) DO NOTHING
+                    ON CONFLICT (match_id) DO NOTHING
                 """),
                 {"id": match_id, "filename": filename, "user_id": user_id},
+
             )
             db.commit()
         finally:
