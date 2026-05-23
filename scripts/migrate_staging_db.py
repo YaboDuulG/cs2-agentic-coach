@@ -1,4 +1,9 @@
 import logging
+from pathlib import Path
+import sys
+
+# Ensure project root is in sys.path when executed directly
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import text
 
