@@ -45,7 +45,7 @@ async def get_job_status(match_id: str):
         try:
             # Check if match record exists and has been parsed
             result = db.execute(
-                text("SELECT match_id, map_name, status, error_message FROM matches WHERE match_id = :id"),
+                text("SELECT match_id, map_name, status, error_message, player_stats_json FROM matches WHERE match_id = :id"),
                 {"id": match_id},
             ).fetchone()
 
@@ -55,6 +55,7 @@ async def get_job_status(match_id: str):
 
             match_status = result[2].lower() if result[2] else "processing"
             error_message = result[3]
+            player_stats_raw = result[4]
 
             if match_status == "failed":
                 return {"status": "failed", "match_id": match_id, "error": error_message}
@@ -65,7 +66,7 @@ async def get_job_status(match_id: str):
             # Fetch kills
             kills = db.execute(
                 text("""
-                    SELECT attacker, victim, weapon, round_num, attacker_team, attacker_x, attacker_y, victim_x, victim_y
+                    SELECT attacker, victim, weapon, round_num, attacker_team, attacker_x, attacker_y, victim_x, victim_y, attacker_steamid, victim_steamid
                     FROM kills WHERE match_id = :id
                     ORDER BY round_num, id
                     LIMIT 200
@@ -83,12 +84,21 @@ async def get_job_status(match_id: str):
                 {"id": match_id},
             ).fetchall()
 
+            import json
+            player_stats = {}
+            if player_stats_raw:
+                try:
+                    player_stats = json.loads(player_stats_raw)
+                except Exception:
+                    pass
+
             return {
                 "status": "done",
                 "match_id": match_id,
                 "map": result[1],
                 "total_rounds": len(rounds),
                 "total_kills": len(kills),
+                "player_stats": player_stats,
                 "kills": [
                     {
                         "killer": k[0],
@@ -100,6 +110,8 @@ async def get_job_status(match_id: str):
                         "attacker_y": k[6],
                         "victim_x": k[7],
                         "victim_y": k[8],
+                        "attacker_steamid": k[9],
+                        "victim_steamid": k[10],
                     }
                     for k in kills
                 ],

@@ -98,20 +98,22 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         if kills_df is not None and not kills_df.empty:
             for _, row in kills_df.iterrows():
                 kill = {
-                    "round":          _safe_int(row.get("total_rounds_played")),
-                    "tick":           _safe_int(row.get("tick")),
-                    "attacker":       _safe_str(row.get("attacker_name")),
-                    "attacker_team":  _safe_str(row.get("attacker_team_name")),
-                    "victim":         _safe_str(row.get("user_name")),
-                    "victim_team":    _safe_str(row.get("user_team_name")),
-                    "weapon":         _safe_str(row.get("weapon")),
-                    "headshot":       bool(row.get("headshot", False)),
-                    "attacker_x":     _safe_float(row.get("attacker_X", row.get("attacker_x"))),
-                    "attacker_y":     _safe_float(row.get("attacker_Y", row.get("attacker_y"))),
-                    "attacker_z":     _safe_float(row.get("attacker_Z", row.get("attacker_z"))),
-                    "victim_x":       _safe_float(row.get("user_X", row.get("user_x"))),
-                    "victim_y":       _safe_float(row.get("user_Y", row.get("user_y"))),
-                    "victim_z":       _safe_float(row.get("user_Z", row.get("user_z"))),
+                    "round":            _safe_int(row.get("total_rounds_played")),
+                    "tick":             _safe_int(row.get("tick")),
+                    "attacker":         _safe_str(row.get("attacker_name")),
+                    "attacker_team":    _safe_str(row.get("attacker_team_name")),
+                    "attacker_steamid": _safe_str(row.get("attacker_steamid")),
+                    "victim":           _safe_str(row.get("user_name")),
+                    "victim_team":      _safe_str(row.get("user_team_name")),
+                    "victim_steamid":   _safe_str(row.get("user_steamid")),
+                    "weapon":           _safe_str(row.get("weapon")),
+                    "headshot":         bool(row.get("headshot", False)),
+                    "attacker_x":       _safe_float(row.get("attacker_X", row.get("attacker_x"))),
+                    "attacker_y":       _safe_float(row.get("attacker_Y", row.get("attacker_y"))),
+                    "attacker_z":       _safe_float(row.get("attacker_Z", row.get("attacker_z"))),
+                    "victim_x":         _safe_float(row.get("user_X", row.get("user_x"))),
+                    "victim_y":         _safe_float(row.get("user_Y", row.get("user_y"))),
+                    "victim_z":         _safe_float(row.get("user_Z", row.get("user_z"))),
                 }
 
                 output["kills"].append(kill)
@@ -151,22 +153,25 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         except Exception:
             pass  # Not all demo types have all grenade events
 
-    # --- Round events ---
-    # Build economy lookup from round_freeze_end separately so it can't crash round_end parsing
+    # --- Round events (Economy + Winners) ---
     eco_lookup: dict[int, dict] = {}
+    freeze_df = None
     try:
         freeze_df = parser.parse_event(
             "round_freeze_end",
-            player=["current_equip_value", "team_name"],
             other=["total_rounds_played"],
         )
-        if freeze_df is not None and not freeze_df.empty and "team_name" in freeze_df.columns:
-            for rnd_num, grp in freeze_df.groupby("total_rounds_played"):
+        if freeze_df is not None and not freeze_df.empty:
+            ticks = freeze_df["tick"].tolist()
+            ticks_df = parser.parse_ticks(["current_equip_value", "team_name"])
+            filtered_ticks_df = ticks_df[ticks_df["tick"].isin(ticks)]
+            merged = filtered_ticks_df.merge(freeze_df[["tick", "total_rounds_played"]], on="tick", how="left")
+            for rnd_num, grp in merged.groupby("total_rounds_played"):
                 ct_val = grp[grp["team_name"] == "CT"]["current_equip_value"].sum()
                 t_val = grp[grp["team_name"] == "TERRORIST"]["current_equip_value"].sum()
                 eco_lookup[int(rnd_num)] = {"ct": int(ct_val), "t": int(t_val)}
     except Exception as e:
-        logger.debug(f"Economy data unavailable (older demo format): {e}")
+        logger.debug(f"Economy data unavailable: {e}")
 
     try:
         round_df = parser.parse_event(
@@ -177,9 +182,13 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             ct_score = t_score = 0
             for _, row in round_df.sort_values("total_rounds_played").iterrows():
                 rnd_num = _safe_int(row.get("total_rounds_played"))
-                winner = _safe_int(row.get("winner"))
-                # CS2: winner=3 → CT, winner=2 → T
-                winner_side = "CT" if winner == 3 else "T" if winner == 2 else ""
+                winner = row.get("winner")
+                winner_side = ""
+                if winner in (3, "CT"):
+                    winner_side = "CT"
+                elif winner in (2, "T", "TERRORIST"):
+                    winner_side = "T"
+
                 if winner_side == "CT":
                     ct_score += 1
                 elif winner_side == "T":
@@ -206,8 +215,247 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                     "ct_eq_val": 0, "t_eq_val": 0, "ct_score": 0, "t_score": 0,
                 })
 
-
     output["metadata"]["total_rounds"] = len(output["rounds"])
+
+    # --- Player and Utility Stats Compilation ---
+    player_stats = {}
+    try:
+        hurt_df = parser.parse_event("player_hurt", player=["team_name"], other=["total_rounds_played"])
+        fire_df = parser.parse_event("weapon_fire", other=["total_rounds_played"])
+        blind_df = parser.parse_event("player_blind", player=["team_name"], other=["total_rounds_played"])
+
+        ticks_df_all = parser.parse_ticks(["team_name"])
+        
+        raw_players = {}
+        def get_stat_player(steamid, name, team=None):
+            if not steamid or steamid in ("0", "nan", None):
+                return None
+            steamid = str(steamid)
+            if steamid not in raw_players:
+                raw_players[steamid] = {
+                    "name": name,
+                    "steamid": steamid,
+                    "team": team or "",
+                    "kills": 0,
+                    "deaths": 0,
+                    "assists": 0,
+                    "headshots": 0,
+                    "damage_dealt": 0,
+                    "rounds_played": 0,
+                    "kills_per_round": {},
+                    "entry_attempts": 0,
+                    "entry_kills": 0,
+                    "entry_deaths": 0,
+                    "trade_kills": 0,
+                    "deaths_traded": 0,
+                    "utility_smokes": 0,
+                    "utility_flashes": 0,
+                    "utility_hes": 0,
+                    "utility_molotovs": 0,
+                    "utility_decoys": 0,
+                    "he_damage": 0,
+                    "fire_damage": 0,
+                    "enemies_flashed": 0,
+                    "enemy_blind_time": 0.0,
+                    "team_flashed": 0,
+                    "team_blind_time": 0.0,
+                    "flash_assists": 0,
+                    "flashed_self": 0,
+                    "kast_rounds": set(),
+                }
+            if team and not raw_players[steamid]["team"]:
+                raw_players[steamid]["team"] = team
+            return raw_players[steamid]
+
+        if freeze_df is not None and not freeze_df.empty:
+            tick_to_round_local = {int(r["tick"]): int(r["total_rounds_played"]) for _, r in freeze_df.iterrows()}
+            freeze_ticks = ticks_df_all[ticks_df_all["tick"].isin(tick_to_round_local.keys())]
+            for _, row in freeze_ticks.iterrows():
+                p = get_stat_player(row.get("steamid"), row.get("name"), row.get("team_name"))
+                if p:
+                    p["rounds_played"] += 1
+
+        tot_r = len(output["rounds"])
+
+        if kills_df is not None and not kills_df.empty:
+            for _, row in kills_df.iterrows():
+                round_num = _safe_int(row.get("total_rounds_played"))
+                
+                att_id = row.get("attacker_steamid")
+                p_att = get_stat_player(att_id, row.get("attacker_name"), row.get("attacker_team_name"))
+                if p_att:
+                    p_att["kills"] += 1
+                    if row.get("headshot"):
+                        p_att["headshots"] += 1
+                    p_att["kills_per_round"][round_num] = p_att["kills_per_round"].get(round_num, 0) + 1
+                    p_att["kast_rounds"].add(round_num)
+                    
+                vic_id = row.get("user_steamid")
+                p_vic = get_stat_player(vic_id, row.get("user_name"), row.get("user_team_name"))
+                if p_vic:
+                    p_vic["deaths"] += 1
+                    
+                ast_id = row.get("assister_steamid")
+                p_ast = get_stat_player(ast_id, row.get("assister_name"), row.get("assister_team_name"))
+                if p_ast:
+                    p_ast["assists"] += 1
+                    p_ast["kast_rounds"].add(round_num)
+                
+                if row.get("assistedflash") and ast_id:
+                    p_ast = get_stat_player(ast_id, row.get("assister_name"))
+                    if p_ast:
+                        p_ast["flash_assists"] += 1
+
+        if fire_df is not None and not fire_df.empty:
+            for _, row in fire_df.iterrows():
+                usr_id = row.get("user_steamid")
+                wep = str(row.get("weapon", ""))
+                p = get_stat_player(usr_id, row.get("user_name"))
+                if p:
+                    if wep == "weapon_smokegrenade":
+                        p["utility_smokes"] += 1
+                    elif wep == "weapon_flashbang":
+                        p["utility_flashes"] += 1
+                    elif wep == "weapon_hegrenade":
+                        p["utility_hes"] += 1
+                    elif wep == "weapon_decoy":
+                        p["utility_decoys"] += 1
+                    elif wep in ("weapon_molotov", "weapon_incgrenade"):
+                        p["utility_molotovs"] += 1
+
+        if hurt_df is not None and not hurt_df.empty:
+            for _, row in hurt_df.iterrows():
+                att_id = row.get("attacker_steamid")
+                vic_id = row.get("user_steamid")
+                att_team = row.get("attacker_team_name")
+                vic_team = row.get("user_team_name")
+                dmg = _safe_int(row.get("dmg_health"))
+                wep = str(row.get("weapon", ""))
+                
+                if att_id and att_id != vic_id and att_team != vic_team:
+                    p_att = get_stat_player(att_id, row.get("attacker_name"))
+                    if p_att:
+                        p_att["damage_dealt"] += dmg
+                        if wep == "hegrenade":
+                            p_att["he_damage"] += dmg
+                        elif wep in ("inferno", "molotov"):
+                            p_att["fire_damage"] += dmg
+
+        if blind_df is not None and not blind_df.empty:
+            for _, row in blind_df.iterrows():
+                att_id = row.get("attacker_steamid")
+                vic_id = row.get("user_steamid")
+                att_team = row.get("attacker_team_name")
+                vic_team = row.get("user_team_name")
+                dur = _safe_float(row.get("blind_duration"))
+                
+                if att_id:
+                    p_att = get_stat_player(att_id, row.get("attacker_name"))
+                    if p_att:
+                        if att_id == vic_id:
+                            p_att["flashed_self"] += 1
+                        elif att_team == vic_team:
+                            p_att["team_flashed"] += 1
+                            p_att["team_blind_time"] += dur
+                        else:
+                            p_att["enemies_flashed"] += 1
+                            p_att["enemy_blind_time"] += dur
+
+        entry_map = {}
+        if kills_df is not None and not kills_df.empty:
+            for _, row in kills_df.iterrows():
+                round_num = _safe_int(row.get("total_rounds_played"))
+                tick = _safe_int(row.get("tick"))
+                if round_num not in entry_map or tick < entry_map[round_num]["tick"]:
+                    entry_map[round_num] = {
+                        "tick": tick,
+                        "attacker_steamid": row.get("attacker_steamid"),
+                        "attacker_name": row.get("attacker_name"),
+                        "victim_steamid": row.get("user_steamid"),
+                        "victim_name": row.get("user_name"),
+                    }
+
+        for round_num, fk in entry_map.items():
+            p_att = get_stat_player(fk["attacker_steamid"], fk["attacker_name"])
+            if p_att:
+                p_att["entry_kills"] += 1
+                p_att["entry_attempts"] += 1
+            p_vic = get_stat_player(fk["victim_steamid"], fk["victim_name"])
+            if p_vic:
+                p_vic["entry_deaths"] += 1
+                p_vic["entry_attempts"] += 1
+
+        if kills_df is not None and not kills_df.empty:
+            kills_list = []
+            for _, row in kills_df.iterrows():
+                kills_list.append({
+                    "tick": _safe_int(row.get("tick")),
+                    "round": _safe_int(row.get("total_rounds_played")),
+                    "attacker_steamid": _safe_str(row.get("attacker_steamid")),
+                    "attacker_team": _safe_str(row.get("attacker_team_name")),
+                    "victim_steamid": _safe_str(row.get("user_steamid")),
+                    "victim_team": _safe_str(row.get("user_team_name")),
+                })
+
+            for idx, k in enumerate(kills_list):
+                for jdx in range(idx + 1, len(kills_list)):
+                    k_next = kills_list[jdx]
+                    if k_next["round"] != k["round"]:
+                        break
+                    if k_next["tick"] - k["tick"] > 256:
+                        break
+                    if k_next["victim_steamid"] == k["attacker_steamid"] and k_next["attacker_team"] == k["victim_team"]:
+                        p_trade_killer = get_stat_player(k_next["attacker_steamid"], None)
+                        p_victim = get_stat_player(k["victim_steamid"], None)
+                        if p_trade_killer:
+                            p_trade_killer["trade_kills"] += 1
+                            p_trade_killer["kast_rounds"].add(k_next["round"])
+                        if p_victim:
+                            p_victim["deaths_traded"] += 1
+                        break
+
+        deaths_by_round = {}
+        if kills_df is not None and not kills_df.empty:
+            for _, row in kills_df.iterrows():
+                round_num = _safe_int(row.get("total_rounds_played"))
+                vic_id = _safe_str(row.get("user_steamid"))
+                if vic_id:
+                    deaths_by_round.setdefault(round_num, set()).add(vic_id)
+
+        for steamid, p in raw_players.items():
+            for r in range(tot_r):
+                if steamid not in deaths_by_round.get(r, set()):
+                    p["kast_rounds"].add(r)
+
+        for steamid, p in raw_players.items():
+            rc = p["rounds_played"] if p["rounds_played"] > 0 else tot_r
+            if rc == 0:
+                rc = 1
+            p["adr"] = round(p["damage_dealt"] / rc, 1)
+            p["kast"] = round((len(p["kast_rounds"]) / rc) * 100, 1)
+            p["hs_pct"] = round((p["headshots"] / p["kills"]) * 100, 1) if p["kills"] > 0 else 0.0
+            
+            p["utility_thrown"] = p["utility_smokes"] + p["utility_flashes"] + p["utility_hes"] + p["utility_molotovs"] + p["utility_decoys"]
+            p["utility_damage"] = p["he_damage"] + p["fire_damage"]
+            p["enemy_blind_time"] = round(p["enemy_blind_time"], 2)
+            p["team_blind_time"] = round(p["team_blind_time"], 2)
+            
+            multikills = {2: 0, 3: 0, 4: 0, 5: 0}
+            for r, kc in p["kills_per_round"].items():
+                if kc >= 2:
+                    multikills[min(kc, 5)] += 1
+            p["multikills"] = multikills
+            
+            if "kast_rounds" in p:
+                del p["kast_rounds"]
+            if "kills_per_round" in p:
+                del p["kills_per_round"]
+
+        player_stats = raw_players
+    except Exception as e:
+        logger.warning(f"Error computing player statistics: {e}")
+
+    output["player_stats"] = player_stats
 
     # --- Player trajectories (sampled per TRAJECTORY_SAMPLE_TICKS) ---
     try:
@@ -307,6 +555,7 @@ def write_to_db(data: dict, match_id: str) -> None:
         match.tickrate = meta.get("tickrate", 64)
         match.total_rounds = meta.get("total_rounds", 0)
         match.status = MatchStatus.COMPLETE
+        match.player_stats_json = json.dumps(data.get("player_stats", {}))
 
         db.query(Kill).filter(Kill.match_id == match_id).delete()
         db.query(Grenade).filter(Grenade.match_id == match_id).delete()
@@ -320,6 +569,8 @@ def write_to_db(data: dict, match_id: str) -> None:
                 attacker=k["attacker"], attacker_team=k["attacker_team"],
                 victim=k["victim"], victim_team=k["victim_team"],
                 weapon=k["weapon"], headshot=k["headshot"],
+                attacker_steamid=k.get("attacker_steamid"),
+                victim_steamid=k.get("victim_steamid"),
                 attacker_x=k["attacker_x"], attacker_y=k["attacker_y"], attacker_z=k["attacker_z"],
                 victim_x=k["victim_x"], victim_y=k["victim_y"], victim_z=k["victim_z"],
             ))
@@ -344,6 +595,8 @@ def write_to_db(data: dict, match_id: str) -> None:
                 match_id=match_id, round_num=fc["round"], tick=fc["tick"],
                 attacker=fc["attacker"], attacker_team=fc["attacker_team"],
                 victim=fc["victim"], weapon=fc["weapon"], headshot=fc["headshot"],
+                attacker_steamid=fc.get("attacker_steamid"),
+                victim_steamid=fc.get("victim_steamid"),
                 attacker_x=fc["attacker_x"], attacker_y=fc["attacker_y"],
                 victim_x=fc["victim_x"], victim_y=fc["victim_y"],
             ))
