@@ -45,7 +45,7 @@ async def get_job_status(match_id: str):
         try:
             # Check if match record exists and has been parsed
             result = db.execute(
-                text("SELECT match_id, map_name, status FROM matches WHERE match_id = :id"),
+                text("SELECT match_id, map_name, status, error_message FROM matches WHERE match_id = :id"),
                 {"id": match_id},
             ).fetchone()
 
@@ -53,7 +53,11 @@ async def get_job_status(match_id: str):
                 # Not in DB yet — still queued or Scout hasn't started
                 return {"status": "queued", "match_id": match_id}
 
-            match_status = result[2] if result[2] else "processing"
+            match_status = result[2].lower() if result[2] else "processing"
+            error_message = result[3]
+
+            if match_status == "failed":
+                return {"status": "failed", "match_id": match_id, "error": error_message}
 
             if match_status not in ("done", "complete", "parsed"):
                 return {"status": "processing", "match_id": match_id, "map": result[1]}
