@@ -109,8 +109,11 @@ def _create_match_record(match_id: str, filename: str, user_id: str | None = Non
         try:
             db.execute(
                 text("""
-                    INSERT INTO matches (match_id, demo_filename, status, user_id, created_at)
-                    VALUES (:id, :filename, 'PENDING', :user_id, NOW())
+                    INSERT INTO matches (
+                        match_id, map_name, tickrate, total_rounds,
+                        demo_filename, status, user_id, created_at, updated_at
+                    )
+                    VALUES (:id, 'unknown', 64, 0, :filename, 'PENDING', :user_id, NOW(), NOW())
                     ON CONFLICT (match_id) DO NOTHING
                 """),
                 {"id": match_id, "filename": filename, "user_id": user_id},
