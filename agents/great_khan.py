@@ -20,23 +20,23 @@ COACHING_MODEL = "gemini-2.0-flash"
 def _build_prompt(match_id: str, stats: dict[str, Any]) -> str:
     return f"""You are DemoSage — an elite CS2 tactical coach. Analyse this match data and return ONLY valid JSON with no markdown.
 
-Match: {stats.get('map_name', 'unknown')} | {stats.get('total_rounds', 0)} rounds
-CT wins: {stats.get('ct_wins', 0)} | T wins: {stats.get('t_wins', 0)}
+Match: {stats.get("map_name", "unknown")} | {stats.get("total_rounds", 0)} rounds
+CT wins: {stats.get("ct_wins", 0)} | T wins: {stats.get("t_wins", 0)}
 
 Top killers:
-{json.dumps(stats.get('top_killers', []), indent=2)}
+{json.dumps(stats.get("top_killers", []), indent=2)}
 
 Economy summary (avg spend per round):
-CT avg: ${stats.get('ct_avg_spend', 0):.0f} | T avg: ${stats.get('t_avg_spend', 0):.0f}
+CT avg: ${stats.get("ct_avg_spend", 0):.0f} | T avg: ${stats.get("t_avg_spend", 0):.0f}
 
 First contact win rate (who won the opening duel):
-CT: {stats.get('ct_first_contact_pct', 0):.0%} | T: {stats.get('t_first_contact_pct', 0):.0%}
+CT: {stats.get("ct_first_contact_pct", 0):.0%} | T: {stats.get("t_first_contact_pct", 0):.0%}
 
 Top weapons used:
-{json.dumps(stats.get('top_weapons', []), indent=2)}
+{json.dumps(stats.get("top_weapons", []), indent=2)}
 
 Worst economy rounds (high spend, round lost):
-{json.dumps(stats.get('worst_rounds', []), indent=2)}
+{json.dumps(stats.get("worst_rounds", []), indent=2)}
 
 Return this exact JSON structure:
 {{
@@ -92,12 +92,14 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
             for r in rounds:
                 spend = r.ct_eq_val if r.winner_side == "T" else r.t_eq_val
                 if spend > 10000:
-                    worst_rounds.append({
-                        "round": r.round_num,
-                        "loser": "CT" if r.winner_side == "T" else "T",
-                        "spend": spend,
-                        "winner": r.winner_side,
-                    })
+                    worst_rounds.append(
+                        {
+                            "round": r.round_num,
+                            "loser": "CT" if r.winner_side == "T" else "T",
+                            "spend": spend,
+                            "winner": r.winner_side,
+                        }
+                    )
             worst_rounds = sorted(worst_rounds, key=lambda x: x["spend"], reverse=True)[:5]
 
             # First contact win rate
@@ -157,7 +159,10 @@ def _stub_coaching() -> dict[str, Any]:
         "key_findings": ["Upload a demo and configure GEMINI_API_KEY to see AI insights."],
         "economy_analysis": "Economy data parsed successfully.",
         "tactical_recommendations": [
-            {"title": "Configure API Key", "detail": "Add GEMINI_API_KEY to your GCP Secret Manager to enable AI coaching."}
+            {
+                "title": "Configure API Key",
+                "detail": "Add GEMINI_API_KEY to your GCP Secret Manager to enable AI coaching.",
+            }
         ],
         "strongest_area": "Demo parsed successfully.",
         "weakest_area": "AI coaching not yet configured.",

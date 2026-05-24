@@ -58,10 +58,23 @@ def start_docker_compose() -> None:
 
     # Wait for postgres to be healthy
     import time
+
     for attempt in range(15):
         check = subprocess.run(
-            ["docker", "compose", "-f", str(COMPOSE_FILE), "exec", "-T", "postgres",
-             "pg_isready", "-U", "demosage_user", "-d", "demosage"],
+            [
+                "docker",
+                "compose",
+                "-f",
+                str(COMPOSE_FILE),
+                "exec",
+                "-T",
+                "postgres",
+                "pg_isready",
+                "-U",
+                "demosage_user",
+                "-d",
+                "demosage",
+            ],
             capture_output=True,
         )
         if check.returncode == 0:
@@ -115,14 +128,16 @@ def print_summary(match_id: str) -> None:
     print("=" * 55)
     print("\nNext steps:")
     print("  - Start the API:   uvicorn api.main:app --reload")
-    print("  - View DB:         docker exec -it chinghis-postgres psql -U demosage_user -d demosage")
+    print(
+        "  - View DB:         docker exec -it chinghis-postgres psql -U demosage_user -d demosage"
+    )
     print("  - Run full tests:  pytest tests/ -v\n")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="DemoSage local pipeline runner")
-    parser.add_argument("--demo",        required=True, help="Path to a CS2 .dem file")
-    parser.add_argument("--match-id",    default=None,  help="Match ID (auto-generated if omitted)")
+    parser.add_argument("--demo", required=True, help="Path to a CS2 .dem file")
+    parser.add_argument("--match-id", default=None, help="Match ID (auto-generated if omitted)")
     parser.add_argument("--skip-docker", action="store_true", help="Skip docker-compose startup")
     args = parser.parse_args()
 

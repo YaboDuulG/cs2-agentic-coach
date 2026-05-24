@@ -39,7 +39,6 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
     local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
     user_id = request.headers.get("x-clerk-user-id")
 
-
     # Create match record in DB immediately so jobs endpoint returns 'queued'
     _create_match_record(match_id, body.filename, user_id)
 
@@ -77,8 +76,6 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
             content_type="application/octet-stream",
         )
 
-
-
         logger.info(f"Presigned URL generated: {gcs_path}")
         return {
             "match_id": match_id,
@@ -95,7 +92,6 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
 async def stub_upload(match_id: str):
     """Local dev stub — accepts the PUT from the browser in LOCAL_MODE."""
     return {"ok": True, "match_id": match_id}
-
 
 
 def _create_match_record(match_id: str, filename: str, user_id: str | None = None) -> None:

@@ -9,11 +9,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 try:
     from services.scout.parse_demo import parse_demo
+
     HAS_DEMOPARSER = True
 except ImportError:
     HAS_DEMOPARSER = False
 
-pytestmark = pytest.mark.skipif(not HAS_DEMOPARSER, reason="demoparser2 or its dependencies not installed")
+pytestmark = pytest.mark.skipif(
+    not HAS_DEMOPARSER, reason="demoparser2 or its dependencies not installed"
+)
 
 
 @pytest.fixture
@@ -38,8 +41,13 @@ def test_scout_parser_coordinates(sample_demo):
     for kill in kills:
         # If coordinates are perfectly 0.0, it usually means the column extraction failed
         # because the center of the map is rarely a kill location in competitive CS2.
-        assert not (kill["attacker_x"] == 0.0 and kill["attacker_y"] == 0.0), f"Attacker X/Y coords are exactly 0.0 (extraction failed). Kill: {kill}"
-        assert not (kill["victim_x"] == 0.0 and kill["victim_y"] == 0.0), f"Victim X/Y coords are exactly 0.0 (extraction failed). Kill: {kill}"
+        assert not (kill["attacker_x"] == 0.0 and kill["attacker_y"] == 0.0), (
+            f"Attacker X/Y coords are exactly 0.0 (extraction failed). Kill: {kill}"
+        )
+        assert not (kill["victim_x"] == 0.0 and kill["victim_y"] == 0.0), (
+            f"Victim X/Y coords are exactly 0.0 (extraction failed). Kill: {kill}"
+        )
+
 
 def test_scout_parser_grenades(sample_demo):
     """Verifies that the Scout correctly extracts grenade throws."""
@@ -52,5 +60,7 @@ def test_scout_parser_grenades(sample_demo):
         pytest.skip("No grenades found in this demo, cannot verify extraction.")
 
     for nade in grenades:
-        assert not (nade["throw_x"] == 0.0 and nade["throw_y"] == 0.0), f"Grenade X/Y coords are exactly 0.0 (extraction failed). Nade: {nade}"
+        assert not (nade["throw_x"] == 0.0 and nade["throw_y"] == 0.0), (
+            f"Grenade X/Y coords are exactly 0.0 (extraction failed). Nade: {nade}"
+        )
         assert "type" in nade, "Grenade must have a type"

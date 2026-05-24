@@ -7,14 +7,13 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 def get_vultr_headers() -> dict:
     api_key = os.environ.get("VULTR_API_KEY")
     if not api_key:
         raise ValueError("VULTR_API_KEY is not set")
-    return {
-        "Authorization": f"Bearer {api_key.strip()}",
-        "Content-Type": "application/json"
-    }
+    return {"Authorization": f"Bearer {api_key.strip()}", "Content-Type": "application/json"}
+
 
 def provision_practice_server(match_id: str, webhook_url: str, region: str = "dfw") -> dict:
     """Spins up a Vultr High-Frequency instance with CS2 Cloud Init."""
@@ -44,17 +43,15 @@ def provision_practice_server(match_id: str, webhook_url: str, region: str = "df
     payload = {
         "region": region,
         "plan": "vhf-1c-2gb",  # Vultr High Frequency 1 vCPU, 2GB RAM
-        "os_id": 2136,         # Ubuntu 22.04 LTS x64
+        "os_id": 2136,  # Ubuntu 22.04 LTS x64
         "label": f"demosage-prac-{match_id[:8]}",
         "user_data": encoded_user_data,
-        "tags": ["demosage", "practice-server"]
+        "tags": ["demosage", "practice-server"],
     }
 
     try:
         response = requests.post(
-            "https://api.vultr.com/v2/instances",
-            headers=get_vultr_headers(),
-            json=payload
+            "https://api.vultr.com/v2/instances", headers=get_vultr_headers(), json=payload
         )
         response.raise_for_status()
         data = response.json()["instance"]
@@ -69,20 +66,24 @@ def provision_practice_server(match_id: str, webhook_url: str, region: str = "df
             "vultr_id": data["id"],
             "ip_address": ip_address,
             "rcon_password": rcon_password,
-            "server_password": server_password
+            "server_password": server_password,
         }
     except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to provision Vultr server: {e.response.text if e.response else str(e)}")
+        logger.error(
+            f"Failed to provision Vultr server: {e.response.text if e.response else str(e)}"
+        )
         raise
+
 
 def destroy_practice_server(vultr_id: str):
     """Terminates the Vultr instance."""
     try:
         response = requests.delete(
-            f"https://api.vultr.com/v2/instances/{vultr_id}",
-            headers=get_vultr_headers()
+            f"https://api.vultr.com/v2/instances/{vultr_id}", headers=get_vultr_headers()
         )
         response.raise_for_status()
         logger.info(f"Destroyed Vultr server {vultr_id}")
     except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to destroy Vultr server {vultr_id}: {e.response.text if e.response else str(e)}")
+        logger.error(
+            f"Failed to destroy Vultr server {vultr_id}: {e.response.text if e.response else str(e)}"
+        )

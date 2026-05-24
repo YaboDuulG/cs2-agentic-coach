@@ -37,7 +37,6 @@ app.include_router(teams.router, prefix="/api/teams", tags=["Teams"])
 app.include_router(servers.router, prefix="/api", tags=["Servers"])
 
 
-
 @app.get("/")
 async def root():
     return {

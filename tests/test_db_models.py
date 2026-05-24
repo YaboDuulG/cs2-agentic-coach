@@ -177,10 +177,12 @@ class TestTrajectoryModel:
             round_num=1,
             player="player_a",
             team="CT",
-            positions_json=json.dumps([
-                {"tick": 100, "x": 100.0, "y": 200.0, "z": 0.0},
-                {"tick": 108, "x": 110.0, "y": 210.0, "z": 0.0},
-            ]),
+            positions_json=json.dumps(
+                [
+                    {"tick": 100, "x": 100.0, "y": 200.0, "z": 0.0},
+                    {"tick": 108, "x": 110.0, "y": 210.0, "z": 0.0},
+                ]
+            ),
         )
         db_session.add(traj)
         db_session.commit()

@@ -43,11 +43,12 @@ class Base(DeclarativeBase):
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class MatchStatus(str, enum.Enum):
-    PENDING = "pending"         # Uploaded, not yet parsed
-    PARSING = "parsing"         # Scout is actively parsing
-    COMPLETE = "complete"       # Parsing done, data written
-    FAILED = "failed"           # Parse failed — see error_message
+    PENDING = "pending"  # Uploaded, not yet parsed
+    PARSING = "parsing"  # Scout is actively parsing
+    COMPLETE = "complete"  # Parsing done, data written
+    FAILED = "failed"  # Parse failed — see error_message
 
 
 class WinnerSide(str, enum.Enum):
@@ -59,6 +60,7 @@ class WinnerSide(str, enum.Enum):
 # ---------------------------------------------------------------------------
 # Match — top-level record
 # ---------------------------------------------------------------------------
+
 
 class Match(Base):
     __tablename__ = "matches"
@@ -84,7 +86,10 @@ class Match(Base):
         DateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Relationships
@@ -111,6 +116,7 @@ class Match(Base):
 # ---------------------------------------------------------------------------
 # Kill — individual kill events
 # ---------------------------------------------------------------------------
+
 
 class Kill(Base):
     __tablename__ = "kills"
@@ -143,6 +149,7 @@ class Kill(Base):
 # Grenade — utility events
 # ---------------------------------------------------------------------------
 
+
 class Grenade(Base):
     __tablename__ = "grenades"
 
@@ -165,6 +172,7 @@ class Grenade(Base):
 # Round — round-level economy + outcome
 # ---------------------------------------------------------------------------
 
+
 class Round(Base):
     __tablename__ = "rounds"
 
@@ -186,6 +194,7 @@ class Round(Base):
 # ---------------------------------------------------------------------------
 # FirstContact — first kill per round (seeds FCR analysis for Tactician)
 # ---------------------------------------------------------------------------
+
 
 class FirstContact(Base):
     __tablename__ = "first_contacts"
@@ -215,6 +224,7 @@ class FirstContact(Base):
 # PlayerTrajectory — sampled movement path per player per round
 # ---------------------------------------------------------------------------
 
+
 class PlayerTrajectory(Base):
     __tablename__ = "trajectories"
 
@@ -235,6 +245,7 @@ class PlayerTrajectory(Base):
 # ---------------------------------------------------------------------------
 # Team — group of players sharing analysis history
 # ---------------------------------------------------------------------------
+
 
 class Team(Base):
     __tablename__ = "teams"
@@ -260,6 +271,7 @@ class Team(Base):
 # TeamMember — many-to-many join between users (Clerk IDs) and teams
 # ---------------------------------------------------------------------------
 
+
 class TeamMember(Base):
     __tablename__ = "team_members"
 
@@ -268,7 +280,9 @@ class TeamMember(Base):
         String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
     )
     user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    role: Mapped[str] = mapped_column(String(16), nullable=False, default="member")  # owner | member
+    role: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="member"
+    )  # owner | member
     joined_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
@@ -283,19 +297,26 @@ class TeamMember(Base):
 # PracticeServer — on-demand Hetzner instances
 # ---------------------------------------------------------------------------
 
+
 class PracticeServer(Base):
     __tablename__ = "practice_servers"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    team_id: Mapped[str] = mapped_column(String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     vultr_instance_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="booting") # booting, active, terminated
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="booting"
+    )  # booting, active, terminated
     mode: Mapped[str] = mapped_column(String(32), nullable=False, default="practice")
     rcon_password: Mapped[str] = mapped_column(String(32), nullable=False)
     server_password: Mapped[str] = mapped_column(String(32), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
     def __repr__(self) -> str:

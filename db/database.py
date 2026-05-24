@@ -20,10 +20,10 @@ from sqlalchemy.orm import sessionmaker
 
 # Resolution order: explicit test override → local dev → cloud SQL → SQLite fallback
 _DATABASE_URL = (
-    os.getenv("DATABASE_URL_TEST")          # CI / unit tests: sqlite:///:memory:
-    or os.getenv("DATABASE_URL_LOCAL")      # Local docker-compose postgres
-    or os.getenv("DATABASE_URL")            # GCP Cloud SQL (production / Cloud Run)
-    or "sqlite:///:memory:"                 # Last resort — no config needed
+    os.getenv("DATABASE_URL_TEST")  # CI / unit tests: sqlite:///:memory:
+    or os.getenv("DATABASE_URL_LOCAL")  # Local docker-compose postgres
+    or os.getenv("DATABASE_URL")  # GCP Cloud SQL (production / Cloud Run)
+    or "sqlite:///:memory:"  # Last resort — no config needed
 )
 
 # SQLite needs check_same_thread=False for FastAPI; PostgreSQL ignores connect_args

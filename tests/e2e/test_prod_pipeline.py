@@ -22,7 +22,7 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
     presign_res = requests.post(
         f"{api_url}/api/upload/presign",
         headers=headers,
-        json={"filename": filename, "size_bytes": file_size}
+        json={"filename": filename, "size_bytes": file_size},
     )
 
     if not presign_res.ok:
@@ -39,9 +39,7 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
     print("\n[2/4] Uploading to GCS...")
     with open(demo_path, "rb") as f:
         upload_res = requests.put(
-            upload_url,
-            headers={"Content-Type": "application/octet-stream"},
-            data=f
+            upload_url, headers={"Content-Type": "application/octet-stream"}, data=f
         )
 
     if not upload_res.ok:
@@ -51,7 +49,7 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
 
     # 3. Poll for parsing completion
     print("\n[3/4] Polling for parse completion (Scout)...")
-    max_retries = 60 # 60 * 5s = 5 minutes
+    max_retries = 60  # 60 * 5s = 5 minutes
 
     for i in range(max_retries):
         time.sleep(5)
@@ -61,7 +59,7 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
 
         status_data = status_res.json()
         status = status_data.get("status")
-        sys.stdout.write(f"\rStatus: {status} ({i*5}s)       ")
+        sys.stdout.write(f"\rStatus: {status} ({i * 5}s)       ")
         sys.stdout.flush()
 
         if status == "failed":
@@ -77,7 +75,7 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
 
     # 4. Poll for Great Khan Coaching Notes
     print("\n[4/4] Polling for AI Coaching Notes (Great Khan)...")
-    for i in range(12): # 12 * 5s = 60 seconds for AI
+    for i in range(12):  # 12 * 5s = 60 seconds for AI
         time.sleep(5)
         coach_res = requests.get(f"{api_url}/api/coaching/{match_id}")
         if not coach_res.ok:
@@ -90,7 +88,7 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
             print(f"Summary: {coaching.get('summary')}")
             break
 
-        sys.stdout.write(f"\rCoaching status: {coach_data.get('status')} ({i*5}s)       ")
+        sys.stdout.write(f"\rCoaching status: {coach_data.get('status')} ({i * 5}s)       ")
         sys.stdout.flush()
     else:
         print("\nERROR: Timeout waiting for Great Khan coaching.")
@@ -98,8 +96,10 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
 
     print("\n🎉 E2E Pipeline Test Passed Successfully!")
 
+
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-url", required=True, help="Base URL of the live API")
     parser.add_argument("--demo", required=True, help="Path to the local .dem file")

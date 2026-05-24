@@ -32,7 +32,11 @@ async def get_coaching(match_id: str):
                 raise HTTPException(status_code=404, detail="Match not found")
             if not match.coaching_notes:
                 return {"status": "pending", "match_id": match_id}
-            return {"status": "ready", "match_id": match_id, "coaching": json.loads(match.coaching_notes)}
+            return {
+                "status": "ready",
+                "match_id": match_id,
+                "coaching": json.loads(match.coaching_notes),
+            }
         finally:
             db.close()
     except HTTPException:
@@ -46,6 +50,7 @@ def _run_coaching(match_id: str) -> None:
     """Background task: run Great Khan analysis."""
     try:
         from agents.great_khan import analyse_match  # noqa: PLC0415
+
         analyse_match(match_id)
     except Exception as e:
         logger.error(f"Coaching task failed for {match_id}: {e}")

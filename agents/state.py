@@ -14,9 +14,10 @@ from typing_extensions import TypedDict
 
 class AgentConfidence(TypedDict):
     """Confidence envelope attached to every agent output."""
-    score: float        # 0.0 – 1.0
-    grounded: bool      # True if claim is backed by parsed demo data or RAG
-    flagged: bool       # True if confidence < threshold; output withheld from user
+
+    score: float  # 0.0 – 1.0
+    grounded: bool  # True if claim is backed by parsed demo data or RAG
+    flagged: bool  # True if confidence < threshold; output withheld from user
 
 
 class MatchState(TypedDict, total=False):
@@ -40,16 +41,16 @@ class MatchState(TypedDict, total=False):
     intent: Literal["stat_query", "tactical_analysis", "server_request", "general"]
 
     # --- Agent outputs ---
-    scout_output: Optional[dict[str, Any]]          # Structured JSON from demo parse
-    comms_output: Optional[dict[str, Any]]          # Transcript + NLP scores
-    rag_context: Optional[list[dict[str, Any]]]     # Pro match references from pgvector
-    tactical_analysis: Optional[dict[str, Any]]    # Tactician per-player/round analysis
-    final_report: Optional[dict[str, Any]]         # Scribe compiled report
+    scout_output: Optional[dict[str, Any]]  # Structured JSON from demo parse
+    comms_output: Optional[dict[str, Any]]  # Transcript + NLP scores
+    rag_context: Optional[list[dict[str, Any]]]  # Pro match references from pgvector
+    tactical_analysis: Optional[dict[str, Any]]  # Tactician per-player/round analysis
+    final_report: Optional[dict[str, Any]]  # Scribe compiled report
 
     # --- Routing & control ---
-    active_agents: list[str]                        # Which agents are currently running
-    errors: list[str]                               # Accumulated error messages
-    hallucination_flags: list[str]                  # Claims withheld due to low confidence
+    active_agents: list[str]  # Which agents are currently running
+    errors: list[str]  # Accumulated error messages
+    hallucination_flags: list[str]  # Claims withheld due to low confidence
 
     # --- Confidence ---
     confidence: Optional[AgentConfidence]

@@ -76,51 +76,81 @@ def main() -> None:
 
     # --- 3. Enable APIs ---
     print("\n[3/8] Enabling required APIs...")
-    run([
-        "gcloud", "services", "enable",
-        "sqladmin.googleapis.com",
-        "storage.googleapis.com",
-        "cloudtasks.googleapis.com",
-        "run.googleapis.com",
-        "aiplatform.googleapis.com",
-        "cloudbuild.googleapis.com",
-        "artifactregistry.googleapis.com",   # Required for gcr.io / docker push
-        "secretmanager.googleapis.com",       # Required for Cloud Run --set-secrets
-    ])
+    run(
+        [
+            "gcloud",
+            "services",
+            "enable",
+            "sqladmin.googleapis.com",
+            "storage.googleapis.com",
+            "cloudtasks.googleapis.com",
+            "run.googleapis.com",
+            "aiplatform.googleapis.com",
+            "cloudbuild.googleapis.com",
+            "artifactregistry.googleapis.com",  # Required for gcr.io / docker push
+            "secretmanager.googleapis.com",  # Required for Cloud Run --set-secrets
+        ]
+    )
 
     # --- 4. Service account ---
     print("\n[4/8] Creating service account...")
-    run(["gcloud", "iam", "service-accounts", "create", SA_NAME,
-         "--display-name=DemoSage Dev"], check=False)
-    run([
-        "gcloud", "projects", "add-iam-policy-binding", PROJECT_ID,
-        f"--member=serviceAccount:{SA_NAME}@{PROJECT_ID}.iam.gserviceaccount.com",
-        "--role=roles/editor",
-    ])
+    run(
+        ["gcloud", "iam", "service-accounts", "create", SA_NAME, "--display-name=DemoSage Dev"],
+        check=False,
+    )
+    run(
+        [
+            "gcloud",
+            "projects",
+            "add-iam-policy-binding",
+            PROJECT_ID,
+            f"--member=serviceAccount:{SA_NAME}@{PROJECT_ID}.iam.gserviceaccount.com",
+            "--role=roles/editor",
+        ]
+    )
     KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    run([
-        "gcloud", "iam", "service-accounts", "keys", "create", str(KEY_PATH),
-        f"--iam-account={SA_NAME}@{PROJECT_ID}.iam.gserviceaccount.com",
-    ])
+    run(
+        [
+            "gcloud",
+            "iam",
+            "service-accounts",
+            "keys",
+            "create",
+            str(KEY_PATH),
+            f"--iam-account={SA_NAME}@{PROJECT_ID}.iam.gserviceaccount.com",
+        ]
+    )
     print("\n      [OK] Key written to " + str(KEY_PATH))
     print("      ** Make sure infra/gcp-key.json is in .gitignore (it is by default)")
 
     # --- 5. Cloud SQL ---
     print("\n[5/8] Provisioning Cloud SQL (this takes ~5 minutes)...")
-    run([
-        "gcloud", "sql", "instances", "create", DB_INSTANCE,
-        "--database-version=POSTGRES_15",
-        "--tier=db-f1-micro",           # shared-core — cheapest tier (~$7/mo)
-        f"--region={REGION}",
-        "--storage-size=10",            # 10 GB HDD minimum
-        f"--project={PROJECT_ID}",
-    ])
+    run(
+        [
+            "gcloud",
+            "sql",
+            "instances",
+            "create",
+            DB_INSTANCE,
+            "--database-version=POSTGRES_15",
+            "--tier=db-f1-micro",  # shared-core — cheapest tier (~$7/mo)
+            f"--region={REGION}",
+            "--storage-size=10",  # 10 GB HDD minimum
+            f"--project={PROJECT_ID}",
+        ]
+    )
     run(["gcloud", "sql", "databases", "create", DB_NAME, f"--instance={DB_INSTANCE}"])
-    run([
-        "gcloud", "sql", "users", "create", DB_USER,
-        f"--instance={DB_INSTANCE}",
-        f"--password={DB_PASSWORD}",
-    ])
+    run(
+        [
+            "gcloud",
+            "sql",
+            "users",
+            "create",
+            DB_USER,
+            f"--instance={DB_INSTANCE}",
+            f"--password={DB_PASSWORD}",
+        ]
+    )
 
     # --- 6. pgvector extension ---
     print("\n[6/8] Enabling pgvector extension...")
@@ -131,31 +161,54 @@ def main() -> None:
 
     # --- 7. GCS bucket ---
     print("\n[7/8] Creating GCS bucket...")
-    run([
-        "gcloud", "storage", "buckets", "create", f"gs://{GCS_BUCKET}",
-        f"--location={REGION.upper().replace('-', '_')}",
-        "--uniform-bucket-level-access",
-    ], check=False)
+    run(
+        [
+            "gcloud",
+            "storage",
+            "buckets",
+            "create",
+            f"gs://{GCS_BUCKET}",
+            f"--location={REGION.upper().replace('-', '_')}",
+            "--uniform-bucket-level-access",
+        ],
+        check=False,
+    )
 
     # --- 8. Cloud Tasks queue ---
     print("\n[8/9] Creating Cloud Tasks queue...")
-    run([
-        "gcloud", "tasks", "queues", "create", TASKS_QUEUE,
-        f"--location={REGION}",
-    ], check=False)
+    run(
+        [
+            "gcloud",
+            "tasks",
+            "queues",
+            "create",
+            TASKS_QUEUE,
+            f"--location={REGION}",
+        ],
+        check=False,
+    )
 
     # --- 9. GCS → Pub/Sub → Scout pipeline ---
     print("\n[9/9] Setting up GCS → Pub/Sub → Scout trigger pipeline...")
 
     # Enable Pub/Sub API
-    run(["gcloud", "services", "enable", "pubsub.googleapis.com",
-         f"--project={PROJECT_ID}"], check=False)
+    run(
+        ["gcloud", "services", "enable", "pubsub.googleapis.com", f"--project={PROJECT_ID}"],
+        check=False,
+    )
 
     # Create Pub/Sub topic
-    run([
-        "gcloud", "pubsub", "topics", "create", PUBSUB_TOPIC,
-        f"--project={PROJECT_ID}",
-    ], check=False)
+    run(
+        [
+            "gcloud",
+            "pubsub",
+            "topics",
+            "create",
+            PUBSUB_TOPIC,
+            f"--project={PROJECT_ID}",
+        ],
+        check=False,
+    )
 
     # Grant GCS permission to publish to the topic
     # (GCS uses a dedicated service account: service-{project_number}@gs-project-accounts.iam.gserviceaccount.com)
@@ -163,27 +216,36 @@ def main() -> None:
     print("  pubsub.publisher on the topic. Run after getting your project number:")
     print(f"    gcloud projects describe {PROJECT_ID} --format='value(projectNumber)'")
     print(f"    Then: gcloud pubsub topics add-iam-policy-binding {PUBSUB_TOPIC} \\")
-    print("      --member='serviceAccount:service-NUMBER@gs-project-accounts.iam.gserviceaccount.com' \\")
+    print(
+        "      --member='serviceAccount:service-NUMBER@gs-project-accounts.iam.gserviceaccount.com' \\"
+    )
 
-    print( "      --role='roles/pubsub.publisher'")
+    print("      --role='roles/pubsub.publisher'")
 
     # GCS bucket notification (finalize = object created)
     # Requires the Pub/Sub topic and GCS publisher permission to be set first
-    run([
-        "gcloud", "storage", "buckets", "notifications", "create",
-        f"gs://{GCS_BUCKET}",
-        f"--topic={PUBSUB_TOPIC}",
-        "--event-types=OBJECT_FINALIZE",
-        "--object-prefix=demos/raw/",
-        f"--project={PROJECT_ID}",
-    ], check=False)
+    run(
+        [
+            "gcloud",
+            "storage",
+            "buckets",
+            "notifications",
+            "create",
+            f"gs://{GCS_BUCKET}",
+            f"--topic={PUBSUB_TOPIC}",
+            "--event-types=OBJECT_FINALIZE",
+            "--object-prefix=demos/raw/",
+            f"--project={PROJECT_ID}",
+        ],
+        check=False,
+    )
 
     print("  Pub/Sub push subscription must be created after Scout is deployed.")
     print("  Run this after getting your Scout Cloud Run URL:")
     print(f"    gcloud pubsub subscriptions create {PUBSUB_SUBSCRIPTION} \\")
     print(f"      --topic={PUBSUB_TOPIC} \\")
-    print( "      --push-endpoint=SCOUT_URL/internal/scout/parse-from-gcs \\")
-    print( "      --push-auth-service-account=demosage-dev@PROJECT.iam.gserviceaccount.com \\")
+    print("      --push-endpoint=SCOUT_URL/internal/scout/parse-from-gcs \\")
+    print("      --push-auth-service-account=demosage-dev@PROJECT.iam.gserviceaccount.com \\")
     print(f"      --project={PROJECT_ID}")
 
     print("\n" + "=" * 60)
@@ -194,7 +256,9 @@ def main() -> None:
     print(f"     GCP_REGION={REGION}")
     print(f"     GCS_BUCKET={GCS_BUCKET}")
     print(f"     PUBSUB_TOPIC={PUBSUB_TOPIC}")
-    print(f"     DATABASE_URL=postgresql://{DB_USER}:<password>@/demosage?host=/cloudsql/{PROJECT_ID}:{REGION}:{DB_INSTANCE}")
+    print(
+        f"     DATABASE_URL=postgresql://{DB_USER}:<password>@/demosage?host=/cloudsql/{PROJECT_ID}:{REGION}:{DB_INSTANCE}"
+    )
     print("  2. Enable pgvector (see step 6 above)")
     print("  3. Create the Pub/Sub push subscription (see step 9 above — needs Scout URL)")
     print("  4. Run: python scripts/run_local.py --help")

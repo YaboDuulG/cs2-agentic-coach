@@ -41,6 +41,7 @@ TRAJECTORY_SAMPLE_TICKS = int(os.getenv("TRAJECTORY_SAMPLE_TICKS", "8"))
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _safe_float(val: Any, default: float = 0.0) -> float:
     try:
         return float(val) if val is not None else default
@@ -62,6 +63,7 @@ def _safe_str(val: Any, default: str = "") -> str:
 # ---------------------------------------------------------------------------
 # Parsing
 # ---------------------------------------------------------------------------
+
 
 def parse_demo(dem_path: str) -> dict[str, Any]:
     """Parse a CS2 demo file using demoparser2 and return structured event data."""
@@ -98,22 +100,22 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         if kills_df is not None and not kills_df.empty:
             for _, row in kills_df.iterrows():
                 kill = {
-                    "round":            _safe_int(row.get("total_rounds_played")),
-                    "tick":             _safe_int(row.get("tick")),
-                    "attacker":         _safe_str(row.get("attacker_name")),
-                    "attacker_team":    _safe_str(row.get("attacker_team_name")),
+                    "round": _safe_int(row.get("total_rounds_played")),
+                    "tick": _safe_int(row.get("tick")),
+                    "attacker": _safe_str(row.get("attacker_name")),
+                    "attacker_team": _safe_str(row.get("attacker_team_name")),
                     "attacker_steamid": _safe_str(row.get("attacker_steamid")),
-                    "victim":           _safe_str(row.get("user_name")),
-                    "victim_team":      _safe_str(row.get("user_team_name")),
-                    "victim_steamid":   _safe_str(row.get("user_steamid")),
-                    "weapon":           _safe_str(row.get("weapon")),
-                    "headshot":         bool(row.get("headshot", False)),
-                    "attacker_x":       _safe_float(row.get("attacker_X", row.get("attacker_x"))),
-                    "attacker_y":       _safe_float(row.get("attacker_Y", row.get("attacker_y"))),
-                    "attacker_z":       _safe_float(row.get("attacker_Z", row.get("attacker_z"))),
-                    "victim_x":         _safe_float(row.get("user_X", row.get("user_x"))),
-                    "victim_y":         _safe_float(row.get("user_Y", row.get("user_y"))),
-                    "victim_z":         _safe_float(row.get("user_Z", row.get("user_z"))),
+                    "victim": _safe_str(row.get("user_name")),
+                    "victim_team": _safe_str(row.get("user_team_name")),
+                    "victim_steamid": _safe_str(row.get("user_steamid")),
+                    "weapon": _safe_str(row.get("weapon")),
+                    "headshot": bool(row.get("headshot", False)),
+                    "attacker_x": _safe_float(row.get("attacker_X", row.get("attacker_x"))),
+                    "attacker_y": _safe_float(row.get("attacker_Y", row.get("attacker_y"))),
+                    "attacker_z": _safe_float(row.get("attacker_Z", row.get("attacker_z"))),
+                    "victim_x": _safe_float(row.get("user_X", row.get("user_x"))),
+                    "victim_y": _safe_float(row.get("user_Y", row.get("user_y"))),
+                    "victim_z": _safe_float(row.get("user_Z", row.get("user_z"))),
                 }
 
                 output["kills"].append(kill)
@@ -129,8 +131,12 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             output["first_contacts"].append({**kill, "is_first_contact": True})
 
     # --- Grenade events ---
-    for event_name in ["hegrenade_detonate", "smokegrenade_detonate",
-                       "flashbang_detonate", "molotov_detonate"]:
+    for event_name in [
+        "hegrenade_detonate",
+        "smokegrenade_detonate",
+        "flashbang_detonate",
+        "molotov_detonate",
+    ]:
         try:
             g_df = parser.parse_event(
                 event_name,
@@ -140,15 +146,17 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             if g_df is not None and not g_df.empty:
                 grenade_type = event_name.replace("_detonate", "").replace("_extinguish", "")
                 for _, row in g_df.iterrows():
-                    output["grenades"].append({
-                        "round":   _safe_int(row.get("total_rounds_played")),
-                        "tick":    _safe_int(row.get("tick")),
-                        "thrower": _safe_str(row.get("user_name")),
-                        "team":    _safe_str(row.get("user_team_name")),
-                        "type":    grenade_type,
-                        "throw_x": _safe_float(row.get("user_X", row.get("user_x"))),
-                        "throw_y": _safe_float(row.get("user_Y", row.get("user_y"))),
-                    })
+                    output["grenades"].append(
+                        {
+                            "round": _safe_int(row.get("total_rounds_played")),
+                            "tick": _safe_int(row.get("tick")),
+                            "thrower": _safe_str(row.get("user_name")),
+                            "team": _safe_str(row.get("user_team_name")),
+                            "type": grenade_type,
+                            "throw_x": _safe_float(row.get("user_X", row.get("user_x"))),
+                            "throw_y": _safe_float(row.get("user_Y", row.get("user_y"))),
+                        }
+                    )
 
         except Exception:
             pass  # Not all demo types have all grenade events
@@ -165,7 +173,9 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             ticks = freeze_df["tick"].tolist()
             ticks_df = parser.parse_ticks(["current_equip_value", "team_name"])
             filtered_ticks_df = ticks_df[ticks_df["tick"].isin(ticks)]
-            merged = filtered_ticks_df.merge(freeze_df[["tick", "total_rounds_played"]], on="tick", how="left")
+            merged = filtered_ticks_df.merge(
+                freeze_df[["tick", "total_rounds_played"]], on="tick", how="left"
+            )
             for rnd_num, grp in merged.groupby("total_rounds_played"):
                 ct_val = grp[grp["team_name"] == "CT"]["current_equip_value"].sum()
                 t_val = grp[grp["team_name"] == "TERRORIST"]["current_equip_value"].sum()
@@ -195,38 +205,52 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                     t_score += 1
 
                 eco = eco_lookup.get(rnd_num, {})
-                output["rounds"].append({
-                    "round_num":   rnd_num,
-                    "winner_side": winner_side,
-                    "reason":      _safe_str(row.get("reason")),
-                    "ct_eq_val":   eco.get("ct", 0),
-                    "t_eq_val":    eco.get("t", 0),
-                    "ct_score":    ct_score,
-                    "t_score":     t_score,
-                })
+                output["rounds"].append(
+                    {
+                        "round_num": rnd_num,
+                        "winner_side": winner_side,
+                        "reason": _safe_str(row.get("reason")),
+                        "ct_eq_val": eco.get("ct", 0),
+                        "t_eq_val": eco.get("t", 0),
+                        "ct_score": ct_score,
+                        "t_score": t_score,
+                    }
+                )
     except Exception as e:
         logger.warning(f"Round events unavailable: {e}")
         # Fall back: infer round count from kills
         if output["kills"]:
             max_round = max(k["round"] for k in output["kills"])
             for i in range(1, max_round + 1):
-                output["rounds"].append({
-                    "round_num": i, "winner_side": "", "reason": "",
-                    "ct_eq_val": 0, "t_eq_val": 0, "ct_score": 0, "t_score": 0,
-                })
+                output["rounds"].append(
+                    {
+                        "round_num": i,
+                        "winner_side": "",
+                        "reason": "",
+                        "ct_eq_val": 0,
+                        "t_eq_val": 0,
+                        "ct_score": 0,
+                        "t_score": 0,
+                    }
+                )
 
     output["metadata"]["total_rounds"] = len(output["rounds"])
 
     # --- Player and Utility Stats Compilation ---
     player_stats = {}
     try:
-        hurt_df = parser.parse_event("player_hurt", player=["team_name"], other=["total_rounds_played"])
+        hurt_df = parser.parse_event(
+            "player_hurt", player=["team_name"], other=["total_rounds_played"]
+        )
         fire_df = parser.parse_event("weapon_fire", other=["total_rounds_played"])
-        blind_df = parser.parse_event("player_blind", player=["team_name"], other=["total_rounds_played"])
+        blind_df = parser.parse_event(
+            "player_blind", player=["team_name"], other=["total_rounds_played"]
+        )
 
         ticks_df_all = parser.parse_ticks(["team_name"])
-        
+
         raw_players = {}
+
         def get_stat_player(steamid, name, team=None):
             if not steamid or steamid in ("0", "nan", None):
                 return None
@@ -268,7 +292,9 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             return raw_players[steamid]
 
         if freeze_df is not None and not freeze_df.empty:
-            tick_to_round_local = {int(r["tick"]): int(r["total_rounds_played"]) for _, r in freeze_df.iterrows()}
+            tick_to_round_local = {
+                int(r["tick"]): int(r["total_rounds_played"]) for _, r in freeze_df.iterrows()
+            }
             freeze_ticks = ticks_df_all[ticks_df_all["tick"].isin(tick_to_round_local.keys())]
             for _, row in freeze_ticks.iterrows():
                 p = get_stat_player(row.get("steamid"), row.get("name"), row.get("team_name"))
@@ -280,27 +306,33 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         if kills_df is not None and not kills_df.empty:
             for _, row in kills_df.iterrows():
                 round_num = _safe_int(row.get("total_rounds_played"))
-                
+
                 att_id = row.get("attacker_steamid")
-                p_att = get_stat_player(att_id, row.get("attacker_name"), row.get("attacker_team_name"))
+                p_att = get_stat_player(
+                    att_id, row.get("attacker_name"), row.get("attacker_team_name")
+                )
                 if p_att:
                     p_att["kills"] += 1
                     if row.get("headshot"):
                         p_att["headshots"] += 1
-                    p_att["kills_per_round"][round_num] = p_att["kills_per_round"].get(round_num, 0) + 1
+                    p_att["kills_per_round"][round_num] = (
+                        p_att["kills_per_round"].get(round_num, 0) + 1
+                    )
                     p_att["kast_rounds"].add(round_num)
-                    
+
                 vic_id = row.get("user_steamid")
                 p_vic = get_stat_player(vic_id, row.get("user_name"), row.get("user_team_name"))
                 if p_vic:
                     p_vic["deaths"] += 1
-                    
+
                 ast_id = row.get("assister_steamid")
-                p_ast = get_stat_player(ast_id, row.get("assister_name"), row.get("assister_team_name"))
+                p_ast = get_stat_player(
+                    ast_id, row.get("assister_name"), row.get("assister_team_name")
+                )
                 if p_ast:
                     p_ast["assists"] += 1
                     p_ast["kast_rounds"].add(round_num)
-                
+
                 if row.get("assistedflash") and ast_id:
                     p_ast = get_stat_player(ast_id, row.get("assister_name"))
                     if p_ast:
@@ -331,7 +363,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 vic_team = row.get("user_team_name")
                 dmg = _safe_int(row.get("dmg_health"))
                 wep = str(row.get("weapon", ""))
-                
+
                 if att_id and att_id != vic_id and att_team != vic_team:
                     p_att = get_stat_player(att_id, row.get("attacker_name"))
                     if p_att:
@@ -348,7 +380,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 att_team = row.get("attacker_team_name")
                 vic_team = row.get("user_team_name")
                 dur = _safe_float(row.get("blind_duration"))
-                
+
                 if att_id:
                     p_att = get_stat_player(att_id, row.get("attacker_name"))
                     if p_att:
@@ -388,14 +420,16 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         if kills_df is not None and not kills_df.empty:
             kills_list = []
             for _, row in kills_df.iterrows():
-                kills_list.append({
-                    "tick": _safe_int(row.get("tick")),
-                    "round": _safe_int(row.get("total_rounds_played")),
-                    "attacker_steamid": _safe_str(row.get("attacker_steamid")),
-                    "attacker_team": _safe_str(row.get("attacker_team_name")),
-                    "victim_steamid": _safe_str(row.get("user_steamid")),
-                    "victim_team": _safe_str(row.get("user_team_name")),
-                })
+                kills_list.append(
+                    {
+                        "tick": _safe_int(row.get("tick")),
+                        "round": _safe_int(row.get("total_rounds_played")),
+                        "attacker_steamid": _safe_str(row.get("attacker_steamid")),
+                        "attacker_team": _safe_str(row.get("attacker_team_name")),
+                        "victim_steamid": _safe_str(row.get("user_steamid")),
+                        "victim_team": _safe_str(row.get("user_team_name")),
+                    }
+                )
 
             for idx, k in enumerate(kills_list):
                 for jdx in range(idx + 1, len(kills_list)):
@@ -404,7 +438,10 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                         break
                     if k_next["tick"] - k["tick"] > 256:
                         break
-                    if k_next["victim_steamid"] == k["attacker_steamid"] and k_next["attacker_team"] == k["victim_team"]:
+                    if (
+                        k_next["victim_steamid"] == k["attacker_steamid"]
+                        and k_next["attacker_team"] == k["victim_team"]
+                    ):
                         p_trade_killer = get_stat_player(k_next["attacker_steamid"], None)
                         p_victim = get_stat_player(k["victim_steamid"], None)
                         if p_trade_killer:
@@ -434,18 +471,24 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             p["adr"] = round(p["damage_dealt"] / rc, 1)
             p["kast"] = round((len(p["kast_rounds"]) / rc) * 100, 1)
             p["hs_pct"] = round((p["headshots"] / p["kills"]) * 100, 1) if p["kills"] > 0 else 0.0
-            
-            p["utility_thrown"] = p["utility_smokes"] + p["utility_flashes"] + p["utility_hes"] + p["utility_molotovs"] + p["utility_decoys"]
+
+            p["utility_thrown"] = (
+                p["utility_smokes"]
+                + p["utility_flashes"]
+                + p["utility_hes"]
+                + p["utility_molotovs"]
+                + p["utility_decoys"]
+            )
             p["utility_damage"] = p["he_damage"] + p["fire_damage"]
             p["enemy_blind_time"] = round(p["enemy_blind_time"], 2)
             p["team_blind_time"] = round(p["team_blind_time"], 2)
-            
+
             multikills = {2: 0, 3: 0, 4: 0, 5: 0}
             for r, kc in p["kills_per_round"].items():
                 if kc >= 2:
                     multikills[min(kc, 5)] += 1
             p["multikills"] = multikills
-            
+
             if "kast_rounds" in p:
                 del p["kast_rounds"]
             if "kills_per_round" in p:
@@ -471,21 +514,23 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 positions = [
                     {
                         "tick": int(r["tick"]),
-                        "x":    round(float(r["X"]), 2),
-                        "y":    round(float(r["Y"]), 2),
-                        "z":    round(float(r["Z"]), 2),
+                        "x": round(float(r["X"]), 2),
+                        "y": round(float(r["Y"]), 2),
+                        "z": round(float(r["Z"]), 2),
                     }
                     for _, r in grp.iterrows()
                     if r.get("X") is not None
                 ]
                 if positions:
                     team = _safe_str(grp["team_name"].iloc[0]) if len(grp) > 0 else ""
-                    output["trajectories"].append({
-                        "round":     0,  # Full-match trajectory — refined in Phase 3
-                        "player":    str(player_name),
-                        "team":      team,
-                        "positions": positions,
-                    })
+                    output["trajectories"].append(
+                        {
+                            "round": 0,  # Full-match trajectory — refined in Phase 3
+                            "player": str(player_name),
+                            "team": team,
+                            "positions": positions,
+                        }
+                    )
     except Exception as e:
         logger.warning(f"Trajectory data skipped: {e}")
 
@@ -502,6 +547,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # GCS upload
 # ---------------------------------------------------------------------------
+
 
 def upload_to_gcs(data: dict, match_id: str) -> str:
     """Upload parsed JSON output to GCS and return the gs:// URI."""
@@ -521,6 +567,7 @@ def upload_to_gcs(data: dict, match_id: str) -> str:
 # ---------------------------------------------------------------------------
 # DB write
 # ---------------------------------------------------------------------------
+
 
 def write_to_db(data: dict, match_id: str) -> None:
     """Write parsed Scout output to PostgreSQL (or SQLite in local/test mode)."""
@@ -564,49 +611,86 @@ def write_to_db(data: dict, match_id: str) -> None:
         db.query(PlayerTrajectory).filter(PlayerTrajectory.match_id == match_id).delete()
 
         for k in data.get("kills", []):
-            db.add(Kill(
-                match_id=match_id, round_num=k["round"], tick=k["tick"],
-                attacker=k["attacker"], attacker_team=k["attacker_team"],
-                victim=k["victim"], victim_team=k["victim_team"],
-                weapon=k["weapon"], headshot=k["headshot"],
-                attacker_steamid=k.get("attacker_steamid"),
-                victim_steamid=k.get("victim_steamid"),
-                attacker_x=k["attacker_x"], attacker_y=k["attacker_y"], attacker_z=k["attacker_z"],
-                victim_x=k["victim_x"], victim_y=k["victim_y"], victim_z=k["victim_z"],
-            ))
+            db.add(
+                Kill(
+                    match_id=match_id,
+                    round_num=k["round"],
+                    tick=k["tick"],
+                    attacker=k["attacker"],
+                    attacker_team=k["attacker_team"],
+                    victim=k["victim"],
+                    victim_team=k["victim_team"],
+                    weapon=k["weapon"],
+                    headshot=k["headshot"],
+                    attacker_steamid=k.get("attacker_steamid"),
+                    victim_steamid=k.get("victim_steamid"),
+                    attacker_x=k["attacker_x"],
+                    attacker_y=k["attacker_y"],
+                    attacker_z=k["attacker_z"],
+                    victim_x=k["victim_x"],
+                    victim_y=k["victim_y"],
+                    victim_z=k["victim_z"],
+                )
+            )
 
         for g in data.get("grenades", []):
-            db.add(Grenade(
-                match_id=match_id, round_num=g["round"], tick=g["tick"],
-                thrower=g["thrower"], team=g["team"], grenade_type=g["type"],
-                throw_x=g["throw_x"], throw_y=g["throw_y"],
-            ))
+            db.add(
+                Grenade(
+                    match_id=match_id,
+                    round_num=g["round"],
+                    tick=g["tick"],
+                    thrower=g["thrower"],
+                    team=g["team"],
+                    grenade_type=g["type"],
+                    throw_x=g["throw_x"],
+                    throw_y=g["throw_y"],
+                )
+            )
 
         for r in data.get("rounds", []):
-            db.add(Round(
-                match_id=match_id, round_num=r["round_num"],
-                winner_side=r["winner_side"], reason=r["reason"],
-                ct_eq_val=r["ct_eq_val"], t_eq_val=r["t_eq_val"],
-                ct_score=r["ct_score"], t_score=r["t_score"],
-            ))
+            db.add(
+                Round(
+                    match_id=match_id,
+                    round_num=r["round_num"],
+                    winner_side=r["winner_side"],
+                    reason=r["reason"],
+                    ct_eq_val=r["ct_eq_val"],
+                    t_eq_val=r["t_eq_val"],
+                    ct_score=r["ct_score"],
+                    t_score=r["t_score"],
+                )
+            )
 
         for fc in data.get("first_contacts", []):
-            db.add(FirstContact(
-                match_id=match_id, round_num=fc["round"], tick=fc["tick"],
-                attacker=fc["attacker"], attacker_team=fc["attacker_team"],
-                victim=fc["victim"], weapon=fc["weapon"], headshot=fc["headshot"],
-                attacker_steamid=fc.get("attacker_steamid"),
-                victim_steamid=fc.get("victim_steamid"),
-                attacker_x=fc["attacker_x"], attacker_y=fc["attacker_y"],
-                victim_x=fc["victim_x"], victim_y=fc["victim_y"],
-            ))
+            db.add(
+                FirstContact(
+                    match_id=match_id,
+                    round_num=fc["round"],
+                    tick=fc["tick"],
+                    attacker=fc["attacker"],
+                    attacker_team=fc["attacker_team"],
+                    victim=fc["victim"],
+                    weapon=fc["weapon"],
+                    headshot=fc["headshot"],
+                    attacker_steamid=fc.get("attacker_steamid"),
+                    victim_steamid=fc.get("victim_steamid"),
+                    attacker_x=fc["attacker_x"],
+                    attacker_y=fc["attacker_y"],
+                    victim_x=fc["victim_x"],
+                    victim_y=fc["victim_y"],
+                )
+            )
 
         for traj in data.get("trajectories", []):
-            db.add(PlayerTrajectory(
-                match_id=match_id, round_num=traj["round"],
-                player=traj["player"], team=traj["team"],
-                positions_json=json.dumps(traj["positions"]),
-            ))
+            db.add(
+                PlayerTrajectory(
+                    match_id=match_id,
+                    round_num=traj["round"],
+                    player=traj["player"],
+                    team=traj["team"],
+                    positions_json=json.dumps(traj["positions"]),
+                )
+            )
 
         db.commit()
         logger.info(f"DB write complete for match {match_id}")
@@ -624,9 +708,9 @@ def write_to_db(data: dict, match_id: str) -> None:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="DemoSage Scout — CS2 demo parser")
-    ap.add_argument("--demo",     required=True, help="Absolute path to .dem file")
+    ap.add_argument("--demo", required=True, help="Absolute path to .dem file")
     ap.add_argument("--match-id", required=True, help="Unique match identifier")
-    ap.add_argument("--upload",   action="store_true", help="Upload result to GCS")
+    ap.add_argument("--upload", action="store_true", help="Upload result to GCS")
     ap.add_argument("--write-db", action="store_true", help="Write parsed data to DB")
     args = ap.parse_args()
 

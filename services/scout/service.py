@@ -47,10 +47,11 @@ app = FastAPI(
 # Request / Response schemas
 # ---------------------------------------------------------------------------
 
+
 class ParseRequest(BaseModel):
     match_id: str
-    gcs_uri: str | None = None      # Required in cloud mode
-    dem_path: str | None = None     # Required in LOCAL_MODE
+    gcs_uri: str | None = None  # Required in cloud mode
+    dem_path: str | None = None  # Required in LOCAL_MODE
 
 
 class ParseResponse(BaseModel):
@@ -67,6 +68,7 @@ class ParseResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @app.get("/health")
 async def health():
@@ -87,7 +89,6 @@ async def parse_from_pubsub(request: dict):
     """
     import base64
     import json as _json
-
 
     try:
         message = request.get("message", {})
@@ -184,7 +185,6 @@ async def parse_match(req: ParseRequest):
 
         return response
 
-
     except Exception as exc:
         logger.error(f"[Scout] Parse failed for {req.match_id}: {exc}")
         # Mark match as failed in DB
@@ -201,6 +201,7 @@ async def parse_match(req: ParseRequest):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _download_from_gcs(gcs_uri: str, match_id: str) -> str:
     """Download a GCS object to a temp file and return the local path."""
     from google.cloud import storage  # noqa: PLC0415
@@ -214,9 +215,7 @@ def _download_from_gcs(gcs_uri: str, match_id: str) -> str:
     blob = bucket.blob(blob_path)
 
     suffix = Path(blob_path).suffix or ".dem"
-    tmp = tempfile.NamedTemporaryFile(
-        delete=False, suffix=suffix, prefix=f"{match_id}_"
-    )
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix, prefix=f"{match_id}_")
     blob.download_to_filename(tmp.name)
     logger.info(f"Downloaded {gcs_uri} → {tmp.name}")
     return tmp.name
@@ -229,6 +228,7 @@ def _trigger_coaching(match_id: str) -> None:
     def _call():
         try:
             import httpx  # noqa: PLC0415
+
             api_url = os.getenv("API_INTERNAL_URL", "http://localhost:8000")
             httpx.post(f"{api_url}/api/coaching/{match_id}", timeout=5)
             logger.info(f"[Scout] Coaching triggered for {match_id}")
@@ -239,7 +239,6 @@ def _trigger_coaching(match_id: str) -> None:
 
 
 def _mark_failed(match_id: str, error: str) -> None:
-
     """Update match status to FAILED in the database."""
     try:
         from db.database import SessionLocal

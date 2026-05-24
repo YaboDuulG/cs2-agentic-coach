@@ -12,6 +12,7 @@ from db.database import engine
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def run_migrations():
     logger.info("Starting staging DB migrations...")
     columns = [
@@ -25,7 +26,10 @@ def run_migrations():
         ("kills_victim_team", "ALTER TABLE kills ALTER COLUMN victim_team TYPE VARCHAR(64);"),
         ("grenades_team", "ALTER TABLE grenades ALTER COLUMN team TYPE VARCHAR(64);"),
         ("rounds_winner_side", "ALTER TABLE rounds ALTER COLUMN winner_side TYPE VARCHAR(64);"),
-        ("first_contacts_attacker_team", "ALTER TABLE first_contacts ALTER COLUMN attacker_team TYPE VARCHAR(64);"),
+        (
+            "first_contacts_attacker_team",
+            "ALTER TABLE first_contacts ALTER COLUMN attacker_team TYPE VARCHAR(64);",
+        ),
         ("trajectories_team", "ALTER TABLE trajectories ALTER COLUMN team TYPE VARCHAR(64);"),
     ]
     for col_name, sql in columns:
@@ -37,6 +41,7 @@ def run_migrations():
                 logger.warning(f"Could not migrate {col_name}: {e}")
 
     logger.info("Migrations complete!")
+
 
 if __name__ == "__main__":
     run_migrations()

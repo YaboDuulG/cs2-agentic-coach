@@ -15,6 +15,7 @@ router = APIRouter()
 
 def _get_db():
     from db.database import SessionLocal  # noqa: PLC0415
+
     return SessionLocal()
 
 
@@ -45,7 +46,9 @@ async def get_job_status(match_id: str):
         try:
             # Check if match record exists and has been parsed
             result = db.execute(
-                text("SELECT match_id, map_name, status, error_message, player_stats_json FROM matches WHERE match_id = :id"),
+                text(
+                    "SELECT match_id, map_name, status, error_message, player_stats_json FROM matches WHERE match_id = :id"
+                ),
                 {"id": match_id},
             ).fetchone()
 
@@ -85,6 +88,7 @@ async def get_job_status(match_id: str):
             ).fetchall()
 
             import json
+
             player_stats = {}
             if player_stats_raw:
                 try:

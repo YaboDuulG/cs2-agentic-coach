@@ -42,7 +42,12 @@ async def create_team(body: CreateTeamRequest):
                     INSERT INTO teams (id, name, owner_user_id, invite_code, created_at)
                     VALUES (:id, :name, :owner, :code, NOW())
                 """),
-                {"id": team_id, "name": body.name.strip(), "owner": body.user_id, "code": invite_code},
+                {
+                    "id": team_id,
+                    "name": body.name.strip(),
+                    "owner": body.user_id,
+                    "code": invite_code,
+                },
             )
             db.execute(
                 text("""
@@ -204,14 +209,18 @@ async def get_team(team_id: str):
         db = SessionLocal()
         try:
             team = db.execute(
-                text("SELECT id, name, invite_code, owner_user_id, created_at FROM teams WHERE id = :id"),
+                text(
+                    "SELECT id, name, invite_code, owner_user_id, created_at FROM teams WHERE id = :id"
+                ),
                 {"id": team_id},
             ).fetchone()
             if not team:
                 raise HTTPException(status_code=404, detail="Team not found")
 
             members = db.execute(
-                text("SELECT user_id, role, joined_at FROM team_members WHERE team_id = :tid ORDER BY joined_at"),
+                text(
+                    "SELECT user_id, role, joined_at FROM team_members WHERE team_id = :tid ORDER BY joined_at"
+                ),
                 {"tid": team_id},
             ).fetchall()
 
@@ -221,7 +230,10 @@ async def get_team(team_id: str):
                 "invite_code": team[2],
                 "owner_user_id": team[3],
                 "created_at": team[4].isoformat() if team[4] else None,
-                "members": [{"user_id": m[0], "role": m[1], "joined_at": m[2].isoformat() if m[2] else None} for m in members],
+                "members": [
+                    {"user_id": m[0], "role": m[1], "joined_at": m[2].isoformat() if m[2] else None}
+                    for m in members
+                ],
             }
         finally:
             db.close()
