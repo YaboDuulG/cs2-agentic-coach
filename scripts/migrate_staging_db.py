@@ -21,14 +21,20 @@ def run_migrations():
         ("gcs_demo_uri", "ALTER TABLE matches ADD COLUMN gcs_demo_uri TEXT;"),
         ("gcs_audio_uri", "ALTER TABLE matches ADD COLUMN gcs_audio_uri TEXT;"),
         ("gcs_parsed_uri", "ALTER TABLE matches ADD COLUMN gcs_parsed_uri TEXT;"),
+        ("kills_attacker_team", "ALTER TABLE kills ALTER COLUMN attacker_team TYPE VARCHAR(64);"),
+        ("kills_victim_team", "ALTER TABLE kills ALTER COLUMN victim_team TYPE VARCHAR(64);"),
+        ("grenades_team", "ALTER TABLE grenades ALTER COLUMN team TYPE VARCHAR(64);"),
+        ("rounds_winner_side", "ALTER TABLE rounds ALTER COLUMN winner_side TYPE VARCHAR(64);"),
+        ("first_contacts_attacker_team", "ALTER TABLE first_contacts ALTER COLUMN attacker_team TYPE VARCHAR(64);"),
+        ("trajectories_team", "ALTER TABLE trajectories ALTER COLUMN team TYPE VARCHAR(64);"),
     ]
     for col_name, sql in columns:
         with engine.begin() as conn:
             try:
                 conn.execute(text(sql))
-                logger.info(f"Added {col_name} column to matches table")
+                logger.info(f"Added/modified column/type for {col_name}")
             except Exception as e:
-                logger.warning(f"Could not add {col_name} (might already exist): {e}")
+                logger.warning(f"Could not migrate {col_name}: {e}")
 
     logger.info("Migrations complete!")
 
