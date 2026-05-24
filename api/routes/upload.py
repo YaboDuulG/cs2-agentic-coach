@@ -26,7 +26,7 @@ def _get_gcs_client():
 
 def _upload_to_gcs(file_bytes: bytes, gcs_path: str, content_type: str) -> str:
     """Upload raw bytes to GCS and return the gs:// URI."""
-    bucket_name = os.environ["GCS_BUCKET"]
+    bucket_name = os.environ["GCS_BUCKET"].strip()
     client = _get_gcs_client()
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(gcs_path)

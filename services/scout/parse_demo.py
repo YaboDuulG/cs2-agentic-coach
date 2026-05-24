@@ -259,7 +259,7 @@ def upload_to_gcs(data: dict, match_id: str) -> str:
     """Upload parsed JSON output to GCS and return the gs:// URI."""
     from google.cloud import storage  # noqa: PLC0415
 
-    bucket_name = os.environ["GCS_BUCKET"]
+    bucket_name = os.environ["GCS_BUCKET"].strip()
     client = storage.Client()
     bucket = client.bucket(bucket_name)
     blob_path = f"parsed/{match_id}/scout_output.json"
