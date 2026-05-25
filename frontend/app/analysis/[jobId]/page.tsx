@@ -55,6 +55,95 @@ const STATUS_CONFIG: Record<JobStatus, { label: string; color: string; icon: Rea
   failed:     { label: "Failed",   color: "#FF4D6D", icon: <AlertCircle size={16} /> },
 };
 
+const MAP_CONFIGS: Record<string, { pos_x: number; pos_y: number; scale: number }> = {
+  de_dust2: { pos_x: -2476, pos_y: 3239, scale: 4.4 },
+  de_mirage: { pos_x: -3230, pos_y: 1713, scale: 5.0 },
+  de_inferno: { pos_x: -2087, pos_y: 3870, scale: 4.9 },
+  de_nuke: { pos_x: -3450, pos_y: 2887, scale: 7.0 },
+  de_overpass: { pos_x: -4438, pos_y: 1494, scale: 4.9 },
+  de_ancient: { pos_x: -2953, pos_y: 2164, scale: 5.0 },
+  de_anubis: { pos_x: -2796, pos_y: 3328, scale: 5.22 },
+  de_vertigo: { pos_x: -3120, pos_y: 1720, scale: 4.0 },
+};
+
+function formatWeaponName(weapon: string): string {
+  if (!weapon) return "";
+  let clean = weapon.replace(/^weapon_/i, "");
+  
+  const SPECIAL_MAP: Record<string, string> = {
+    ak47: "AK-47",
+    m4a1: "M4A4",
+    m4a1_silencer: "M4A1-S",
+    deagle: "Desert Eagle",
+    fiveseven: "Five-SeveN",
+    awp: "AWP",
+    scout: "Scout",
+    ssg08: "SSG 08",
+    sg556: "SG 553",
+    aug: "AUG",
+    galilar: "Galil AR",
+    famas: "FAMAS",
+    mp9: "MP9",
+    mac10: "MAC-10",
+    mp7: "MP7",
+    ump45: "UMP-45",
+    p90: "P90",
+    bizon: "PP-Bizon",
+    nova: "Nova",
+    xm1014: "XM1014",
+    mag7: "MAG-7",
+    sawedoff: "Sawed-Off",
+    m249: "M249",
+    negev: "Negev",
+    glock: "Glock-18",
+    hkp2000: "P2000",
+    usp_silencer: "USP-S",
+    p250: "P250",
+    cz75a: "CZ75-Auto",
+    tec9: "Tec-9",
+    elite: "Dual Berettas",
+    taser: "Zeus x27",
+    hegrenade: "HE Grenade",
+    flashbang: "Flashbang",
+    smokegrenade: "Smoke",
+    inferno: "Molotov",
+    molotov: "Molotov",
+    incgrenade: "Incendiary",
+    decoy: "Decoy",
+    knife: "Knife",
+    knife_t: "Knife",
+    knife_ct: "Knife",
+    knife_default_t: "Knife",
+    knife_default_ct: "Knife",
+  };
+  
+  const key = clean.toLowerCase();
+  if (SPECIAL_MAP[key]) return SPECIAL_MAP[key];
+  
+  if (key.startsWith("knife_")) {
+    const knifeName = key.replace(/^knife_/, "");
+    return knifeName
+      .replace(/[-_]+/g, " ")
+      .split(/\s+/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ") + " Knife";
+  }
+
+  let spaced = clean.replace(/[-_]+/g, " ");
+  return spaced
+    .split(/\s+/)
+    .map(word => {
+      if (!word) return "";
+      const lower = word.toLowerCase();
+      if (lower === "awp" || lower === "aug" || lower === "mp9" || lower === "mp7" || lower === "p90" || lower === "he") {
+        return word.toUpperCase();
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(" ");
+}
+
+
 // --- Kill Heatmap Component ---
 interface CanvasPoint {
   cx: number;
@@ -63,7 +152,7 @@ interface CanvasPoint {
   type: "attacker" | "victim";
 }
 
-function KillHeatmap({ kills }: { kills: KillEvent[] }) {
+function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [points, setPoints] = useState<CanvasPoint[]>([]);
   const [tooltip, setTooltip] = useState<{
@@ -75,7 +164,7 @@ function KillHeatmap({ kills }: { kills: KillEvent[] }) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !kills.length) return;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -83,78 +172,124 @@ function KillHeatmap({ kills }: { kills: KillEvent[] }) {
     const H = canvas.height;
     ctx.clearRect(0, 0, W, H);
 
-    // Background
-    ctx.fillStyle = "#0D1825";
-    ctx.fillRect(0, 0, W, H);
+    const mapKey = mapName?.split("/").pop()?.toLowerCase() || "";
+    const hasConfig = mapKey in MAP_CONFIGS;
 
-    // Grid
-    ctx.strokeStyle = "rgba(255,255,255,0.04)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 10; i++) {
-      ctx.beginPath(); ctx.moveTo((W / 10) * i, 0); ctx.lineTo((W / 10) * i, H); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, (H / 10) * i); ctx.lineTo(W, (H / 10) * i); ctx.stroke();
-    }
+    const drawRadar = () => {
+      ctx.clearRect(0, 0, W, H);
+      if (hasConfig && bgLoaded) {
+        ctx.drawImage(bgImg, 0, 0, W, H);
+      } else {
+        ctx.fillStyle = "#0D1825";
+        ctx.fillRect(0, 0, W, H);
+      }
 
-    // Normalise coords
-    const xs = kills.flatMap(k => [k.attacker_x ?? 0, k.victim_x ?? 0]).filter(Boolean);
-    const ys = kills.flatMap(k => [k.attacker_y ?? 0, k.victim_y ?? 0]).filter(Boolean);
-    if (!xs.length) return;
-
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
-    const rangeX = maxX - minX || 1;
-    const rangeY = maxY - minY || 1;
-    const pad = 30;
-
-    const toCanvas = (x: number, y: number) => ({
-      cx: pad + ((x - minX) / rangeX) * (W - 2 * pad),
-      cy: pad + ((y - minY) / rangeY) * (H - 2 * pad),
-    });
-
-    const newPoints: CanvasPoint[] = [];
-
-    // Draw kill lines + dots
-    for (const k of kills) {
-      if (!k.attacker_x || !k.victim_x) continue;
-      const a = toCanvas(k.attacker_x, k.attacker_y ?? 0);
-      const v = toCanvas(k.victim_x, k.victim_y ?? 0);
-      const isCT = k.killer_team === "CT";
-
-      newPoints.push({ cx: a.cx, cy: a.cy, kill: k, type: "attacker" });
-      newPoints.push({ cx: v.cx, cy: v.cy, kill: k, type: "victim" });
-
-      // Line
-      ctx.beginPath();
-      ctx.moveTo(a.cx, a.cy);
-      ctx.lineTo(v.cx, v.cy);
-      ctx.strokeStyle = isCT ? "rgba(45,125,210,0.15)" : "rgba(201,162,39,0.15)";
+      ctx.strokeStyle = hasConfig ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)";
       ctx.lineWidth = 1;
+      for (let i = 0; i <= 10; i++) {
+        ctx.beginPath(); ctx.moveTo((W / 10) * i, 0); ctx.lineTo((W / 10) * i, H); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, (H / 10) * i); ctx.lineTo(W, (H / 10) * i); ctx.stroke();
+      }
+
+      if (!kills.length) return;
+
+      const xs = kills.flatMap(k => [k.attacker_x ?? 0, k.victim_x ?? 0]).filter(Boolean);
+      const ys = kills.flatMap(k => [k.attacker_y ?? 0, k.victim_y ?? 0]).filter(Boolean);
+      if (!xs.length) return;
+
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+      const rangeX = maxX - minX || 1;
+      const rangeY = maxY - minY || 1;
+      const pad = 30;
+
+      const config = MAP_CONFIGS[mapKey];
+      const toCanvas = (x: number, y: number) => {
+        if (hasConfig) {
+          const mapX = (x - config.pos_x) / config.scale;
+          const mapY = (config.pos_y - y) / config.scale;
+          return {
+            cx: (mapX / 1024) * W,
+            cy: (mapY / 1024) * H,
+          };
+        } else {
+          return {
+            cx: pad + ((x - minX) / rangeX) * (W - 2 * pad),
+            cy: pad + ((y - minY) / rangeY) * (H - 2 * pad),
+          };
+        }
+      };
+
+      const newPoints: CanvasPoint[] = [];
+
+      for (const k of kills) {
+        if (!k.attacker_x || !k.victim_x) continue;
+        const a = toCanvas(k.attacker_x, k.attacker_y ?? 0);
+        const v = toCanvas(k.victim_x, k.victim_y ?? 0);
+        const isCT = k.killer_team === "CT";
+
+        newPoints.push({ cx: a.cx, cy: a.cy, kill: k, type: "attacker" });
+        newPoints.push({ cx: v.cx, cy: v.cy, kill: k, type: "victim" });
+
+        ctx.beginPath();
+        ctx.moveTo(a.cx, a.cy);
+        ctx.lineTo(v.cx, v.cy);
+        ctx.strokeStyle = isCT ? "rgba(45,125,210,0.35)" : "rgba(201,162,39,0.35)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(a.cx, a.cy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = isCT ? "#2D7DD2" : "#C9A227";
+        ctx.shadowColor = isCT ? "rgba(45,125,210,0.5)" : "rgba(201,162,39,0.5)";
+        ctx.shadowBlur = 4;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.beginPath();
+        const size = 4;
+        ctx.moveTo(v.cx - size, v.cy - size);
+        ctx.lineTo(v.cx + size, v.cy + size);
+        ctx.moveTo(v.cx + size, v.cy - size);
+        ctx.lineTo(v.cx - size, v.cy + size);
+        ctx.strokeStyle = "#FF4D6D";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      setPoints(newPoints);
+
+      ctx.font = "11px JetBrains Mono, monospace";
+      ctx.fillStyle = "#2D7DD2"; ctx.beginPath(); ctx.arc(16, H - 20, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#8BA7CC"; ctx.fillText("CT kill", 26, H - 16);
+      ctx.fillStyle = "#C9A227"; ctx.beginPath(); ctx.arc(90, H - 20, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#8BA7CC"; ctx.fillText("T kill", 100, H - 16);
+
+      ctx.strokeStyle = "#FF4D6D";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(152 - 3, H - 20 - 3); ctx.lineTo(152 + 3, H - 20 + 3);
+      ctx.moveTo(152 + 3, H - 20 - 3); ctx.lineTo(152 - 3, H - 20 + 3);
       ctx.stroke();
+      ctx.fillStyle = "#8BA7CC"; ctx.fillText("victim", 162, H - 16);
+    };
 
-      // Attacker dot (killer)
-      ctx.beginPath();
-      ctx.arc(a.cx, a.cy, 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = isCT ? "#2D7DD2" : "#C9A227";
-      ctx.fill();
-
-      // Victim dot (X)
-      ctx.beginPath();
-      ctx.arc(v.cx, v.cy, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255,77,109,0.7)";
-      ctx.fill();
+    let bgLoaded = false;
+    const bgImg = new Image();
+    if (hasConfig) {
+      bgImg.crossOrigin = "anonymous";
+      bgImg.src = `https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/radars/${mapKey}_radar_psd.png`;
+      bgImg.onload = () => {
+        bgLoaded = true;
+        drawRadar();
+      };
+      bgImg.onerror = () => {
+        drawRadar();
+      };
+    } else {
+      drawRadar();
     }
-
-    setPoints(newPoints);
-
-    // Legend
-    ctx.font = "11px JetBrains Mono, monospace";
-    ctx.fillStyle = "#2D7DD2"; ctx.beginPath(); ctx.arc(16, H - 20, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#8BA7CC"; ctx.fillText("CT kill", 26, H - 16);
-    ctx.fillStyle = "#C9A227"; ctx.beginPath(); ctx.arc(90, H - 20, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#8BA7CC"; ctx.fillText("T kill", 100, H - 16);
-    ctx.fillStyle = "#FF4D6D"; ctx.beginPath(); ctx.arc(152, H - 20, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#8BA7CC"; ctx.fillText("victim", 162, H - 16);
-  }, [kills]);
+  }, [kills, mapName]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -169,7 +304,7 @@ function KillHeatmap({ kills }: { kills: KillEvent[] }) {
     const cy = my * scaleY;
 
     let closest: CanvasPoint | null = null;
-    let minDist = 10; // 10px hover radius
+    let minDist = 10;
 
     for (const p of points) {
       const dist = Math.hypot(p.cx - cx, p.cy - cy);
@@ -189,7 +324,7 @@ function KillHeatmap({ kills }: { kills: KillEvent[] }) {
           <div className="space-y-1.5 text-xs text-slate-200">
             <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1">
               <span className="font-bold text-[#C9A227]">Round {k.round}</span>
-              <span className="text-[10px] text-slate-500 font-mono">{k.weapon}</span>
+              <span className="text-[10px] text-slate-500 font-mono">{formatWeaponName(k.weapon)}</span>
             </div>
             <div>
               <span className="text-slate-400">Killer:</span>{" "}
@@ -216,14 +351,14 @@ function KillHeatmap({ kills }: { kills: KillEvent[] }) {
   return (
     <div className="card p-6 relative">
       <h2 className="heading-display mb-4" style={{ fontSize: "1.1rem" }}>Kill Positions</h2>
-      <div className="relative">
+      <div className="relative flex justify-center">
         <canvas
           ref={canvasRef}
-          width={560}
-          height={400}
+          width={450}
+          height={450}
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setTooltip(prev => ({ ...prev, show: false }))}
-          className="w-full rounded-xl cursor-crosshair"
+          className="rounded-xl cursor-crosshair max-w-full"
           style={{ border: "1px solid #1E3A5F" }}
         />
         {tooltip.show && (
@@ -1144,32 +1279,321 @@ function MatchStatsPanel({ stats, result }: MatchStatsPanelProps) {
   );
 }
 
+// --- Economy Chart Component ---
+function EconomyChart({ rounds, selectedRound, onSelectRound }: {
+  rounds: RoundResult[];
+  selectedRound: number | null;
+  onSelectRound: (round: number | null) => void;
+}) {
+  const [hoveredRound, setHoveredRound] = useState<RoundResult | null>(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  if (!rounds || rounds.length === 0) return null;
+
+  const width = 800;
+  const height = 240;
+  const paddingX = 40;
+  const paddingY = 30;
+
+  const maxSpend = Math.max(...rounds.map(r => Math.max(r.ct_spend, r.t_spend)), 10000);
+  const totalRounds = rounds.length;
+
+  const getCoords = (index: number, spend: number) => {
+    const x = paddingX + (index / Math.max(totalRounds - 1, 1)) * (width - 2 * paddingX);
+    const y = height - paddingY - (spend / maxSpend) * (height - 2 * paddingY);
+    return { x, y };
+  };
+
+  let ctPath = "";
+  let tPath = "";
+  let ctAreaPath = "";
+  let tAreaPath = "";
+
+  rounds.forEach((r, idx) => {
+    const ct = getCoords(idx, r.ct_spend);
+    const t = getCoords(idx, r.t_spend);
+
+    if (idx === 0) {
+      ctPath = `M ${ct.x} ${ct.y}`;
+      tPath = `M ${t.x} ${t.y}`;
+      ctAreaPath = `M ${ct.x} ${height - paddingY} L ${ct.x} ${ct.y}`;
+      tAreaPath = `M ${t.x} ${height - paddingY} L ${t.x} ${t.y}`;
+    } else {
+      ctPath += ` L ${ct.x} ${ct.y}`;
+      tPath += ` L ${t.x} ${t.y}`;
+      ctAreaPath += ` L ${ct.x} ${ct.y}`;
+      tAreaPath += ` L ${t.x} ${t.y}`;
+    }
+
+    if (idx === totalRounds - 1) {
+      ctAreaPath += ` L ${ct.x} ${height - paddingY} Z`;
+      tAreaPath += ` L ${t.x} ${height - paddingY} Z`;
+    }
+  });
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const clientX = e.clientX - rect.left;
+    const clientY = e.clientY - rect.top;
+    
+    const viewBoxX = (clientX / rect.width) * width;
+    setMousePos({ x: clientX, y: clientY });
+
+    const chartW = width - 2 * paddingX;
+    const step = chartW / Math.max(totalRounds - 1, 1);
+    const index = Math.round((viewBoxX - paddingX) / step);
+
+    if (index >= 0 && index < totalRounds) {
+      setHoveredRound(rounds[index]);
+    } else {
+      setHoveredRound(null);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredRound(null);
+  };
+
+  const handleSelectRound = (roundNum: number) => {
+    if (selectedRound === roundNum) {
+      onSelectRound(null);
+    } else {
+      onSelectRound(roundNum);
+    }
+  };
+
+  const yTicks = [0, 0.25, 0.5, 0.75, 1];
+
+  return (
+    <div className="card p-6 relative">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="heading-display" style={{ fontSize: "1.1rem" }}>Economy Trend</h2>
+        <span className="text-[10px] text-[#4A6A8A] font-mono">
+          Hover to inspect | Click to filter round
+        </span>
+      </div>
+      <div className="relative">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full select-none"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+        >
+          <defs>
+            <linearGradient id="ctGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2D7DD2" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#2D7DD2" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="tGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#C9A227" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#C9A227" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+
+          {yTicks.map(tick => {
+            const y = paddingY + (1 - tick) * (height - 2 * paddingY);
+            const val = Math.round(tick * maxSpend);
+            return (
+              <g key={tick}>
+                <line
+                  x1={paddingX}
+                  y1={y}
+                  x2={width - paddingX}
+                  y2={y}
+                  stroke="rgba(255,255,255,0.03)"
+                  strokeDasharray="4 4"
+                />
+                <text
+                  x={paddingX - 8}
+                  y={y + 3}
+                  fill="#4A6A8A"
+                  fontSize="9px"
+                  fontFamily="JetBrains Mono, monospace"
+                  textAnchor="end"
+                >
+                  ${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}
+                </text>
+              </g>
+            );
+          })}
+
+          {selectedRound !== null && rounds[selectedRound - 1] && (() => {
+            const idx = selectedRound - 1;
+            const x = paddingX + (idx / Math.max(totalRounds - 1, 1)) * (width - 2 * paddingX);
+            return (
+              <rect
+                x={x - 12}
+                y={paddingY}
+                width={24}
+                height={height - 2 * paddingY}
+                fill="rgba(34,211,160,0.06)"
+                stroke="rgba(34,211,160,0.2)"
+                strokeWidth={1}
+                rx={4}
+              />
+            );
+          })()}
+
+          <path d={ctAreaPath} fill="url(#ctGrad)" />
+          <path d={tAreaPath} fill="url(#tGrad)" />
+
+          <path d={ctPath} fill="none" stroke="#2D7DD2" strokeWidth="2.5" strokeLinecap="round" />
+          <path d={tPath} fill="none" stroke="#C9A227" strokeWidth="2.5" strokeLinecap="round" />
+
+          {rounds.map((r, idx) => {
+            const ct = getCoords(idx, r.ct_spend);
+            const t = getCoords(idx, r.t_spend);
+            const isHovered = hoveredRound?.round === r.round;
+            const isSelected = selectedRound === r.round;
+
+            return (
+              <g key={r.round}>
+                <rect
+                  x={ct.x - 12}
+                  y={paddingY}
+                  width={24}
+                  height={height - 2 * paddingY}
+                  fill="transparent"
+                  className="cursor-pointer"
+                  onClick={() => handleSelectRound(r.round)}
+                  onDoubleClick={() => onSelectRound(null)}
+                />
+                
+                {(isHovered || isSelected) && (
+                  <circle cx={ct.x} cy={ct.y} r={4.5} fill="#2D7DD2" stroke="#080E1A" strokeWidth={1.5} />
+                )}
+
+                {(isHovered || isSelected) && (
+                  <circle cx={t.x} cy={t.y} r={4.5} fill="#C9A227" stroke="#080E1A" strokeWidth={1.5} />
+                )}
+              </g>
+            );
+          })}
+
+          {hoveredRound && (() => {
+            const idx = hoveredRound.round - 1;
+            const x = paddingX + (idx / Math.max(totalRounds - 1, 1)) * (width - 2 * paddingX);
+            return (
+              <line
+                x1={x}
+                y1={paddingY}
+                x2={x}
+                y2={height - paddingY}
+                stroke="rgba(255,255,255,0.15)"
+                strokeWidth={1}
+                pointerEvents="none"
+              />
+            );
+          })()}
+
+          {rounds.map((r, idx) => {
+            const step = totalRounds > 15 ? 2 : 1;
+            if (idx % step !== 0 && idx !== totalRounds - 1) return null;
+            const x = paddingX + (idx / Math.max(totalRounds - 1, 1)) * (width - 2 * paddingX);
+            return (
+              <text
+                key={r.round}
+                x={x}
+                y={height - paddingY + 14}
+                fill="#4A6A8A"
+                fontSize="9px"
+                fontFamily="JetBrains Mono, monospace"
+                textAnchor="middle"
+              >
+                R{r.round}
+              </text>
+            );
+          })}
+        </svg>
+
+        {hoveredRound && (
+          <div
+            className="absolute z-20 pointer-events-none bg-slate-950/95 border border-slate-800 rounded-lg p-3 shadow-2xl backdrop-blur-md min-w-[140px]"
+            style={{
+              left: Math.min(mousePos.x, width - 160),
+              top: Math.max(mousePos.y - 120, 10),
+            }}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1.5">
+              <span className="font-bold text-slate-200">Round {hoveredRound.round}</span>
+              <span
+                className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                style={{
+                  background: hoveredRound.winner === "CT" ? "rgba(45,125,210,0.15)" : "rgba(201,162,39,0.15)",
+                  color: hoveredRound.winner === "CT" ? "#2D7DD2" : "#C9A227",
+                }}
+              >
+                {hoveredRound.winner}
+              </span>
+            </div>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">CT Value:</span>
+                <span className="font-semibold text-[#2D7DD2]">${hoveredRound.ct_spend.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">T Value:</span>
+                <span className="font-semibold text-[#C9A227]">${hoveredRound.t_spend.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // --- Round Timeline ---
-function RoundTimeline({ rounds }: { rounds: RoundResult[] }) {
+function RoundTimeline({
+  rounds,
+  selectedRound,
+  onSelectRound,
+}: {
+  rounds: RoundResult[];
+  selectedRound: number | null;
+  onSelectRound: (round: number | null) => void;
+}) {
   return (
     <div className="card p-6">
-      <h2 className="heading-display mb-4" style={{ fontSize: "1.1rem" }}>Round Timeline</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="heading-display" style={{ fontSize: "1.1rem" }}>Round Timeline</h2>
+        <span className="text-[10px] text-[#4A6A8A] font-mono">
+          Click round to filter | Double click to clear filter
+        </span>
+      </div>
       <div className="flex flex-wrap gap-1.5">
-        {rounds.map((r) => (
-          <div
-            key={r.round}
-            title={`R${r.round} — ${r.winner} wins | CT $${r.ct_spend.toLocaleString()} vs T $${r.t_spend.toLocaleString()}`}
-            className="flex flex-col items-center gap-1"
-          >
+        {rounds.map((r) => {
+          const isSelected = selectedRound === r.round;
+          return (
             <div
-              className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold"
-              style={{
-                background: r.winner === "CT" ? "rgba(45,125,210,0.25)" : "rgba(201,162,39,0.25)",
-                border: `1px solid ${r.winner === "CT" ? "rgba(45,125,210,0.5)" : "rgba(201,162,39,0.5)"}`,
-                color: r.winner === "CT" ? "#2D7DD2" : "#C9A227",
-                fontSize: "0.6rem",
-              }}
+              key={r.round}
+              title={`R${r.round} — ${r.winner} wins | CT $${r.ct_spend.toLocaleString()} vs T $${r.t_spend.toLocaleString()}`}
+              className="flex flex-col items-center gap-1"
             >
-              {r.winner === "CT" ? "C" : "T"}
+              <div
+                className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold cursor-pointer transition-all hover:scale-115 active:scale-95 ${
+                  isSelected ? "ring-2 ring-[#22D3A0] scale-110 shadow-lg shadow-[#22D3A0]/25" : ""
+                }`}
+                onClick={() => onSelectRound(isSelected ? null : r.round)}
+                onDoubleClick={() => onSelectRound(null)}
+                style={{
+                  background: isSelected
+                    ? (r.winner === "CT" ? "rgba(45,125,210,0.4)" : "rgba(201,162,39,0.4)")
+                    : (r.winner === "CT" ? "rgba(45,125,210,0.2)" : "rgba(201,162,39,0.2)"),
+                  border: isSelected
+                    ? `1.5px solid ${r.winner === "CT" ? "#2D7DD2" : "#C9A227"}`
+                    : `1px solid ${r.winner === "CT" ? "rgba(45,125,210,0.4)" : "rgba(201,162,39,0.4)"}`,
+                  color: r.winner === "CT" ? "#2D7DD2" : "#C9A227",
+                  fontSize: "0.6rem",
+                }}
+              >
+                {r.winner === "CT" ? "C" : "T"}
+              </div>
+              <span style={{ color: isSelected ? "#22D3A0" : "#4A6A8A", fontSize: "0.55rem", fontFamily: "JetBrains Mono", fontWeight: isSelected ? 600 : 400 }}>{r.round}</span>
             </div>
-            <span style={{ color: "#4A6A8A", fontSize: "0.55rem", fontFamily: "JetBrains Mono" }}>{r.round}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div className="flex items-center gap-4 mt-3">
         <div className="flex items-center gap-1.5">
@@ -1189,6 +1613,7 @@ function RoundTimeline({ rounds }: { rounds: RoundResult[] }) {
 export default function AnalysisPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const [result, setResult] = useState<JobResult | null>(null);
+  const [selectedRound, setSelectedRound] = useState<number | null>(null);
 
   useEffect(() => {
     if (!jobId) return;
@@ -1275,79 +1700,69 @@ export default function AnalysisPage() {
 
             {/* Round Timeline */}
             {result.rounds && result.rounds.length > 0 && (
-              <RoundTimeline rounds={result.rounds} />
+              <RoundTimeline
+                rounds={result.rounds}
+                selectedRound={selectedRound}
+                onSelectRound={setSelectedRound}
+              />
             )}
 
             {/* Match Stats Panel */}
             <MatchStatsPanel stats={result.player_stats || {}} result={result} />
 
-            {/* Kill Heatmap */}
-            {result.kills && result.kills.length > 0 && (
-              <KillHeatmap kills={result.kills} />
-            )}
+            {/* Filtered kills calculation for Heatmap and Feed */}
+            {(() => {
+              const filteredKills = selectedRound
+                ? (result.kills || []).filter(k => k.round === selectedRound)
+                : (result.kills || []);
+              
+              return (
+                <>
+                  {/* Kill Heatmap */}
+                  {result.kills && result.kills.length > 0 && (
+                    <KillHeatmap kills={filteredKills} mapName={result.map} />
+                  )}
 
-            {/* Kill Feed */}
-            {result.kills && result.kills.length > 0 && (
-              <div className="card p-6">
-                <h2 className="heading-display mb-4" style={{ fontSize: "1.1rem" }}>Kill Feed</h2>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {result.kills.slice(0, 50).map((k, i) => (
-                    <div key={i} className="flex items-center justify-between py-2 border-b" style={{ borderColor: "#142135" }}>
-                      <div className="flex items-center gap-3">
-                        <span style={{ color: "#4A6A8A", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>R{k.round}</span>
-                        <span style={{ color: "#22D3A0", fontWeight: 500, fontSize: "0.875rem" }}>
-                          {k.killer}
-                          {k.attacker_steamid && (
-                            <span className="text-[10px] text-slate-500 font-mono ml-1">({k.attacker_steamid.slice(-8)})</span>
-                          )}
-                        </span>
-                        <span style={{ color: "#4A6A8A", fontSize: "0.75rem" }}>killed</span>
-                        <span style={{ color: "#FF4D6D", fontSize: "0.875rem" }}>
-                          {k.victim}
-                          {k.victim_steamid && (
-                            <span className="text-[10px] text-slate-500 font-mono ml-1">({k.victim_steamid.slice(-8)})</span>
-                          )}
-                        </span>
+                  {/* Kill Feed */}
+                  {result.kills && result.kills.length > 0 && (
+                    <div className="card p-6">
+                      <h2 className="heading-display mb-4" style={{ fontSize: "1.1rem" }}>Kill Feed</h2>
+                      <div className="space-y-2 max-h-80 overflow-y-auto">
+                        {filteredKills.slice(0, 50).map((k, i) => (
+                          <div key={i} className="flex items-center justify-between py-2 border-b" style={{ borderColor: "#142135" }}>
+                            <div className="flex items-center gap-3">
+                              <span style={{ color: "#4A6A8A", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>R{k.round}</span>
+                              <span style={{ color: "#22D3A0", fontWeight: 500, fontSize: "0.875rem" }}>
+                                {k.killer}
+                                {k.attacker_steamid && (
+                                  <span className="text-[10px] text-slate-500 font-mono ml-1">({k.attacker_steamid.slice(-8)})</span>
+                                )}
+                              </span>
+                              <span style={{ color: "#4A6A8A", fontSize: "0.75rem" }}>killed</span>
+                              <span style={{ color: "#FF4D6D", fontSize: "0.875rem" }}>
+                                {k.victim}
+                                {k.victim_steamid && (
+                                  <span className="text-[10px] text-slate-500 font-mono ml-1">({k.victim_steamid.slice(-8)})</span>
+                                )}
+                              </span>
+                            </div>
+                            <span style={{ color: "#8BA7CC", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>{formatWeaponName(k.weapon)}</span>
+                          </div>
+                        ))}
                       </div>
-                      <span style={{ color: "#8BA7CC", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>{k.weapon}</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  )}
+                </>
+              );
+            })()}
 
-            {/* Economy */}
+            {/* Economy Chart */}
             {result.rounds && result.rounds.length > 0 && (
-              <div className="card p-6">
-                <h2 className="heading-display mb-4" style={{ fontSize: "1.1rem" }}>Economy by Round</h2>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {result.rounds.map((r) => {
-                    const maxSpend = Math.max(r.ct_spend, r.t_spend, 1);
-                    return (
-                      <div key={r.round} className="flex items-center gap-4">
-                        <span style={{ color: "#4A6A8A", fontSize: "0.75rem", fontFamily: "JetBrains Mono", width: 28, flexShrink: 0 }}>R{r.round}</span>
-                        <div className="flex-1 flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <span style={{ color: "#8BA7CC", fontSize: "0.7rem", width: 16 }}>CT</span>
-                            <div className="flex-1 h-2 rounded-full" style={{ background: "#142135" }}>
-                              <div className="h-2 rounded-full" style={{ width: `${(r.ct_spend / maxSpend) * 100}%`, background: "#2D7DD2" }} />
-                            </div>
-                            <span style={{ color: "#8BA7CC", fontSize: "0.7rem", width: 40, textAlign: "right" }}>${r.ct_spend}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span style={{ color: "#8BA7CC", fontSize: "0.7rem", width: 16 }}>T</span>
-                            <div className="flex-1 h-2 rounded-full" style={{ background: "#142135" }}>
-                              <div className="h-2 rounded-full" style={{ width: `${(r.t_spend / maxSpend) * 100}%`, background: "#C9A227" }} />
-                            </div>
-                            <span style={{ color: "#8BA7CC", fontSize: "0.7rem", width: 40, textAlign: "right" }}>${r.t_spend}</span>
-                          </div>
-                        </div>
-                        <span style={{ color: r.winner === "CT" ? "#2D7DD2" : "#C9A227", fontSize: "0.72rem", fontWeight: 600, width: 24, textAlign: "right" }}>{r.winner}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <EconomyChart
+                rounds={result.rounds}
+                selectedRound={selectedRound}
+                onSelectRound={setSelectedRound}
+              />
             )}
           </div>
         )}

@@ -72,3 +72,5 @@ Thumbs.db
 # 📜 SCRIPTS & TEMP
 temp/
 outputs/strat_cards/
+.vercel
+.env*.local
