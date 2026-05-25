@@ -88,6 +88,7 @@ async def get_job_status(match_id: str):
             ).fetchall()
 
             import json
+            import math
 
             player_stats = {}
             if player_stats_raw:
@@ -95,6 +96,17 @@ async def get_job_status(match_id: str):
                     player_stats = json.loads(player_stats_raw)
                 except Exception:
                     pass
+
+            def sanitize_nan(val):
+                if isinstance(val, float):
+                    return None if (math.isnan(val) or math.isinf(val)) else val
+                elif isinstance(val, dict):
+                    return {k: sanitize_nan(v) for k, v in val.items()}
+                elif isinstance(val, list):
+                    return [sanitize_nan(x) for x in val]
+                return val
+
+            player_stats = sanitize_nan(player_stats)
 
             return {
                 "status": "done",

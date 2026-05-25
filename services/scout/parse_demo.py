@@ -597,12 +597,32 @@ def write_to_db(data: dict, match_id: str) -> None:
             match = Match(match_id=match_id)
             db.add(match)
 
+        import math
+
+        def sanitize_nan(val):
+            if isinstance(val, float):
+                return None if (math.isnan(val) or math.isinf(val)) else val
+            elif isinstance(val, dict):
+                return {k: sanitize_nan(v) for k, v in val.items()}
+            elif isinstance(val, list):
+                return [sanitize_nan(x) for x in val]
+            return val
+
+        def clean_float(val):
+            if val is None:
+                return None
+            try:
+                f = float(val)
+                return None if (math.isnan(f) or math.isinf(f)) else f
+            except (ValueError, TypeError):
+                return None
+
         meta = data.get("metadata", {})
         match.map_name = meta.get("map", "unknown")
         match.tickrate = meta.get("tickrate", 64)
         match.total_rounds = meta.get("total_rounds", 0)
         match.status = MatchStatus.COMPLETE
-        match.player_stats_json = json.dumps(data.get("player_stats", {}))
+        match.player_stats_json = json.dumps(sanitize_nan(data.get("player_stats", {})))
 
         db.query(Kill).filter(Kill.match_id == match_id).delete()
         db.query(Grenade).filter(Grenade.match_id == match_id).delete()
@@ -624,12 +644,12 @@ def write_to_db(data: dict, match_id: str) -> None:
                     headshot=k["headshot"],
                     attacker_steamid=k.get("attacker_steamid"),
                     victim_steamid=k.get("victim_steamid"),
-                    attacker_x=k["attacker_x"],
-                    attacker_y=k["attacker_y"],
-                    attacker_z=k["attacker_z"],
-                    victim_x=k["victim_x"],
-                    victim_y=k["victim_y"],
-                    victim_z=k["victim_z"],
+                    attacker_x=clean_float(k.get("attacker_x")),
+                    attacker_y=clean_float(k.get("attacker_y")),
+                    attacker_z=clean_float(k.get("attacker_z")),
+                    victim_x=clean_float(k.get("victim_x")),
+                    victim_y=clean_float(k.get("victim_y")),
+                    victim_z=clean_float(k.get("victim_z")),
                 )
             )
 
@@ -642,8 +662,8 @@ def write_to_db(data: dict, match_id: str) -> None:
                     thrower=g["thrower"],
                     team=g["team"],
                     grenade_type=g["type"],
-                    throw_x=g["throw_x"],
-                    throw_y=g["throw_y"],
+                    throw_x=clean_float(g.get("throw_x")),
+                    throw_y=clean_float(g.get("throw_y")),
                 )
             )
 
