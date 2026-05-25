@@ -11,13 +11,24 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { teamId } = await params;
-  const res = await fetch(`${API_URL}/api/teams/${teamId}/servers`, {
-    headers: {
-      "x-clerk-user-id": userId,
-    },
-    cache: "no-store",
-  });
-  return NextResponse.json(await res.json(), { status: res.status });
+  try {
+    const res = await fetch(`${API_URL}/api/teams/${teamId}/servers`, {
+      headers: {
+        "x-clerk-user-id": userId,
+      },
+      cache: "no-store",
+    });
+    
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = { error: "Failed to parse API response as JSON", detail: res.statusText || "Internal Server Error" };
+    }
+    return NextResponse.json(data, { status: res.status });
+  } catch (err: any) {
+    return NextResponse.json({ error: "Failed to fetch from backend", detail: err.message }, { status: 500 });
+  }
 }
 
 export async function POST(
@@ -28,15 +39,33 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { teamId } = await params;
-  const body = await req.json();
+  
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    body = {};
+  }
 
-  const res = await fetch(`${API_URL}/api/teams/${teamId}/servers`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-clerk-user-id": userId,
-    },
-    body: JSON.stringify(body),
-  });
-  return NextResponse.json(await res.json(), { status: res.status });
+  try {
+    const res = await fetch(`${API_URL}/api/teams/${teamId}/servers`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-clerk-user-id": userId,
+      },
+      body: JSON.stringify(body),
+    });
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = { error: "Failed to parse API response as JSON", detail: res.statusText || "Internal Server Error" };
+    }
+    return NextResponse.json(data, { status: res.status });
+  } catch (err: any) {
+    return NextResponse.json({ error: "Failed to fetch from backend", detail: err.message }, { status: 500 });
+  }
 }
+

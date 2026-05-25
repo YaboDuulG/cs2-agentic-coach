@@ -18,6 +18,8 @@ interface KillEvent {
   victim_y?: number;
   attacker_steamid?: string;
   victim_steamid?: string;
+  tick?: number;
+  headshot?: boolean;
 }
 
 interface RoundResult {
@@ -56,14 +58,14 @@ const STATUS_CONFIG: Record<JobStatus, { label: string; color: string; icon: Rea
 };
 
 const MAP_CONFIGS: Record<string, { pos_x: number; pos_y: number; scale: number }> = {
-  de_dust2: { pos_x: -2476, pos_y: 3239, scale: 4.4 },
-  de_mirage: { pos_x: -3230, pos_y: 1713, scale: 5.0 },
-  de_inferno: { pos_x: -2087, pos_y: 3870, scale: 4.9 },
-  de_nuke: { pos_x: -3450, pos_y: 2887, scale: 7.0 },
-  de_overpass: { pos_x: -4438, pos_y: 1494, scale: 4.9 },
-  de_ancient: { pos_x: -2953, pos_y: 2164, scale: 5.0 },
-  de_anubis: { pos_x: -2796, pos_y: 3328, scale: 5.22 },
-  de_vertigo: { pos_x: -3120, pos_y: 1720, scale: 4.0 },
+  de_dust2: { pos_x: -2485, pos_y: 3230, scale: 4.4 },
+  de_mirage: { pos_x: -3340, pos_y: 1738, scale: 5.0 },
+  de_inferno: { pos_x: -2134, pos_y: 3848, scale: 4.9 },
+  de_nuke: { pos_x: -3453, pos_y: 2887, scale: 7.0 },
+  de_overpass: { pos_x: -5023, pos_y: 1833, scale: 5.2 },
+  de_ancient: { pos_x: -2893, pos_y: 2139, scale: 5.0 },
+  de_anubis: { pos_x: -2835, pos_y: 3299, scale: 5.22 },
+  de_vertigo: { pos_x: -3012, pos_y: 1736, scale: 4.0 },
 };
 
 function formatWeaponName(weapon: string): string {
@@ -358,7 +360,7 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
           height={450}
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setTooltip(prev => ({ ...prev, show: false }))}
-          className="rounded-xl cursor-crosshair max-w-full"
+          className="rounded-xl cursor-crosshair max-w-full h-auto aspect-square"
           style={{ border: "1px solid #1E3A5F" }}
         />
         {tooltip.show && (
@@ -476,9 +478,11 @@ function CoachingPanel({ matchId }: { matchId: string }) {
 interface MatchStatsPanelProps {
   stats: Record<string, any>;
   result: JobResult;
+  selectedRound: number | null;
+  onSelectRound: (round: number | null) => void;
 }
 
-function MatchStatsPanel({ stats, result }: MatchStatsPanelProps) {
+function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchStatsPanelProps) {
   const [activeTab, setActiveTab] = useState<"summary" | "entry" | "utility">("summary");
   const [activeUtilSubTab, setActiveUtilSubTab] = useState<"general" | "damage" | "support">("general");
   const [sortBy, setSortBy] = useState<"team" | "players">("team");
@@ -498,48 +502,141 @@ function MatchStatsPanel({ stats, result }: MatchStatsPanelProps) {
   const computedPlayers = playersList.map((p: any) => {
     const steamid = p.steamid || "";
     const seed = parseInt(steamid.slice(-5)) || 0;
-    const rounds = p.rounds_played || result.total_rounds || 26;
+    
+    let rounds = p.rounds_played || result.total_rounds || 26;
+    let killsCount = p.kills;
+    let deathsCount = p.deaths;
+    let assistsCount = p.assists;
+    let hsPct = p.hs_pct;
+    let adrValue = p.adr;
+    let kastPct = p.kast;
+    
+    let entryKills = p.entry_kills;
+    let entryDeaths = p.entry_deaths;
+    let entryAttempts = p.entry_attempts;
+    let pTradeKills = p.trade_kills;
+    let pDeathsTraded = p.deaths_traded;
 
-    // Faceit Rank Level (6-15) and Elo points (1800-3300)
+    let unusedUtility = Math.max(3, Math.round(rounds * 1.5) - (p.utility_thrown % 12));
+    let successfulUtility = Math.min(p.utility_thrown, Math.round(p.enemies_flashed * 0.9) + Math.round((p.he_damage + p.fire_damage) / 25) + 1);
+    let totalDmg = p.he_damage + p.fire_damage;
+    let totalDmgReceived = (seed % 95) + 5;
+    let totalTeamDmg = (seed % 8) === 0 ? (seed % 20) + 1 : 0;
+    let totalTeamDmgReceived = (seed % 11) === 0 ? (seed % 10) + 1 : 0;
+    
+    let unusedHes = Math.max(0, Math.round(rounds * 0.3) - p.utility_hes);
+    let heGrenadesThrown = p.utility_hes;
+    let successfulHes = Math.min(p.utility_hes, Math.round(p.he_damage / 25));
+    let heDmgReceived = (seed % 60) + 5;
+    let heTeamDmg = (seed % 10) === 0 ? (seed % 15) : 0;
+    let heTeamDmgReceived = (seed % 12) === 0 ? (seed % 10) : 0;
+
+    let unusedBurners = Math.max(0, Math.round(rounds * 0.3) - p.utility_molotovs);
+    let burnersThrown = p.utility_molotovs;
+    let successfulBurners = Math.min(p.utility_molotovs, Math.round(p.fire_damage / 20));
+    let burnerDmgReceived = (seed % 75) + 5;
+    let burnerTeamDmg = (seed % 13) === 0 ? (seed % 20) : 0;
+    let burnerTeamDmgReceived = (seed % 15) === 0 ? (seed % 15) : 0;
+
+    let flashSuccesses = Math.min(p.utility_flashes, Math.round(p.enemies_flashed * 0.8) + 1);
+    let blindKills = Math.round(p.enemies_flashed * 0.2);
+    let flashesThrown = p.utility_flashes;
+    let flashedSelf = p.flashed_self || (seed % 4);
+    let flashedBySelfTime = `${(flashedSelf * 1.1).toFixed(2)}s`;
+    let flashesTeam = p.team_flashed;
+    let teamBlindTime = p.team_blind_time;
+    let flashedByTeamTime = `${(flashesTeam * 1.3).toFixed(2)}s`;
+
+    if (selectedRound !== null) {
+      const roundKills = (result.kills || [])
+        .filter(k => k.round === selectedRound)
+        .sort((a, b) => (a.tick || 0) - (b.tick || 0));
+
+      const firstKill = roundKills[0] || null;
+
+      // Calculate trade kills and deaths traded
+      const tradeKillsIndices = new Set<number>();
+      const deathsTradedIndices = new Set<number>();
+      for (let i = 1; i < roundKills.length; i++) {
+        const prev = roundKills[i - 1];
+        const curr = roundKills[i];
+        const tickDiff = (curr.tick || 0) - (prev.tick || 0);
+        if (
+          tickDiff <= 500 &&
+          curr.killer_team !== prev.killer_team &&
+          curr.victim === prev.killer
+        ) {
+          tradeKillsIndices.add(i);
+          deathsTradedIndices.add(i - 1);
+        }
+      }
+
+      killsCount = roundKills.filter(k => k.killer?.trim().toLowerCase() === p.name?.trim().toLowerCase()).length;
+      deathsCount = roundKills.filter(k => k.victim?.trim().toLowerCase() === p.name?.trim().toLowerCase()).length;
+      assistsCount = 0;
+
+      const hsCount = roundKills.filter(k => k.killer?.trim().toLowerCase() === p.name?.trim().toLowerCase() && k.headshot).length;
+      hsPct = killsCount > 0 ? Math.round((hsCount / killsCount) * 100) : 0;
+      adrValue = killsCount * 100;
+      kastPct = (killsCount > 0 || deathsCount === 0) ? 100 : 0;
+
+      const isEntryKiller = firstKill && firstKill.killer?.trim().toLowerCase() === p.name?.trim().toLowerCase();
+      const isEntryVictim = firstKill && firstKill.victim?.trim().toLowerCase() === p.name?.trim().toLowerCase();
+      entryKills = isEntryKiller ? 1 : 0;
+      entryDeaths = isEntryVictim ? 1 : 0;
+      entryAttempts = (isEntryKiller || isEntryVictim) ? 1 : 0;
+
+      pTradeKills = 0;
+      pDeathsTraded = 0;
+      roundKills.forEach((k, idx) => {
+        if (k.killer?.trim().toLowerCase() === p.name?.trim().toLowerCase() && tradeKillsIndices.has(idx)) pTradeKills++;
+        if (k.victim?.trim().toLowerCase() === p.name?.trim().toLowerCase() && deathsTradedIndices.has(idx)) pDeathsTraded++;
+      });
+
+      unusedUtility = 0;
+      successfulUtility = 0;
+      totalDmg = 0;
+      totalDmgReceived = 0;
+      totalTeamDmg = 0;
+      totalTeamDmgReceived = 0;
+      unusedHes = 0;
+      heGrenadesThrown = 0;
+      successfulHes = 0;
+      heDmgReceived = 0;
+      heTeamDmg = 0;
+      heTeamDmgReceived = 0;
+      unusedBurners = 0;
+      burnersThrown = 0;
+      successfulBurners = 0;
+      burnerDmgReceived = 0;
+      burnerTeamDmg = 0;
+      burnerTeamDmgReceived = 0;
+      flashSuccesses = 0;
+      blindKills = 0;
+      flashesThrown = 0;
+      flashedSelf = 0;
+      flashedBySelfTime = "0.00s";
+      flashesTeam = 0;
+      teamBlindTime = 0;
+      flashedByTeamTime = "0.00s";
+    }
+
     const rankLevel = (seed % 6) + 10;
     const rankPoints = 2200 + (seed % 1300);
 
-    // General utility
-    const unusedUtility = Math.max(3, Math.round(rounds * 1.5) - (p.utility_thrown % 12));
-    const successfulUtility = Math.min(p.utility_thrown, Math.round(p.enemies_flashed * 0.9) + Math.round((p.he_damage + p.fire_damage) / 25) + 1);
-    const totalDmg = p.he_damage + p.fire_damage;
-    const totalDmgReceived = (seed % 95) + 5;
-    const totalTeamDmg = (seed % 8) === 0 ? (seed % 20) + 1 : 0;
-    const totalTeamDmgReceived = (seed % 11) === 0 ? (seed % 10) + 1 : 0;
-    
-    // HE stats
-    const unusedHes = Math.max(0, Math.round(rounds * 0.3) - p.utility_hes);
-    const heGrenadesThrown = p.utility_hes;
-    const successfulHes = Math.min(p.utility_hes, Math.round(p.he_damage / 25));
-    const heDmgReceived = (seed % 60) + 5;
-    const heTeamDmg = (seed % 10) === 0 ? (seed % 15) : 0;
-    const heTeamDmgReceived = (seed % 12) === 0 ? (seed % 10) : 0;
-
-    // Burner stats
-    const unusedBurners = Math.max(0, Math.round(rounds * 0.3) - p.utility_molotovs);
-    const burnersThrown = p.utility_molotovs;
-    const successfulBurners = Math.min(p.utility_molotovs, Math.round(p.fire_damage / 20));
-    const burnerDmgReceived = (seed % 75) + 5;
-    const burnerTeamDmg = (seed % 13) === 0 ? (seed % 20) : 0;
-    const burnerTeamDmgReceived = (seed % 15) === 0 ? (seed % 15) : 0;
-
-    // Flash / Support stats
-    const flashSuccesses = Math.min(p.utility_flashes, Math.round(p.enemies_flashed * 0.8) + 1);
-    const blindKills = Math.round(p.enemies_flashed * 0.2);
-    const flashesThrown = p.utility_flashes;
-    const flashedSelf = p.flashed_self || (seed % 4);
-    const flashedBySelfTime = `${(flashedSelf * 1.1).toFixed(2)}s`;
-    const flashesTeam = p.team_flashed;
-    const teamBlindTime = p.team_blind_time;
-    const flashedByTeamTime = `${(flashesTeam * 1.3).toFixed(2)}s`;
-
     return {
       ...p,
+      kills: killsCount,
+      deaths: deathsCount,
+      assists: assistsCount,
+      hs_pct: hsPct,
+      adr: adrValue,
+      kast: kastPct,
+      entry_kills: entryKills,
+      entry_deaths: entryDeaths,
+      entry_attempts: entryAttempts,
+      trade_kills: pTradeKills,
+      deaths_traded: pDeathsTraded,
       rankLevel,
       rankPoints,
       unusedUtility,
@@ -548,21 +645,18 @@ function MatchStatsPanel({ stats, result }: MatchStatsPanelProps) {
       totalDmgReceived,
       totalTeamDmg,
       totalTeamDmgReceived,
-      
       unusedHes,
       heGrenadesThrown,
       successfulHes,
       heDmgReceived,
       heTeamDmg,
       heTeamDmgReceived,
-
       unusedBurners,
       burnersThrown,
       successfulBurners,
       burnerDmgReceived,
       burnerTeamDmg,
       burnerTeamDmgReceived,
-
       flashSuccesses,
       blindKills,
       flashesThrown,
@@ -1218,21 +1312,33 @@ function MatchStatsPanel({ stats, result }: MatchStatsPanelProps) {
       </div>
 
       {/* Tables (CT & T or Merged) */}
-      <div className="space-y-6">
-        {sortBy === "team" ? (
-          <>
-            {(teamFilter === "all" || teamFilter === "ct") &&
-              renderTable("Counter-Terrorists", "text-[#2D7DD2]", "bg-[#2D7DD2]", ctScore, ctPlayers)}
-            {(teamFilter === "all" || teamFilter === "t") &&
-              renderTable("Terrorists", "text-[#C9A227]", "bg-[#C9A227]", tScore, tPlayers)}
-          </>
-        ) : (
-          renderSingleTable(getSortedPlayers())
-        )}
-      </div>
+      {activeTab === "utility" && selectedRound !== null ? (
+        <div className="card p-8 text-center border-yellow-500/20 bg-yellow-500/5 my-4">
+          <ShieldAlert size={32} color="#C9A227" className="mx-auto mb-3 animate-pulse" />
+          <h3 className="text-sm font-bold text-[#C9A227] uppercase tracking-wide mb-1">
+            Utility Round Filtering Unavailable
+          </h3>
+          <p className="text-xs text-[#8BA7CC] max-w-md mx-auto leading-relaxed">
+            Detailed utility metrics and the usage breakdown charts are only calculated as match-level aggregates and cannot be filtered by individual rounds. Clear the round filter to view utility stats.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {sortBy === "team" ? (
+            <>
+              {(teamFilter === "all" || teamFilter === "ct") &&
+                renderTable("Counter-Terrorists", "text-[#2D7DD2]", "bg-[#2D7DD2]", ctScore, ctPlayers)}
+              {(teamFilter === "all" || teamFilter === "t") &&
+                renderTable("Terrorists", "text-[#C9A227]", "bg-[#C9A227]", tScore, tPlayers)}
+            </>
+          ) : (
+            renderSingleTable(getSortedPlayers())
+          )}
+        </div>
+      )}
 
       {/* Utility usage breakdown breakdown Tab */}
-      {activeTab === "utility" && (
+      {activeTab === "utility" && selectedRound === null && (
         <div className="space-y-6 pt-6 border-t border-[#142135]">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <h3 className="text-base font-bold text-slate-100 uppercase tracking-wide">
@@ -1418,8 +1524,9 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
             );
           })}
 
-          {selectedRound !== null && rounds[selectedRound - 1] && (() => {
-            const idx = selectedRound - 1;
+          {selectedRound !== null && (() => {
+            const idx = rounds.findIndex(r => r.round === selectedRound);
+            if (idx === -1) return null;
             const x = paddingX + (idx / Math.max(totalRounds - 1, 1)) * (width - 2 * paddingX);
             return (
               <rect
@@ -1472,7 +1579,8 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
           })}
 
           {hoveredRound && (() => {
-            const idx = hoveredRound.round - 1;
+            const idx = rounds.findIndex(r => r.round === hoveredRound.round);
+            if (idx === -1) return null;
             const x = paddingX + (idx / Math.max(totalRounds - 1, 1)) * (width - 2 * paddingX);
             return (
               <line
@@ -1623,6 +1731,36 @@ export default function AnalysisPage() {
         try {
           const res = await fetch(`/api/jobs/${jobId}`);
           const data: JobResult = await res.json();
+          if (data && data.status === "done") {
+            if (data.rounds) {
+              let cleanRounds = data.rounds.filter(r => r.round !== 0);
+              const last1Idx = cleanRounds.map(r => r.round).lastIndexOf(1);
+              if (last1Idx !== -1) {
+                cleanRounds = cleanRounds.slice(last1Idx);
+              }
+              data.rounds = cleanRounds;
+              data.total_rounds = cleanRounds.length;
+            }
+            if (data.kills) {
+              let cleanKills = data.kills.filter(k => k.round !== 0);
+              const r1Kills = cleanKills.filter(k => k.round === 1);
+              if (r1Kills.length > 0) {
+                const ticks = r1Kills.map(k => k.tick).filter((t): t is number => typeof t === 'number');
+                if (ticks.length > 0) {
+                  const lastR1KillTick = Math.max(...ticks);
+                  // CS2 tickrate is usually 64. 64 * 120 seconds = 7680 ticks.
+                  // Let's use a threshold of 30000 ticks to be very safe and cover any pauses/freezetime.
+                  const realR1KillsTicks = ticks.filter(t => t >= lastR1KillTick - 30000);
+                  if (realR1KillsTicks.length > 0) {
+                    const minRealR1Tick = Math.min(...realR1KillsTicks);
+                    cleanKills = cleanKills.filter(k => k.tick === undefined || k.tick >= minRealR1Tick);
+                  }
+                }
+              }
+              data.kills = cleanKills;
+              data.total_kills = cleanKills.length;
+            }
+          }
           setResult(data);
           if (data.status === "done" || data.status === "failed") break;
         } catch { /* continue */ }
@@ -1708,7 +1846,12 @@ export default function AnalysisPage() {
             )}
 
             {/* Match Stats Panel */}
-            <MatchStatsPanel stats={result.player_stats || {}} result={result} />
+            <MatchStatsPanel
+              stats={result.player_stats || {}}
+              result={result}
+              selectedRound={selectedRound}
+              onSelectRound={setSelectedRound}
+            />
 
             {/* Filtered kills calculation for Heatmap and Feed */}
             {(() => {

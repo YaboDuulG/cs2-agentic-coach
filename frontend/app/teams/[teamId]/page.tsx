@@ -59,15 +59,16 @@ export default function TeamDetailPage() {
   const [spinningUp, setSpinningUp] = useState(false);
   const [region, setRegion] = useState("dfw"); // dfw = Dallas (default)
   const [copied, setCopied] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
 
 
   useEffect(() => {
     if (!isLoaded || !user) return;
     Promise.all([
-      fetch(`/api/teams/${teamId}`).then(r => r.json()),
-      fetch(`/api/teams/${teamId}?view=analyses`).then(r => r.json()),
-      fetch(`/api/teams/${teamId}/servers`).then(r => r.json()),
+      fetch(`/api/teams/${teamId}`).then(r => r.json().catch(() => null)),
+      fetch(`/api/teams/${teamId}?view=analyses`).then(r => r.json().catch(() => [])),
+      fetch(`/api/teams/${teamId}/servers`).then(r => r.json().catch(() => [])),
     ]).then(([teamData, analysisData, serverData]) => {
       setTeam(teamData);
       setAnalyses(Array.isArray(analysisData) ? analysisData : []);
@@ -84,7 +85,7 @@ export default function TeamDetailPage() {
 
     const interval = setInterval(() => {
       fetch(`/api/teams/${teamId}/servers`)
-        .then(r => r.json())
+        .then(r => r.json().catch(() => []))
         .then(data => {
           if (Array.isArray(data)) setServers(data);
         })
@@ -96,6 +97,7 @@ export default function TeamDetailPage() {
 
   async function spinUpServer() {
     setSpinningUp(true);
+    setServerError(null);
     try {
       const res = await fetch(`/api/teams/${teamId}/servers`, {
         method: "POST",
@@ -103,11 +105,30 @@ export default function TeamDetailPage() {
         body: JSON.stringify({ mode: "practice", region }),
       });
 
-      const data = await res.json();
-      if (res.ok) setServers([...servers, data]);
-    } catch (e) { console.error(e); }
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        data = { error: "Failed to parse API response", detail: res.statusText || "Internal Server Error" };
+      }
+
+      if (res.ok) {
+        setServers([...servers, data]);
+      } else {
+        const errorDetail = data.detail || data.error || "";
+        if (errorDetail.includes("401") || errorDetail.toLowerCase().includes("unauthorized")) {
+          setServerError("Vultr API returned 401 Unauthorized. Please ensure your Vultr API Key has Access Control set to allow all IPs (0.0.0.0/0) in your Vultr Developer portal settings.");
+        } else {
+          setServerError(errorDetail || "Failed to spin up practice server.");
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      setServerError("An error occurred during server startup.");
+    }
     setSpinningUp(false);
   }
+
 
 
   function copyInvite() {
@@ -242,7 +263,13 @@ export default function TeamDetailPage() {
                     >
                       {spinningUp ? "Starting..." : "Spin Up Server"}
                     </button>
+                    {serverError && (
+                      <div className="mt-3 p-2.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs text-left leading-relaxed">
+                        {serverError}
+                      </div>
+                    )}
                   </div>
+
 
                 )}
               </div>

@@ -69,7 +69,7 @@ async def get_job_status(match_id: str):
             # Fetch kills
             kills = db.execute(
                 text("""
-                    SELECT attacker, victim, weapon, round_num, attacker_team, attacker_x, attacker_y, victim_x, victim_y, attacker_steamid, victim_steamid
+                    SELECT attacker, victim, weapon, round_num, attacker_team, attacker_x, attacker_y, victim_x, victim_y, attacker_steamid, victim_steamid, tick, headshot
                     FROM kills WHERE match_id = :id
                     ORDER BY round_num, id
                     LIMIT 200
@@ -104,11 +104,17 @@ async def get_job_status(match_id: str):
                     return {k: sanitize_nan(v) for k, v in val.items()}
                 elif isinstance(val, list):
                     return [sanitize_nan(x) for x in val]
+                elif hasattr(val, '__float__') and not isinstance(val, (int, str, bool)):
+                    try:
+                        fval = float(val)
+                        return None if (math.isnan(fval) or math.isinf(fval)) else fval
+                    except Exception:
+                        pass
                 return val
 
             player_stats = sanitize_nan(player_stats)
 
-            return {
+            response_data = {
                 "status": "done",
                 "match_id": match_id,
                 "map": result[1],
@@ -122,12 +128,14 @@ async def get_job_status(match_id: str):
                         "weapon": k[2],
                         "round": k[3],
                         "killer_team": k[4],
-                        "attacker_x": k[5] if k[5] is not None and k[5] == k[5] else None,
-                        "attacker_y": k[6] if k[6] is not None and k[6] == k[6] else None,
-                        "victim_x": k[7] if k[7] is not None and k[7] == k[7] else None,
-                        "victim_y": k[8] if k[8] is not None and k[8] == k[8] else None,
+                        "attacker_x": k[5],
+                        "attacker_y": k[6],
+                        "victim_x": k[7],
+                        "victim_y": k[8],
                         "attacker_steamid": k[9],
                         "victim_steamid": k[10],
+                        "tick": k[11],
+                        "headshot": k[12],
                     }
                     for k in kills
                 ],
@@ -136,6 +144,7 @@ async def get_job_status(match_id: str):
                     for r in rounds
                 ],
             }
+            return sanitize_nan(response_data)
         finally:
             db.close()
 
