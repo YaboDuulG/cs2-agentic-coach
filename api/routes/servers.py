@@ -76,7 +76,16 @@ def spin_up_server(
     webhook_url = f"{request.base_url}api/servers/webhook"
 
     try:
-        vultr_data = provision_practice_server(server_id, webhook_url, region=req_body.region)
+        local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
+        if local_mode:
+            vultr_data = {
+                "vultr_id": f"local-{server_id}",
+                "ip_address": "127.0.0.1:27015",
+                "rcon_password": "local_rcon_pass",
+                "server_password": "local_server_pass",
+            }
+        else:
+            vultr_data = provision_practice_server(server_id, webhook_url, region=req_body.region)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -89,7 +98,7 @@ def spin_up_server(
         server_password=vultr_data["server_password"],
         mode=req_body.mode,
         expires_at=datetime.now(UTC) + timedelta(hours=2),
-        status="booting",
+        status="active" if local_mode else "booting",
     )
 
     db.add(new_server)
@@ -135,7 +144,9 @@ def terminate_server(server_id: str, request: Request, db: Session = Depends(get
     _verify_team_member(db, user_id, server.team_id)
 
     if server.vultr_instance_id:
-        destroy_practice_server(server.vultr_instance_id)
+        local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
+        if not local_mode:
+            destroy_practice_server(server.vultr_instance_id)
 
     server.status = "terminated"
 

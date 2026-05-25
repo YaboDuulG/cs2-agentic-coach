@@ -76,6 +76,24 @@ export default function TeamDetailPage() {
     }).catch(() => setLoading(false));
   }, [teamId, user, isLoaded]);
 
+  // Poll for server status if any server is booting
+  useEffect(() => {
+    if (!user || servers.length === 0) return;
+    const isBooting = servers.some(s => s.status === "booting");
+    if (!isBooting) return;
+
+    const interval = setInterval(() => {
+      fetch(`/api/teams/${teamId}/servers`)
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) setServers(data);
+        })
+        .catch(console.error);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [teamId, user, servers]);
+
   async function spinUpServer() {
     setSpinningUp(true);
     try {
