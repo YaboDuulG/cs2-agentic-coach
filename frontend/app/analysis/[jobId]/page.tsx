@@ -58,14 +58,14 @@ const STATUS_CONFIG: Record<JobStatus, { label: string; color: string; icon: Rea
 };
 
 const MAP_CONFIGS: Record<string, { pos_x: number; pos_y: number; scale: number }> = {
-  de_dust2: { pos_x: -2485, pos_y: 3230, scale: 4.4 },
-  de_mirage: { pos_x: -3340, pos_y: 1738, scale: 5.0 },
-  de_inferno: { pos_x: -2134, pos_y: 3848, scale: 4.9 },
+  de_dust2: { pos_x: -2476, pos_y: 3239, scale: 4.4 },
+  de_mirage: { pos_x: -3230, pos_y: 1713, scale: 5.0 },
+  de_inferno: { pos_x: -2087, pos_y: 3871, scale: 4.9 },
   de_nuke: { pos_x: -3453, pos_y: 2887, scale: 7.0 },
-  de_overpass: { pos_x: -5023, pos_y: 1833, scale: 5.2 },
-  de_ancient: { pos_x: -2893, pos_y: 2139, scale: 5.0 },
-  de_anubis: { pos_x: -2835, pos_y: 3299, scale: 5.22 },
-  de_vertigo: { pos_x: -3012, pos_y: 1736, scale: 4.0 },
+  de_overpass: { pos_x: -4831, pos_y: 1781, scale: 5.2 },
+  de_ancient: { pos_x: -2953, pos_y: 2164, scale: 5.0 },
+  de_anubis: { pos_x: -2688, pos_y: 3328, scale: 5.22 },
+  de_vertigo: { pos_x: -3168, pos_y: 1762, scale: 4.0 },
 };
 
 function formatWeaponName(weapon: string): string {
@@ -353,24 +353,26 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
   return (
     <div className="card p-6 relative">
       <h2 className="heading-display mb-4" style={{ fontSize: "1.1rem" }}>Kill Positions</h2>
-      <div className="relative flex justify-center">
-        <canvas
-          ref={canvasRef}
-          width={450}
-          height={450}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={() => setTooltip(prev => ({ ...prev, show: false }))}
-          className="rounded-xl cursor-crosshair max-w-full h-auto aspect-square"
-          style={{ border: "1px solid #1E3A5F" }}
-        />
-        {tooltip.show && (
-          <div
-            className="absolute z-10 pointer-events-none bg-slate-950/95 border border-slate-800 rounded-lg p-3 shadow-2xl backdrop-blur-md -translate-x-1/2 -translate-y-full min-w-[200px]"
-            style={{ left: tooltip.x, top: tooltip.y }}
-          >
-            {tooltip.content}
-          </div>
-        )}
+      <div className="flex justify-center">
+        <div className="relative">
+          <canvas
+            ref={canvasRef}
+            width={450}
+            height={450}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={() => setTooltip(prev => ({ ...prev, show: false }))}
+            className="rounded-xl cursor-crosshair max-w-full h-auto aspect-square"
+            style={{ border: "1px solid #1E3A5F" }}
+          />
+          {tooltip.show && (
+            <div
+              className="absolute z-10 pointer-events-none bg-slate-950/95 border border-slate-800 rounded-lg p-3 shadow-2xl backdrop-blur-md -translate-x-1/2 -translate-y-full min-w-[200px]"
+              style={{ left: tooltip.x, top: tooltip.y }}
+            >
+              {tooltip.content}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1118,7 +1120,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
         </div>
 
         {/* Stacked Vertical Bar Chart */}
-        <div className="mt-8 relative">
+        <div className="mt-8 relative chart-container">
           <div className="flex items-end h-56 w-full relative">
             
             {/* Grid Line overlay */}
@@ -1153,37 +1155,33 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
                   decoy = totalVal - smokes - flashes - incend - he;
                 }
 
-                const sPct = totalVal > 0 ? (smokes / totalVal) * 100 : 0;
-                const fPct = totalVal > 0 ? (flashes / totalVal) * 100 : 0;
-                const iPct = totalVal > 0 ? (incend / totalVal) * 100 : 0;
-                const hPct = totalVal > 0 ? (he / totalVal) * 100 : 0;
-                const dPct = totalVal > 0 ? (decoy / totalVal) * 100 : 0;
-
                 const initials = p.name ? p.name.slice(0, 2).toUpperCase() : "?";
 
                 return (
                   <div key={p.steamid} className="flex flex-col items-center gap-2 group relative">
-                    <div
-                      className="w-7 rounded-t-sm flex flex-col-reverse overflow-hidden hover:brightness-110 transition-all cursor-pointer shadow-md"
-                      style={{ height: `${pctHeight}%`, minHeight: totalVal > 0 ? '4px' : '0px' }}
-                      onMouseEnter={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const parent = e.currentTarget.parentElement?.parentElement?.getBoundingClientRect();
-                        if (parent) {
-                          setHoveredPlayer(p);
-                          setHoveredPos({
-                            x: rect.left - parent.left + rect.width / 2,
-                            y: rect.top - parent.top - 8
-                          });
-                        }
-                      }}
-                      onMouseLeave={() => setHoveredPlayer(null)}
-                    >
-                      <div style={{ height: `${dPct}%`, backgroundColor: "#10b981" }} />
-                      <div style={{ height: `${hPct}%`, backgroundColor: "#9ca3af" }} />
-                      <div style={{ height: `${iPct}%`, backgroundColor: "#ef4444" }} />
-                      <div style={{ height: `${fPct}%`, backgroundColor: "#f59e0b" }} />
-                      <div style={{ height: `${sPct}%`, backgroundColor: "#3b82f6" }} />
+                    <div className="h-40 flex items-end justify-center w-7">
+                      <div
+                        className="w-7 rounded-t-sm flex flex-col-reverse overflow-hidden hover:brightness-110 transition-all cursor-pointer shadow-md"
+                        style={{ height: `${pctHeight}%`, minHeight: totalVal > 0 ? '4px' : '0px' }}
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const parent = e.currentTarget.closest(".chart-container")?.getBoundingClientRect();
+                          if (parent) {
+                            setHoveredPlayer(p);
+                            setHoveredPos({
+                              x: rect.left - parent.left + rect.width / 2,
+                              y: rect.top - parent.top - 8
+                            });
+                          }
+                        }}
+                        onMouseLeave={() => setHoveredPlayer(null)}
+                      >
+                        {decoy > 0 && <div style={{ flex: `${decoy} 0 0%`, backgroundColor: "#10b981" }} />}
+                        {he > 0 && <div style={{ flex: `${he} 0 0%`, backgroundColor: "#9ca3af" }} />}
+                        {incend > 0 && <div style={{ flex: `${incend} 0 0%`, backgroundColor: "#ef4444" }} />}
+                        {flashes > 0 && <div style={{ flex: `${flashes} 0 0%`, backgroundColor: "#f59e0b" }} />}
+                        {smokes > 0 && <div style={{ flex: `${smokes} 0 0%`, backgroundColor: "#3b82f6" }} />}
+                      </div>
                     </div>
 
                     <div className="w-5 h-5 rounded-full bg-[#1b2f4c] border border-[#1E3A5F]/40 flex items-center justify-center text-slate-300 font-bold text-[8px] shadow-sm">
