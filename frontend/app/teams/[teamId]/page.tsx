@@ -222,20 +222,29 @@ export default function TeamDetailPage() {
                 {servers.length > 0 ? (
                   <div className="space-y-3">
                     {servers.map(s => (
-                      <div key={s.id} className="rounded-lg bg-white/5 p-3 border border-white/10">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-xs font-bold uppercase text-[#2D7DD2]">{s.mode} Mode</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'active' ? 'bg-[#22D3A0]/20 text-[#22D3A0]' : 'bg-yellow-500/20 text-yellow-500'}`}>
+                      <div key={s.id} className="rounded-lg bg-white/5 p-4 border border-white/10 flex flex-col gap-3">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${s.status === 'active' ? 'bg-[#22D3A0] animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-200">{s.mode} Server</span>
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded font-mono ${s.status === 'active' ? 'bg-[#22D3A0]/10 text-[#22D3A0] border border-[#22D3A0]/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
                             {s.status}
                           </span>
                         </div>
                         {s.ip_address ? (
-                          <div className="bg-black/40 p-2 rounded text-xs font-mono text-[#C4CEDD] break-all select-all">
+                          <div className="bg-black/40 p-2.5 rounded text-xs font-mono text-[#C4CEDD] break-all select-all border border-white/5">
                             connect {s.ip_address}; password {s.server_password}
                           </div>
                         ) : (
-                          <div className="text-xs text-[#8BA7CC]">Provisioning IP...</div>
+                          <div className="text-xs text-[#8BA7CC] italic">Provisioning server instance...</div>
                         )}
+                        <Link
+                          href={`/teams/${teamId}/servers/${s.id}`}
+                          className="mt-1 w-full text-center text-xs font-bold uppercase tracking-wider py-2 rounded bg-[#2D7DD2] hover:bg-[#2D7DD2]/80 text-white transition-all duration-200 border border-[#2D7DD2]/20"
+                        >
+                          Manage Server
+                        </Link>
                       </div>
                     ))}
                   </div>
