@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from db.database import get_session
 from db.models import PracticeServer, TeamMember
-from services.warlord.vultr_client import destroy_practice_server, provision_practice_server
+from services.warlord.dathost_client import destroy_practice_server, provision_practice_server
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ def spin_up_server(
         server_password=vultr_data["server_password"],
         mode=req_body.mode,
         expires_at=datetime.now(UTC) + timedelta(hours=2),
-        status="active" if local_mode else "booting",
+        status="active",
     )
 
     db.add(new_server)

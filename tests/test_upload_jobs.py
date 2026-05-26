@@ -83,11 +83,11 @@ class TestJobStatusEndpoint:
             mock_result_match = ("test-match-nan", "de_dust2", "done", None, '{"player1": {"adr": NaN, "kills": 10}}')
 
             mock_result_kills = [
-                ("attacker1", "victim1", "weapon_ak47", 1, "CT", float('nan'), 20.0, 30.0, float('nan'), "steam1", "steam2", 100, True)
+                ("attacker1", "victim1", "weapon_ak47", 1, "CT", float('nan'), 20.0, 30.0, float('nan'), "steam1", "steam2", 100, True, "T")
             ]
 
             mock_result_rounds = [
-                (1, "CT", 4000, 3500)
+                (999, 1, "CT", 4000, 3500)
             ]
 
             # Chain the execute returns

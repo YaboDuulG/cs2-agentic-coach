@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
@@ -20,6 +22,7 @@ interface KillEvent {
   victim_steamid?: string;
   tick?: number;
   headshot?: boolean;
+  victim_team?: string;
 }
 
 interface RoundResult {
@@ -70,7 +73,7 @@ const MAP_CONFIGS: Record<string, { pos_x: number; pos_y: number; scale: number 
 
 function formatWeaponName(weapon: string): string {
   if (!weapon) return "";
-  let clean = weapon.replace(/^weapon_/i, "");
+  const clean = weapon.replace(/^weapon_/i, "");
   
   const SPECIAL_MAP: Record<string, string> = {
     ak47: "AK-47",
@@ -131,7 +134,7 @@ function formatWeaponName(weapon: string): string {
       .join(" ") + " Knife";
   }
 
-  let spaced = clean.replace(/[-_]+/g, " ");
+  const spaced = clean.replace(/[-_]+/g, " ");
   return spaced
     .split(/\s+/)
     .map(word => {
@@ -154,6 +157,8 @@ interface CanvasPoint {
   type: "attacker" | "victim";
 }
 
+import { useMemo } from "react";
+
 function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [points, setPoints] = useState<CanvasPoint[]>([]);
@@ -163,6 +168,52 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
     y: number;
     content: React.ReactNode;
   }>({ show: false, x: 0, y: 0, content: null });
+
+  // Zoom & Pan states
+  const [zoom, setZoom] = useState<number>(1);
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Pre-process kills to calculate chronological death numbers (1-5) per team per round
+  const processedKills = useMemo(() => {
+    const killsByRound: Record<number, KillEvent[]> = {};
+    for (const k of kills) {
+      const r = k.round || 0;
+      if (!killsByRound[r]) killsByRound[r] = [];
+      killsByRound[r].push(k);
+    }
+
+    const result: (KillEvent & { death_number?: number })[] = [];
+
+    for (const r in killsByRound) {
+      // Sort kills in this round chronologically by tick
+      const roundKills = [...killsByRound[r]].sort((a, b) => (a.tick || 0) - (b.tick || 0));
+      let ct_deaths = 0;
+      let t_deaths = 0;
+
+      for (const k of roundKills) {
+        const victimTeam = k.victim_team || (k.killer_team === "CT" ? "T" : "CT");
+        const normTeam = victimTeam.toUpperCase().startsWith("CT") ? "CT" : "T";
+
+        let num = 0;
+        if (normTeam === "CT") {
+          ct_deaths++;
+          num = ct_deaths;
+        } else {
+          t_deaths++;
+          num = t_deaths;
+        }
+
+        result.push({
+          ...k,
+          death_number: num,
+        });
+      }
+    }
+
+    return result;
+  }, [kills]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -179,24 +230,46 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
 
     const drawRadar = () => {
       ctx.clearRect(0, 0, W, H);
+      
+      // Draw background map
       if (hasConfig && bgLoaded) {
-        ctx.drawImage(bgImg, 0, 0, W, H);
+        ctx.drawImage(
+          bgImg,
+          (0 - W / 2) * zoom + W / 2 + panOffset.x,
+          (0 - H / 2) * zoom + H / 2 + panOffset.y,
+          W * zoom,
+          H * zoom
+        );
       } else {
         ctx.fillStyle = "#0D1825";
         ctx.fillRect(0, 0, W, H);
       }
 
+      // Draw grid lines (aligned with map scaling)
       ctx.strokeStyle = hasConfig ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)";
       ctx.lineWidth = 1;
       for (let i = 0; i <= 10; i++) {
-        ctx.beginPath(); ctx.moveTo((W / 10) * i, 0); ctx.lineTo((W / 10) * i, H); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, (H / 10) * i); ctx.lineTo(W, (H / 10) * i); ctx.stroke();
+        // Vertical lines
+        const x_raw = (W / 10) * i;
+        const x_zoomed = (x_raw - W / 2) * zoom + W / 2 + panOffset.x;
+        ctx.beginPath();
+        ctx.moveTo(x_zoomed, (0 - H / 2) * zoom + H / 2 + panOffset.y);
+        ctx.lineTo(x_zoomed, (H - H / 2) * zoom + H / 2 + panOffset.y);
+        ctx.stroke();
+
+        // Horizontal lines
+        const y_raw = (H / 10) * i;
+        const y_zoomed = (y_raw - H / 2) * zoom + H / 2 + panOffset.y;
+        ctx.beginPath();
+        ctx.moveTo((0 - W / 2) * zoom + W / 2 + panOffset.x, y_zoomed);
+        ctx.lineTo((W - W / 2) * zoom + W / 2 + panOffset.x, y_zoomed);
+        ctx.stroke();
       }
 
-      if (!kills.length) return;
+      if (!processedKills.length) return;
 
-      const xs = kills.flatMap(k => [k.attacker_x ?? 0, k.victim_x ?? 0]).filter(Boolean);
-      const ys = kills.flatMap(k => [k.attacker_y ?? 0, k.victim_y ?? 0]).filter(Boolean);
+      const xs = processedKills.flatMap(k => [k.attacker_x ?? 0, k.victim_x ?? 0]).filter(Boolean);
+      const ys = processedKills.flatMap(k => [k.attacker_y ?? 0, k.victim_y ?? 0]).filter(Boolean);
       if (!xs.length) return;
 
       const minX = Math.min(...xs), maxX = Math.max(...xs);
@@ -207,24 +280,26 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
 
       const config = MAP_CONFIGS[mapKey];
       const toCanvas = (x: number, y: number) => {
+        let rawCx, rawCy;
         if (hasConfig) {
           const mapX = (x - config.pos_x) / config.scale;
           const mapY = (config.pos_y - y) / config.scale;
-          return {
-            cx: (mapX / 1024) * W,
-            cy: (mapY / 1024) * H,
-          };
+          rawCx = (mapX / 1024) * W;
+          rawCy = (mapY / 1024) * H;
         } else {
-          return {
-            cx: pad + ((x - minX) / rangeX) * (W - 2 * pad),
-            cy: pad + ((y - minY) / rangeY) * (H - 2 * pad),
-          };
+          rawCx = pad + ((x - minX) / rangeX) * (W - 2 * pad);
+          rawCy = pad + ((y - minY) / rangeY) * (H - 2 * pad);
         }
+        // Project based on zoom and pan offset relative to center of canvas
+        return {
+          cx: (rawCx - W / 2) * zoom + W / 2 + panOffset.x,
+          cy: (rawCy - H / 2) * zoom + H / 2 + panOffset.y,
+        };
       };
 
       const newPoints: CanvasPoint[] = [];
 
-      for (const k of kills) {
+      for (const k of processedKills) {
         if (!k.attacker_x || !k.victim_x) continue;
         const a = toCanvas(k.attacker_x, k.attacker_y ?? 0);
         const v = toCanvas(k.victim_x, k.victim_y ?? 0);
@@ -233,6 +308,7 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
         newPoints.push({ cx: a.cx, cy: a.cy, kill: k, type: "attacker" });
         newPoints.push({ cx: v.cx, cy: v.cy, kill: k, type: "victim" });
 
+        // Draw connecting kill line
         ctx.beginPath();
         ctx.moveTo(a.cx, a.cy);
         ctx.lineTo(v.cx, v.cy);
@@ -240,6 +316,7 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
+        // Draw attacker dot
         ctx.beginPath();
         ctx.arc(a.cx, a.cy, 5, 0, Math.PI * 2);
         ctx.fillStyle = isCT ? "#2D7DD2" : "#C9A227";
@@ -248,6 +325,7 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
         ctx.fill();
         ctx.shadowBlur = 0;
 
+        // Draw victim cross
         ctx.beginPath();
         const size = 4;
         ctx.moveTo(v.cx - size, v.cy - size);
@@ -257,10 +335,35 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
         ctx.strokeStyle = "#FF4D6D";
         ctx.lineWidth = 2;
         ctx.stroke();
+
+        // Draw chronological death numbering badge next to victim cross
+        if (k.death_number) {
+          const victimTeam = k.victim_team || (k.killer_team === "CT" ? "T" : "CT");
+          const normTeam = victimTeam.toUpperCase().startsWith("CT") ? "CT" : "T";
+          const isCTDeath = normTeam === "CT";
+          const badgeBg = isCTDeath ? "rgba(45,125,210,0.85)" : "rgba(201,162,39,0.85)";
+          const badgeText = "#FFFFFF";
+
+          ctx.beginPath();
+          ctx.arc(v.cx + 9, v.cy - 7, 7, 0, Math.PI * 2);
+          ctx.fillStyle = badgeBg;
+          ctx.fill();
+
+          ctx.font = "bold 9px JetBrains Mono, monospace";
+          ctx.fillStyle = badgeText;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(k.death_number.toString(), v.cx + 9, v.cy - 7);
+
+          // Reset text alignment for subsequent drawing
+          ctx.textAlign = "left";
+          ctx.textBaseline = "alphabetic";
+        }
       }
 
       setPoints(newPoints);
 
+      // Legend in bottom corner
       ctx.font = "11px JetBrains Mono, monospace";
       ctx.fillStyle = "#2D7DD2"; ctx.beginPath(); ctx.arc(16, H - 20, 5, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#8BA7CC"; ctx.fillText("CT kill", 26, H - 16);
@@ -291,12 +394,65 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
     } else {
       drawRadar();
     }
-  }, [kills, mapName]);
+  }, [processedKills, mapName, zoom, panOffset]);
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (zoom <= 1) return;
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const zoomFactor = 0.15;
+    let newZoom = zoom;
+    if (e.deltaY < 0) {
+      newZoom = Math.min(4, zoom + zoomFactor);
+    } else {
+      newZoom = Math.max(1, zoom - zoomFactor);
+    }
+    
+    if (newZoom !== zoom) {
+      setZoom(newZoom);
+      if (newZoom === 1) {
+        setPanOffset({ x: 0, y: 0 });
+      } else {
+        // Recalculate pan bounds for new zoom
+        const maxPanX = (450 / 2) * (newZoom - 1);
+        const maxPanY = (450 / 2) * (newZoom - 1);
+        setPanOffset(prev => ({
+          x: Math.max(-maxPanX, Math.min(maxPanX, prev.x)),
+          y: Math.max(-maxPanY, Math.min(maxPanY, prev.y))
+        }));
+      }
+    }
+  };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas || !points.length) return;
+    if (!canvas) return;
+
     const rect = canvas.getBoundingClientRect();
+    
+    if (isDragging) {
+      const newOffsetX = e.clientX - dragStart.x;
+      const newOffsetY = e.clientY - dragStart.y;
+      
+      const maxPanX = (canvas.width / 2) * (zoom - 1);
+      const maxPanY = (canvas.height / 2) * (zoom - 1);
+      
+      setPanOffset({
+        x: Math.max(-maxPanX, Math.min(maxPanX, newOffsetX)),
+        y: Math.max(-maxPanY, Math.min(maxPanY, newOffsetY)),
+      });
+      return;
+    }
+
+    if (!points.length) return;
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
@@ -352,18 +508,67 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
 
   return (
     <div className="card p-6 relative">
-      <h2 className="heading-display mb-4" style={{ fontSize: "1.1rem" }}>Kill Positions</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="heading-display" style={{ fontSize: "1.1rem" }}>Kill Positions</h2>
+        {zoom > 1 && (
+          <span className="text-[10px] bg-slate-900 border border-slate-800 px-2 py-0.5 rounded text-[#eb5e28] font-bold font-mono uppercase tracking-wider animate-pulse">
+            Zoomed: {zoom.toFixed(1)}x (Drag to pan)
+          </span>
+        )}
+      </div>
       <div className="flex justify-center">
         <div className="relative">
           <canvas
             ref={canvasRef}
             width={450}
             height={450}
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onWheel={handleWheel}
             onMouseMove={handleMouseMove}
-            onMouseLeave={() => setTooltip(prev => ({ ...prev, show: false }))}
-            className="rounded-xl cursor-crosshair max-w-full h-auto aspect-square"
+            onMouseLeave={() => {
+              setIsDragging(false);
+              setTooltip(prev => ({ ...prev, show: false }));
+            }}
+            className={`rounded-xl max-w-full h-auto aspect-square ${zoom > 1 ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'}`}
             style={{ border: "1px solid #1E3A5F" }}
           />
+
+          {/* Zoom Control float overlay */}
+          <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-10 bg-slate-950/85 p-1.5 rounded-lg border border-[#1E3A5F]/35 backdrop-blur-md">
+            <button 
+              onClick={() => {
+                const z = Math.min(4, zoom + 0.5);
+                setZoom(z);
+              }}
+              className="w-7 h-7 flex items-center justify-center rounded bg-slate-900 border border-slate-800 hover:border-[#eb5e28] text-slate-300 font-bold hover:text-white transition-colors text-sm"
+              title="Zoom In"
+            >
+              +
+            </button>
+            <button 
+              onClick={() => {
+                const z = Math.max(1, zoom - 0.5);
+                setZoom(z);
+                if (z === 1) setPanOffset({ x: 0, y: 0 });
+              }}
+              className="w-7 h-7 flex items-center justify-center rounded bg-slate-900 border border-slate-800 hover:border-[#eb5e28] text-slate-300 font-bold hover:text-white transition-colors text-sm"
+              title="Zoom Out"
+            >
+              -
+            </button>
+            <button 
+              onClick={() => {
+                setZoom(1);
+                setPanOffset({ x: 0, y: 0 });
+              }}
+              className="w-7 h-7 flex items-center justify-center rounded bg-slate-900 border border-slate-800 hover:border-[#eb5e28] text-slate-400 hover:text-white transition-colors text-xs"
+              title="Reset View"
+            >
+              ⟲
+            </button>
+          </div>
+
           {tooltip.show && (
             <div
               className="absolute z-10 pointer-events-none bg-slate-950/95 border border-slate-800 rounded-lg p-3 shadow-2xl backdrop-blur-md -translate-x-1/2 -translate-y-full min-w-[200px]"
@@ -494,6 +699,12 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
   const [hoveredPlayer, setHoveredPlayer] = useState<any | null>(null);
   const [hoveredPos, setHoveredPos] = useState<{ x: number; y: number } | null>(null);
 
+  // Sorting & View States
+  const [sortField, setSortField] = useState<string>("kills");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+
+
   const playersList = Object.values(stats || {}).filter(
     (p: any) => p && p.name && p.name !== "nan" && p.steamid && p.steamid !== "nan"
   );
@@ -505,7 +716,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
     const steamid = p.steamid || "";
     const seed = parseInt(steamid.slice(-5)) || 0;
     
-    let rounds = p.rounds_played || result.total_rounds || 26;
+    const rounds = p.rounds_played || result.total_rounds || 26;
     let killsCount = p.kills;
     let deathsCount = p.deaths;
     let assistsCount = p.assists;
@@ -626,6 +837,12 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
     const rankLevel = (seed % 6) + 10;
     const rankPoints = 2200 + (seed % 1300);
 
+    const entrySuccessPct = entryAttempts > 0 ? Math.round((entryKills / entryAttempts) * 100) : 0;
+    const enemy_blind_s = p.enemy_blind_time !== undefined ? parseFloat(p.enemy_blind_time).toFixed(1) + "s" : "0.0s";
+    const team_blind_s = p.team_blind_time !== undefined ? parseFloat(p.team_blind_time).toFixed(1) + "s" : "0.0s";
+    const enemyBlindTimeNum = p.enemy_blind_time || 0;
+    const teamBlindTimeNum = p.team_blind_time || 0;
+
     return {
       ...p,
       kills: killsCount,
@@ -637,6 +854,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
       entry_kills: entryKills,
       entry_deaths: entryDeaths,
       entry_attempts: entryAttempts,
+      entry_success_pct: entrySuccessPct,
       trade_kills: pTradeKills,
       deaths_traded: pDeathsTraded,
       rankLevel,
@@ -666,7 +884,11 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
       flashedBySelfTime,
       flashesTeam,
       teamBlindTime,
-      flashedByTeamTime
+      flashedByTeamTime,
+      enemy_blind_s,
+      team_blind_s,
+      enemyBlindTimeNum,
+      teamBlindTimeNum,
     };
   });
 
@@ -701,6 +923,20 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
   const ctUtil = getUtilTotals(ctPlayers);
   const tUtil = getUtilTotals(tPlayers);
 
+  // Sorting handlers
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      if (field === "name") {
+        setSortDirection("asc");
+      } else {
+        setSortDirection("desc");
+      }
+    }
+  };
+
   const getSortedPlayers = () => {
     let list = [...computedPlayers];
     if (teamFilter === "ct") {
@@ -709,20 +945,75 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
       list = list.filter(p => p.team === "TERRORIST" || p.team === "T");
     }
 
-    if (activeTab === "summary") {
-      list.sort((a, b) => b.kills - a.kills);
-    } else if (activeTab === "entry") {
-      list.sort((a, b) => b.entry_kills - a.entry_kills);
-    } else {
-      if (activeUtilSubTab === "general") {
-        list.sort((a, b) => b.utility_thrown - a.utility_thrown);
-      } else if (activeUtilSubTab === "damage") {
-        list.sort((a, b) => b.totalDmg - a.totalDmg);
-      } else {
-        list.sort((a, b) => b.flashesThrown - a.flashesThrown);
-      }
+    if (sortField) {
+      list.sort((a, b) => {
+        let valA = a[sortField];
+        let valB = b[sortField];
+
+        if (typeof valA === "string" && typeof valB === "string") {
+          return sortDirection === "asc"
+            ? valA.localeCompare(valB)
+            : valB.localeCompare(valA);
+        }
+
+        if (valA === undefined || valA === null) valA = 0;
+        if (valB === undefined || valB === null) valB = 0;
+
+        return sortDirection === "asc" ? valA - valB : valB - valA;
+      });
     }
     return list;
+  };
+
+  const getSortedPlayersForTeam = (teamPlayers: any[]) => {
+    const list = [...teamPlayers];
+    if (sortField) {
+      list.sort((a, b) => {
+        let valA = a[sortField];
+        let valB = b[sortField];
+
+        if (typeof valA === "string" && typeof valB === "string") {
+          return sortDirection === "asc"
+            ? valA.localeCompare(valB)
+            : valB.localeCompare(valA);
+        }
+
+        if (valA === undefined || valA === null) valA = 0;
+        if (valB === undefined || valB === null) valB = 0;
+
+        return sortDirection === "asc" ? valA - valB : valB - valA;
+      });
+    }
+    return list;
+  };
+
+  // Clickable Header with indicator
+  const renderHeader = (
+    label: string, 
+    field: string, 
+    align: "left" | "right" | "center" = "right", 
+    extraClass: string = "", 
+    rowSpan?: number, 
+    colSpan?: number
+  ) => {
+    const isSorted = sortField === field;
+    const alignClass = align === "left" ? "text-left justify-start" : align === "center" ? "text-center justify-center" : "text-right justify-end";
+    
+    return (
+      <th 
+        onClick={() => handleSort(field)}
+        rowSpan={rowSpan}
+        colSpan={colSpan}
+        className={`uppercase tracking-wider cursor-pointer hover:bg-[#1E3A5F]/20 select-none group text-slate-400 font-semibold text-[10px] ${extraClass}`}
+      >
+        <div className={`flex items-center gap-1.5 ${alignClass}`}>
+          <span>{label}</span>
+          <span className={`text-[9px] transition-opacity ${isSorted ? "opacity-100 text-[#eb5e28]" : "opacity-0 group-hover:opacity-50 text-slate-500"}`}>
+            {isSorted ? (sortDirection === "asc" ? "▲" : "▼") : "▼"}
+          </span>
+        </div>
+      </th>
+    );
   };
 
   const renderTableHead = () => {
@@ -730,12 +1021,12 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
       return (
         <thead>
           <tr className="bg-[#0b1322] border-b border-[#1E3A5F]/40 text-slate-400 font-semibold text-[11px]">
-            <th className="text-left py-3.5 px-4 uppercase tracking-wider">Player</th>
-            <th className="text-left py-3.5 px-4 uppercase tracking-wider">Rank</th>
-            <th className="text-right py-3.5 px-4 uppercase tracking-wider">K / D / A</th>
-            <th className="text-right py-3.5 px-4 uppercase tracking-wider">HS %</th>
-            <th className="text-right py-3.5 px-4 uppercase tracking-wider">ADR</th>
-            <th className="text-right py-3.5 px-4 uppercase tracking-wider">KAST %</th>
+            {renderHeader("Player", "name", "left", "py-3.5 px-4")}
+            {renderHeader("Rank", "rankPoints", "left", "py-3.5 px-4")}
+            {renderHeader("K / D / A", "kills", "right", "py-3.5 px-4")}
+            {renderHeader("HS %", "hs_pct", "right", "py-3.5 px-4")}
+            {renderHeader("ADR", "adr", "right", "py-3.5 px-4")}
+            {renderHeader("KAST %", "kast", "right", "py-3.5 px-4")}
           </tr>
         </thead>
       );
@@ -743,14 +1034,14 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
       return (
         <thead>
           <tr className="bg-[#0b1322] border-b border-[#1E3A5F]/40 text-slate-400 font-semibold text-[11px]">
-            <th className="text-left py-3.5 px-4 uppercase tracking-wider">Player</th>
-            <th className="text-left py-3.5 px-4 uppercase tracking-wider">Rank</th>
-            <th className="text-right py-3.5 px-4 uppercase tracking-wider text-emerald-400">Entry Kills</th>
-            <th className="text-right py-3.5 px-4 uppercase tracking-wider text-rose-400">Entry Deaths</th>
-            <th className="text-right py-3.5 px-4 uppercase tracking-wider">Attempts</th>
-            <th className="text-right py-3.5 px-4 uppercase tracking-wider">Success %</th>
-            <th className="text-right py-3.5 px-4 uppercase tracking-wider text-emerald-400">Trade Kills</th>
-            <th className="text-right py-3.5 px-4 uppercase tracking-wider text-rose-400">Deaths Traded</th>
+            {renderHeader("Player", "name", "left", "py-3.5 px-4")}
+            {renderHeader("Rank", "rankPoints", "left", "py-3.5 px-4")}
+            {renderHeader("Entry Kills", "entry_kills", "right", "py-3.5 px-4 text-emerald-400")}
+            {renderHeader("Entry Deaths", "entry_deaths", "right", "py-3.5 px-4 text-rose-400")}
+            {renderHeader("Attempts", "entry_attempts", "right", "py-3.5 px-4")}
+            {renderHeader("Success %", "entry_success_pct", "right", "py-3.5 px-4")}
+            {renderHeader("Trade Kills", "trade_kills", "right", "py-3.5 px-4 text-emerald-400")}
+            {renderHeader("Deaths Traded", "deaths_traded", "right", "py-3.5 px-4 text-rose-400")}
           </tr>
         </thead>
       );
@@ -759,19 +1050,19 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
         return (
           <thead>
             <tr className="bg-[#0b1322] border-b border-[#1E3A5F]/40 text-slate-400 font-semibold text-[10px]">
-              <th className="text-left py-3 px-4 uppercase tracking-wider">Player</th>
-              <th className="text-left py-3 px-4 uppercase tracking-wider">Rank</th>
-              <th className="text-right py-3 px-3 uppercase tracking-wider">Unused Utility</th>
-              <th className="text-right py-3 px-3 uppercase tracking-wider">Thrown Utility</th>
-              <th className="text-right py-3 px-3 uppercase tracking-wider">Successful Utility</th>
-              <th className="text-right py-3 px-3 uppercase tracking-wider">Total DMG</th>
-              <th className="text-right py-3 px-3 uppercase tracking-wider">Total DMG Rec.</th>
-              <th className="text-right py-3 px-3 uppercase tracking-wider">Total Team DMG</th>
-              <th className="text-right py-3 px-3 uppercase tracking-wider">Total Team Rec.</th>
-              <th className="text-right py-3 px-3 uppercase tracking-wider">Enemies Flashed</th>
-              <th className="text-right py-3 px-3 uppercase tracking-wider">Enemy Blind Time</th>
-              <th className="text-right py-3 px-3 uppercase tracking-wider">Team Flashes</th>
-              <th className="text-right py-3 px-3 uppercase tracking-wider">Team Blind Time</th>
+              {renderHeader("Player", "name", "left", "py-3 px-4")}
+              {renderHeader("Rank", "rankPoints", "left", "py-3 px-4")}
+              {renderHeader("Unused Utility", "unusedUtility", "right", "py-3 px-3")}
+              {renderHeader("Thrown Utility", "utility_thrown", "right", "py-3 px-3")}
+              {renderHeader("Successful Utility", "successfulUtility", "right", "py-3 px-3")}
+              {renderHeader("Total DMG", "totalDmg", "right", "py-3 px-3")}
+              {renderHeader("Total DMG Rec.", "totalDmgReceived", "right", "py-3 px-3")}
+              {renderHeader("Total Team DMG", "totalTeamDmg", "right", "py-3 px-3")}
+              {renderHeader("Total Team Rec.", "totalTeamDmgReceived", "right", "py-3 px-3")}
+              {renderHeader("Enemies Flashed", "enemies_flashed", "right", "py-3 px-3")}
+              {renderHeader("Enemy Blind Time", "enemyBlindTimeNum", "right", "py-3 px-3")}
+              {renderHeader("Team Flashes", "team_flashed", "right", "py-3 px-3")}
+              {renderHeader("Team Blind Time", "teamBlindTimeNum", "right", "py-3 px-3")}
             </tr>
           </thead>
         );
@@ -779,26 +1070,26 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
         return (
           <thead>
             <tr className="bg-[#0b1322] border-b border-[#1E3A5F]/45 text-slate-300 text-[10px]">
-              <th rowSpan={2} className="text-left py-3 px-4 uppercase tracking-wider border-r border-[#1E3A5F]/20">Player</th>
-              <th rowSpan={2} className="text-left py-3 px-4 uppercase tracking-wider border-r border-[#1E3A5F]/20">Rank</th>
+              {renderHeader("Player", "name", "left", "py-3 px-4 border-r border-[#1E3A5F]/20", 2)}
+              {renderHeader("Rank", "rankPoints", "left", "py-3 px-4 border-r border-[#1E3A5F]/20", 2)}
               <th colSpan={7} className="text-center py-2 px-4 uppercase tracking-wider border-b border-r border-[#1E3A5F]/35 bg-[#0c1626]/70 font-bold text-slate-300">HE GRENADE</th>
               <th colSpan={7} className="text-center py-2 px-4 uppercase tracking-wider border-b border-[#1E3A5F]/35 bg-[#121c2c]/70 font-bold text-slate-300">BURNER</th>
             </tr>
             <tr className="bg-[#070d18] text-slate-400 border-b border-[#1E3A5F]/30 text-[9px]">
-              <th className="text-right py-2 px-1">Total DMG</th>
-              <th className="text-right py-2 px-1">DMG Rec.</th>
-              <th className="text-right py-2 px-1">Team DMG</th>
-              <th className="text-right py-2 px-1">Team Rec.</th>
-              <th className="text-right py-2 px-1">Unused</th>
-              <th className="text-right py-2 px-1">Thrown</th>
-              <th className="text-right py-2 px-1 border-r border-[#1E3A5F]/20">Success</th>
-              <th className="text-right py-2 px-1">Total DMG</th>
-              <th className="text-right py-2 px-1">DMG Rec.</th>
-              <th className="text-right py-2 px-1">Team DMG</th>
-              <th className="text-right py-2 px-1">Team Rec.</th>
-              <th className="text-right py-2 px-1">Unused</th>
-              <th className="text-right py-2 px-1">Thrown</th>
-              <th className="text-right py-2 px-1">Success</th>
+              {renderHeader("Total DMG", "he_damage", "right", "py-2 px-1")}
+              {renderHeader("DMG Rec.", "heDmgReceived", "right", "py-2 px-1")}
+              {renderHeader("Team DMG", "heTeamDmg", "right", "py-2 px-1")}
+              {renderHeader("Team Rec.", "heTeamDmgReceived", "right", "py-2 px-1")}
+              {renderHeader("Unused", "unusedHes", "right", "py-2 px-1")}
+              {renderHeader("Thrown", "heGrenadesThrown", "right", "py-2 px-1")}
+              {renderHeader("Success", "successfulHes", "right", "py-2 px-1 border-r border-[#1E3A5F]/20")}
+              {renderHeader("Total DMG", "fire_damage", "right", "py-2 px-1")}
+              {renderHeader("DMG Rec.", "burnerDmgReceived", "right", "py-2 px-1")}
+              {renderHeader("Team DMG", "burnerTeamDmg", "right", "py-2 px-1")}
+              {renderHeader("Team Rec.", "burnerTeamDmgReceived", "right", "py-2 px-1")}
+              {renderHeader("Unused", "unusedBurners", "right", "py-2 px-1")}
+              {renderHeader("Thrown", "burnersThrown", "right", "py-2 px-1")}
+              {renderHeader("Success", "successfulBurners", "right", "py-2 px-1")}
             </tr>
           </thead>
         );
@@ -806,22 +1097,22 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
         return (
           <thead>
             <tr className="bg-[#0b1322] border-b border-[#1E3A5F]/45 text-slate-300 text-[10px]">
-              <th rowSpan={2} className="text-left py-3 px-4 uppercase tracking-wider border-r border-[#1E3A5F]/20">Player</th>
-              <th rowSpan={2} className="text-left py-3 px-4 uppercase tracking-wider border-r border-[#1E3A5F]/20">Rank</th>
+              {renderHeader("Player", "name", "left", "py-3 px-4 border-r border-[#1E3A5F]/20", 2)}
+              {renderHeader("Rank", "rankPoints", "left", "py-3 px-4 border-r border-[#1E3A5F]/20", 2)}
               <th colSpan={11} className="text-center py-2 px-4 uppercase tracking-wider border-b border-[#1E3A5F]/35 bg-[#0c1626]/70 font-bold text-slate-300">FLASHES THROWN</th>
             </tr>
             <tr className="bg-[#070d18] text-slate-400 border-b border-[#1E3A5F]/30 text-[9px]">
-              <th className="text-right py-2 px-1.5">Flashes Thrown</th>
-              <th className="text-right py-2 px-1.5">Flash Success</th>
-              <th className="text-right py-2 px-1.5">Flash Assists</th>
-              <th className="text-right py-2 px-1.5">Blind Kills</th>
-              <th className="text-right py-2 px-1.5">Enemies Flashed</th>
-              <th className="text-right py-2 px-1.5">Enemy Blind Time</th>
-              <th className="text-right py-2 px-1.5">Flashed Self</th>
-              <th className="text-right py-2 px-1.5">Flashed By Self Time</th>
-              <th className="text-right py-2 px-1.5">Team Flashes</th>
-              <th className="text-right py-2 px-1.5">Team Blind Time</th>
-              <th className="text-right py-2 px-1.5">Flashed By Team Time</th>
+              {renderHeader("Flashes", "flashesThrown", "right", "py-2 px-1.5")}
+              {renderHeader("Success", "flashSuccesses", "right", "py-2 px-1.5")}
+              {renderHeader("Assists", "flash_assists", "right", "py-2 px-1.5")}
+              {renderHeader("Blind Kills", "blindKills", "right", "py-2 px-1.5")}
+              {renderHeader("Enemies", "enemies_flashed", "right", "py-2 px-1.5")}
+              {renderHeader("Blind Time", "enemyBlindTimeNum", "right", "py-2 px-1.5")}
+              {renderHeader("Self", "flashed_self", "right", "py-2 px-1.5")}
+              {renderHeader("Self Time", "flashed_self", "right", "py-2 px-1.5")}
+              {renderHeader("Team", "flashesTeam", "right", "py-2 px-1.5")}
+              {renderHeader("Team Time", "teamBlindTimeNum", "right", "py-2 px-1.5")}
+              {renderHeader("Team Flashed", "flashesTeam", "right", "py-2 px-1.5")}
             </tr>
           </thead>
         );
@@ -878,7 +1169,6 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
         </tr>
       );
     } else if (activeTab === "entry") {
-      const entrySuccess = p.entry_attempts > 0 ? Math.round((p.entry_kills / p.entry_attempts) * 100) : 0;
       return (
         <tr key={p.steamid} className="border-b border-[#142135] hover:bg-[#0E1B2E]/50 transition-colors">
           {playerCell}
@@ -886,7 +1176,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
           <td className="py-2.5 px-4 text-right font-mono font-medium text-emerald-400 border-r border-[#1E3A5F]/10">{p.entry_kills}</td>
           <td className="py-2.5 px-4 text-right font-mono font-medium text-rose-400 border-r border-[#1E3A5F]/10">{p.entry_deaths}</td>
           <td className="py-2.5 px-4 text-right font-mono font-medium text-slate-300 border-r border-[#1E3A5F]/10">{p.entry_attempts}</td>
-          <td className="py-2.5 px-4 text-right font-mono font-medium text-slate-300 border-r border-[#1E3A5F]/10">{entrySuccess}%</td>
+          <td className="py-2.5 px-4 text-right font-mono font-medium text-slate-300 border-r border-[#1E3A5F]/10">{p.entry_success_pct}%</td>
           <td className="py-2.5 px-4 text-right font-mono font-medium text-emerald-400 border-r border-[#1E3A5F]/10">{p.trade_kills}</td>
           <td className="py-2.5 px-4 text-right font-mono font-medium text-rose-400">{p.deaths_traded}</td>
         </tr>
@@ -1008,6 +1298,177 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
     );
   };
 
+  // Render Premium Player Cards for Grid View
+  const renderPlayerGrid = (playersListForGrid: any[]) => {
+    if (!playersListForGrid.length) return null;
+
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {playersListForGrid.map((p) => {
+          const initials = p.name ? p.name.slice(0, 2).toUpperCase() : "?";
+          const isCT = p.team === "CT";
+          
+          return (
+            <div 
+              key={p.steamid} 
+              className="card bg-[#0A111F] border border-[#1E3A5F]/20 p-4 rounded-xl flex flex-col gap-3 relative shadow-md hover:border-[#eb5e28]/40 transition-all duration-300"
+            >
+              {/* Header: Avatar, Name, Rank */}
+              <div className="flex items-start justify-between border-b border-[#1E3A5F]/10 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#1b2f4c] to-[#0D1825] border border-[#1E3A5F]/40 flex items-center justify-center text-slate-300 font-bold text-xs shadow-sm">
+                    {initials}
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-200 text-sm flex items-center gap-1.5">
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${isCT ? 'bg-[#2D7DD2]' : 'bg-[#C9A227]'}`} />
+                      {p.name}
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-mono">{p.steamid.slice(-8)}</div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-1.5">
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-white font-black text-[9px] border shadow-sm" style={{ backgroundColor: p.rankLevel >= 14 ? '#ef4444' : p.rankLevel >= 12 ? '#eb5e28' : '#10b981', borderColor: p.rankLevel >= 14 ? '#991b1b' : p.rankLevel >= 12 ? '#c2410c' : '#065f46' }}>
+                    {p.rankLevel}
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono font-bold">{p.rankPoints.toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* Stats Body depending on tab */}
+              {activeTab === "summary" && (
+                <div className="grid grid-cols-2 gap-2.5 text-xs">
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">K / D / A</span>
+                    <span className="font-mono font-bold text-white text-sm">{p.kills} / {p.deaths} / {p.assists}</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">HS %</span>
+                    <span className="font-mono font-bold text-white text-sm">{p.hs_pct}%</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">ADR</span>
+                    <span className="font-mono font-bold text-white text-sm">{p.adr}</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">KAST %</span>
+                    <span className="font-mono font-bold text-white text-sm">{p.kast}%</span>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "entry" && (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Entry K/D</span>
+                    <span className="font-mono font-bold text-white">{p.entry_kills} / {p.entry_deaths}</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Success %</span>
+                    <span className="font-mono font-bold text-white">{p.entry_success_pct}%</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Trade Kills</span>
+                    <span className="font-mono font-bold text-[#22D3A0]">{p.trade_kills}</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Deaths Traded</span>
+                    <span className="font-mono font-bold text-rose-400">{p.deaths_traded}</span>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "utility" && activeUtilSubTab === "general" && (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Thrown / Unused</span>
+                    <span className="font-mono font-bold text-white">{p.utility_thrown} / {p.unusedUtility}</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Successful</span>
+                    <span className="font-mono font-bold text-[#22D3A0]">{p.successfulUtility}</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Utility DMG</span>
+                    <span className="font-mono font-bold text-orange-400">{p.totalDmg}</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Enemies Flashed</span>
+                    <span className="font-mono font-bold text-[#f59e0b]">{p.enemies_flashed}</span>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "utility" && activeUtilSubTab === "damage" && (
+                <div className="flex flex-col gap-2 text-xs">
+                  {/* HE Grenade */}
+                  <div className="bg-[#0c1626]/60 p-2.5 rounded border border-[#1E3A5F]/15">
+                    <div className="text-[#3b82f6] font-bold text-[9px] uppercase tracking-wider mb-1.5 border-b border-[#1E3A5F]/10 pb-0.5">HE Grenade</div>
+                    <div className="grid grid-cols-3 gap-1.5 font-mono text-[11px]">
+                      <div>
+                        <span className="text-slate-500 block text-[8px] uppercase">DMG</span>
+                        <span className="font-bold text-white">{p.he_damage}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[8px] uppercase">Thrown</span>
+                        <span className="font-bold text-white">{p.heGrenadesThrown}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[8px] uppercase">Success</span>
+                        <span className="font-bold text-[#22D3A0]">{p.successfulHes}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Burner */}
+                  <div className="bg-[#121c2c]/60 p-2.5 rounded border border-[#1E3A5F]/15">
+                    <div className="text-orange-400 font-bold text-[9px] uppercase tracking-wider mb-1.5 border-b border-[#1E3A5F]/10 pb-0.5">Incendiary / Molotov</div>
+                    <div className="grid grid-cols-3 gap-1.5 font-mono text-[11px]">
+                      <div>
+                        <span className="text-slate-500 block text-[8px] uppercase">DMG</span>
+                        <span className="font-bold text-white">{p.fire_damage}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[8px] uppercase">Thrown</span>
+                        <span className="font-bold text-white">{p.burnersThrown}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[8px] uppercase">Success</span>
+                        <span className="font-bold text-[#22D3A0]">{p.successfulBurners}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "utility" && activeUtilSubTab === "support" && (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Flashes Thrown</span>
+                    <span className="font-mono font-bold text-white">{p.flashesThrown}</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Flash Success</span>
+                    <span className="font-mono font-bold text-[#22D3A0]">{p.flashSuccesses}</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Flash Assists</span>
+                    <span className="font-mono font-bold text-[#22D3A0]">{p.flash_assists}</span>
+                  </div>
+                  <div className="bg-[#0e1726]/40 p-2 rounded border border-[#1E3A5F]/5">
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">Blind Time</span>
+                    <span className="font-mono font-bold text-[#f59e0b]">{p.enemy_blind_s}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderViewControls = () => {
     return (
       <div className="flex items-center gap-3">
@@ -1061,8 +1522,18 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
 
         {/* Grid vs List layout buttons */}
         <div className="flex items-center gap-1 border border-[#1E3A5F]/40 rounded-lg p-1 bg-[#09101C]/60 text-slate-400 shadow-inner">
-          <button className="p-0.5 text-[#eb5e28]"><List size={14} /></button>
-          <button className="p-0.5 hover:text-white"><LayoutGrid size={14} /></button>
+          <button 
+            onClick={() => setViewMode("list")} 
+            className={`p-0.5 transition-colors ${viewMode === "list" ? "text-[#eb5e28]" : "hover:text-slate-200"}`}
+          >
+            <List size={14} />
+          </button>
+          <button 
+            onClick={() => setViewMode("grid")} 
+            className={`p-0.5 transition-colors ${viewMode === "grid" ? "text-[#eb5e28]" : "hover:text-slate-200"}`}
+          >
+            <LayoutGrid size={14} />
+          </button>
         </div>
       </div>
     );
@@ -1252,7 +1723,11 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
       <div className="flex items-center justify-between border-b border-[#142135] pb-2 flex-wrap gap-4">
         <div className="flex items-center gap-6">
           <button
-            onClick={() => setActiveTab("summary")}
+            onClick={() => {
+              setActiveTab("summary");
+              setSortField("kills");
+              setSortDirection("desc");
+            }}
             className={`font-semibold text-sm transition-colors pb-2 -mb-2.5 border-b-2 ${
               activeTab === "summary" ? "text-white border-[#eb5e28]" : "text-slate-400 border-transparent hover:text-white"
             }`}
@@ -1260,7 +1735,11 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
             Summary
           </button>
           <button
-            onClick={() => setActiveTab("entry")}
+            onClick={() => {
+              setActiveTab("entry");
+              setSortField("entry_kills");
+              setSortDirection("desc");
+            }}
             className={`font-semibold text-sm transition-colors pb-2 -mb-2.5 border-b-2 ${
               activeTab === "entry" ? "text-white border-[#eb5e28]" : "text-slate-400 border-transparent hover:text-white"
             }`}
@@ -1268,7 +1747,12 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
             Entry & Trade
           </button>
           <button
-            onClick={() => setActiveTab("utility")}
+            onClick={() => {
+              setActiveTab("utility");
+              setSortField("utility_thrown");
+              setSortDirection("desc");
+              setActiveUtilSubTab("general");
+            }}
             className={`font-semibold text-sm transition-colors pb-2 -mb-2.5 border-b-2 ${
               activeTab === "utility" ? "text-white border-[#eb5e28]" : "text-slate-400 border-transparent hover:text-white"
             }`}
@@ -1280,7 +1764,11 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
         {activeTab === "utility" && (
           <div className="flex items-center gap-3 bg-[#0D1825] border border-[#1E3A5F]/40 rounded-lg p-0.5 text-xs shadow-inner">
             <button
-              onClick={() => setActiveUtilSubTab("general")}
+              onClick={() => {
+                setActiveUtilSubTab("general");
+                setSortField("utility_thrown");
+                setSortDirection("desc");
+              }}
               className={`px-3 py-1 rounded-md transition-colors ${
                 activeUtilSubTab === "general" ? "bg-[#eb5e28] text-white" : "text-slate-400 hover:text-white"
               }`}
@@ -1288,7 +1776,11 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
               General
             </button>
             <button
-              onClick={() => setActiveUtilSubTab("damage")}
+              onClick={() => {
+                setActiveUtilSubTab("damage");
+                setSortField("totalDmg");
+                setSortDirection("desc");
+              }}
               className={`px-3 py-1 rounded-md transition-colors ${
                 activeUtilSubTab === "damage" ? "bg-[#eb5e28] text-white" : "text-slate-400 hover:text-white"
               }`}
@@ -1296,7 +1788,11 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
               Damage
             </button>
             <button
-              onClick={() => setActiveUtilSubTab("support")}
+              onClick={() => {
+                setActiveUtilSubTab("support");
+                setSortField("flashesThrown");
+                setSortDirection("desc");
+              }}
               className={`px-3 py-1 rounded-md transition-colors ${
                 activeUtilSubTab === "support" ? "bg-[#eb5e28] text-white" : "text-slate-400 hover:text-white"
               }`}
@@ -1322,15 +1818,42 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
         </div>
       ) : (
         <div className="space-y-6">
-          {sortBy === "team" ? (
-            <>
-              {(teamFilter === "all" || teamFilter === "ct") &&
-                renderTable("Counter-Terrorists", "text-[#2D7DD2]", "bg-[#2D7DD2]", ctScore, ctPlayers)}
-              {(teamFilter === "all" || teamFilter === "t") &&
-                renderTable("Terrorists", "text-[#C9A227]", "bg-[#C9A227]", tScore, tPlayers)}
-            </>
+          {viewMode === "grid" ? (
+            sortBy === "team" ? (
+              <div className="space-y-8">
+                {(teamFilter === "all" || teamFilter === "ct") && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="px-2.5 py-0.5 rounded-full font-bold text-white text-xs bg-[#2D7DD2] shadow-md">{ctScore}</span>
+                      <span className="font-bold text-sm text-[#2D7DD2] uppercase tracking-wider">Counter-Terrorists</span>
+                    </div>
+                    {renderPlayerGrid(getSortedPlayersForTeam(ctPlayers))}
+                  </div>
+                )}
+                {(teamFilter === "all" || teamFilter === "t") && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="px-2.5 py-0.5 rounded-full font-bold text-white text-xs bg-[#C9A227] shadow-md">{tScore}</span>
+                      <span className="font-bold text-sm text-[#C9A227] uppercase tracking-wider">Terrorists</span>
+                    </div>
+                    {renderPlayerGrid(getSortedPlayersForTeam(tPlayers))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              renderPlayerGrid(getSortedPlayers())
+            )
           ) : (
-            renderSingleTable(getSortedPlayers())
+            sortBy === "team" ? (
+              <>
+                {(teamFilter === "all" || teamFilter === "ct") &&
+                  renderTable("Counter-Terrorists", "text-[#2D7DD2]", "bg-[#2D7DD2]", ctScore, getSortedPlayersForTeam(ctPlayers))}
+                {(teamFilter === "all" || teamFilter === "t") &&
+                  renderTable("Terrorists", "text-[#C9A227]", "bg-[#C9A227]", tScore, getSortedPlayersForTeam(tPlayers))}
+              </>
+            ) : (
+              renderSingleTable(getSortedPlayers())
+            )
           )}
         </div>
       )}
@@ -1382,6 +1905,8 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
     </div>
   );
 }
+
+
 
 // --- Economy Chart Component ---
 function EconomyChart({ rounds, selectedRound, onSelectRound }: {
@@ -1729,36 +2254,6 @@ export default function AnalysisPage() {
         try {
           const res = await fetch(`/api/jobs/${jobId}`);
           const data: JobResult = await res.json();
-          if (data && data.status === "done") {
-            if (data.rounds) {
-              let cleanRounds = data.rounds.filter(r => r.round !== 0);
-              const last1Idx = cleanRounds.map(r => r.round).lastIndexOf(1);
-              if (last1Idx !== -1) {
-                cleanRounds = cleanRounds.slice(last1Idx);
-              }
-              data.rounds = cleanRounds;
-              data.total_rounds = cleanRounds.length;
-            }
-            if (data.kills) {
-              let cleanKills = data.kills.filter(k => k.round !== 0);
-              const r1Kills = cleanKills.filter(k => k.round === 1);
-              if (r1Kills.length > 0) {
-                const ticks = r1Kills.map(k => k.tick).filter((t): t is number => typeof t === 'number');
-                if (ticks.length > 0) {
-                  const lastR1KillTick = Math.max(...ticks);
-                  // CS2 tickrate is usually 64. 64 * 120 seconds = 7680 ticks.
-                  // Let's use a threshold of 30000 ticks to be very safe and cover any pauses/freezetime.
-                  const realR1KillsTicks = ticks.filter(t => t >= lastR1KillTick - 30000);
-                  if (realR1KillsTicks.length > 0) {
-                    const minRealR1Tick = Math.min(...realR1KillsTicks);
-                    cleanKills = cleanKills.filter(k => k.tick === undefined || k.tick >= minRealR1Tick);
-                  }
-                }
-              }
-              data.kills = cleanKills;
-              data.total_kills = cleanKills.length;
-            }
-          }
           setResult(data);
           if (data.status === "done" || data.status === "failed") break;
         } catch { /* continue */ }

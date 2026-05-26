@@ -26,7 +26,8 @@ export async function DELETE(
       data = { error: "Failed to parse API response as JSON", detail: res.statusText || "Internal Server Error" };
     }
     return NextResponse.json(data, { status: res.status });
-  } catch (err: any) {
-    return NextResponse.json({ error: "Failed to fetch from backend", detail: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const detail = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: "Failed to fetch from backend", detail }, { status: 500 });
   }
 }

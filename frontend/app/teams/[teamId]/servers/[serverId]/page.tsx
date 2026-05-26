@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -329,7 +330,7 @@ export default function ServerDashboardPage() {
                     </span>
                   </div>
                   <p className="text-xs text-[#8BA7CC] mt-1 leading-relaxed max-w-xl">
-                    Configure, manage, and monitor your team's on-demand practice server with real-time settings and configs.
+                    Configure, manage, and monitor your team&apos;s on-demand practice server with real-time settings and configs.
                   </p>
                 </div>
               </div>
@@ -706,7 +707,7 @@ export default function ServerDashboardPage() {
                         Enable the `!ws` and `!knife` commands for weapon and knife skins in chat.
                       </p>
                       <span className="text-[10px] text-amber-500 flex items-center gap-1 mt-1 font-semibold">
-                        <AlertTriangle size={10} /> Violates Valve's guidelines. Use at your own risk.
+                        <AlertTriangle size={10} /> Violates Valve&apos;s guidelines. Use at your own risk.
                       </span>
                     </div>
                     <button
@@ -838,7 +839,7 @@ export default function ServerDashboardPage() {
                   <Info size={16} className="text-[#2D7DD2] shrink-0 mt-0.5" />
                   <div className="text-xs leading-relaxed">
                     <span className="font-bold text-white">Pro Tip: </span> 
-                    You can bind any of these commands to a keyboard shortcut via the game console. For example, open your console (~) and type: <code className="px-1.5 py-0.5 rounded bg-black/40 text-slate-100 font-mono text-[10px]">bind "p" "say .rethrow"</code> to rethrow your utility instantaneously.
+                    You can bind any of these commands to a keyboard shortcut via the game console. For example, open your console (~) and type: <code className="px-1.5 py-0.5 rounded bg-black/40 text-slate-100 font-mono text-[10px]">bind &quot;p&quot; &quot;say .rethrow&quot;</code> to rethrow your utility instantaneously.
                   </div>
                 </div>
 

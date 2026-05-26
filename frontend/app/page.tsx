@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -293,7 +294,7 @@ export default function HomePage() {
               Simple Pricing
             </div>
             <h2 style={{ color: "#F0F4FF", fontFamily: "Cinzel, serif", fontSize: "clamp(1.6rem, 3vw, 2.4rem)", fontWeight: 700 }}>
-              Start free. Scale when you're ready.
+              Start free. Scale when you&apos;re ready.
             </h2>
             <p style={{ color: "#8BA7CC", marginTop: 12, fontSize: "1rem" }}>
               All plans include kill analysis, economy charts, and the round timeline.
@@ -371,7 +372,7 @@ export default function HomePage() {
             Train with your squad.
           </h2>
           <p style={{ color: "#8BA7CC", fontSize: "1rem", lineHeight: 1.7, marginBottom: 32 }}>
-            Create a team, share an 8-character invite code, and review every teammate's matches together. One dashboard for the whole roster.
+            Create a team, share an 8-character invite code, and review every teammate&apos;s matches together. One dashboard for the whole roster.
           </p>
           {user ? (
             <Link href="/teams"

@@ -368,7 +368,7 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - **Base:** CS2 Dedicated Server (Linux, Docker container per session)
 - **Plugin Framework:** MetaMod:Source + CounterStrikeSharp
 - **Provisioning:** Warlord agent calls server management API (custom FastAPI service)
-- **Hosting:** **Vultr** (High Frequency Compute) — excellent North American coverage (Dallas, Chicago, Ashburn, Denver, etc.) via REST API
+- **Hosting:** **DatHost** — on-demand instant CS2 server provisioning via REST API
 - **Lifecycle:** Auto-shutdown after 2h of inactivity; server destroyed after session to avoid idle costs
 
 ### 7.2 Practice Modes
@@ -496,7 +496,7 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 | **Batch Jobs** (HLTV, parsing) | **Cloud Run Jobs** | Pay per execution only; no idle cost |
 | **HLTV Scraper** | Apify actor (managed) | No self-hosted browser infra needed |
 | **Observability** | LangSmith + Cloud Logging | Agent traces + infra logs |
-| **Practice Server** | CS2 Dedicated + CounterStrikeSharp | Hetzner Cloud VMs (game servers need cheap raw compute) |
+| **Practice Server** | CS2 Dedicated + CounterStrikeSharp | DatHost API on-demand game servers |
 | **CS2 Plugins** | OpenPrefirePrac, CS2PracticeMod | MIT licensed, open source |
 | **CI/CD** | GitHub Actions | See Section 8 |
 | **Frontend** | Next.js 15 → Cloud Run | Chat UI + Dashboard |
@@ -638,7 +638,7 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 | **File Storage** | Google Cloud Storage (GCS) | Demo + audio files; 5GB free tier |
 | **Task Queue** | Cloud Tasks (serverless) | Replaces Celery + Redis; 1M tasks/mo free |
 | **Compute** | Cloud Run (serverless containers) | API + agents; scales to zero |
-| **Practice Server Hosting** | Hetzner Cloud (on-demand VMs) | Game servers need raw compute; cheaper than GCP VMs |
+| **Practice Server Hosting** | DatHost API (on-demand game servers) | Sub-10-second instant server provisioning |
 | **LLM Provider** | Google Gemini API (Vertex AI) | See Section 3 for per-agent model breakdown |
 | **Audio Transcription** | Gemini 2.5 Flash (native audio) | Eliminates Whisper; no separate service needed |
 | **SCL Integration** | Future feature | No current API access; deferred to Phase 11+ |

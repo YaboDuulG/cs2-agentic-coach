@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -227,7 +229,7 @@ export default function ProfilePage() {
                 <SoyomboIcon size={40} color="#1E3A5F" className="mx-auto mb-4" />
                 <h3 className="heading-display mb-2" style={{ fontSize: "1.1rem" }}>No analyses yet</h3>
                 <p style={{ color: "#8BA7CC", fontSize: "0.875rem", marginBottom: 20 }}>
-                  Upload your first CS2 demo to see the Khan's verdict.
+                  Upload your first CS2 demo to see the Khan&apos;s verdict.
                 </p>
                 <Link href="/"
                   className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"

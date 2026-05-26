@@ -69,23 +69,29 @@ async def get_job_status(match_id: str):
             # Fetch kills
             kills = db.execute(
                 text("""
-                    SELECT attacker, victim, weapon, round_num, attacker_team, attacker_x, attacker_y, victim_x, victim_y, attacker_steamid, victim_steamid, tick, headshot
+                    SELECT attacker, victim, weapon, round_num, attacker_team, attacker_x, attacker_y, victim_x, victim_y, attacker_steamid, victim_steamid, tick, headshot, victim_team
                     FROM kills WHERE match_id = :id
-                    ORDER BY round_num, id
+                    ORDER BY tick
                     LIMIT 200
                 """),
                 {"id": match_id},
             ).fetchall()
 
-            # Fetch rounds
+            # Fetch rounds sorted by DB primary key (chronological order)
             rounds = db.execute(
                 text("""
-                    SELECT round_num, winner_side, ct_eq_val, t_eq_val
+                    SELECT id, round_num, winner_side, ct_eq_val, t_eq_val
                     FROM rounds WHERE match_id = :id
-                    ORDER BY round_num
+                    ORDER BY id
                 """),
                 {"id": match_id},
             ).fetchall()
+
+            # Fetch total grenades count
+            total_grenades = db.execute(
+                text("SELECT COUNT(*) FROM grenades WHERE match_id = :id"),
+                {"id": match_id},
+            ).scalar() or 0
 
             import json
             import math
@@ -96,6 +102,72 @@ async def get_job_status(match_id: str):
                     player_stats = json.loads(player_stats_raw)
                 except Exception:
                     pass
+
+            # Filter warmup/knife rounds (where winner_side is empty or invalid)
+            # and map them to clean sequential indices 1 to N
+            clean_rounds = []
+            orig_idx_to_seq_num = {}
+            
+            for r in rounds:
+                db_round_num = r[1]
+                winner_side = r[2]
+                if winner_side in ("CT", "T"):
+                    seq_num = len(clean_rounds) + 1
+                    clean_rounds.append({
+                        "round": seq_num,
+                        "winner": winner_side,
+                        "ct_spend": r[3] or 0,
+                        "t_spend": r[4] or 0,
+                    })
+                    orig_idx_to_seq_num[db_round_num] = seq_num
+
+            # Map kills to the new sequential round indices
+            mapped_kills = []
+            if clean_rounds:
+                for k in kills:
+                    db_round_num = k[3]
+                    if db_round_num in orig_idx_to_seq_num:
+                        mapped_kills.append({
+                            "killer": k[0],
+                            "victim": k[1],
+                            "weapon": k[2],
+                            "round": orig_idx_to_seq_num[db_round_num],
+                            "killer_team": k[4],
+                            "attacker_x": k[5],
+                            "attacker_y": k[6],
+                            "victim_x": k[7],
+                            "victim_y": k[8],
+                            "attacker_steamid": k[9],
+                            "victim_steamid": k[10],
+                            "tick": k[11],
+                            "headshot": k[12],
+                            "victim_team": k[13],
+                        })
+            else:
+                # Fallback to raw DB round numbers if no clean rounds are resolved
+                clean_rounds = [
+                    {"round": r[1], "winner": r[2], "ct_spend": r[3] or 0, "t_spend": r[4] or 0}
+                    for r in rounds
+                ]
+                mapped_kills = [
+                    {
+                        "killer": k[0],
+                        "victim": k[1],
+                        "weapon": k[2],
+                        "round": k[3],
+                        "killer_team": k[4],
+                        "attacker_x": k[5],
+                        "attacker_y": k[6],
+                        "victim_x": k[7],
+                        "victim_y": k[8],
+                        "attacker_steamid": k[9],
+                        "victim_steamid": k[10],
+                        "tick": k[11],
+                        "headshot": k[12],
+                        "victim_team": k[13],
+                    }
+                    for k in kills
+                ]
 
             def sanitize_nan(val):
                 if isinstance(val, float):
@@ -118,31 +190,12 @@ async def get_job_status(match_id: str):
                 "status": "done",
                 "match_id": match_id,
                 "map": result[1],
-                "total_rounds": len(rounds),
-                "total_kills": len(kills),
+                "total_rounds": len(clean_rounds),
+                "total_kills": len(mapped_kills),
+                "total_grenades": total_grenades,
                 "player_stats": player_stats,
-                "kills": [
-                    {
-                        "killer": k[0],
-                        "victim": k[1],
-                        "weapon": k[2],
-                        "round": k[3],
-                        "killer_team": k[4],
-                        "attacker_x": k[5],
-                        "attacker_y": k[6],
-                        "victim_x": k[7],
-                        "victim_y": k[8],
-                        "attacker_steamid": k[9],
-                        "victim_steamid": k[10],
-                        "tick": k[11],
-                        "headshot": k[12],
-                    }
-                    for k in kills
-                ],
-                "rounds": [
-                    {"round": r[0], "winner": r[1], "ct_spend": r[2] or 0, "t_spend": r[3] or 0}
-                    for r in rounds
-                ],
+                "kills": mapped_kills,
+                "rounds": clean_rounds,
             }
             return sanitize_nan(response_data)
         finally:

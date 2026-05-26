@@ -114,6 +114,7 @@ export default function TeamDetailPage() {
 
       if (res.ok) {
         setServers([...servers, data]);
+        router.push(`/teams/${teamId}/servers/${data.id}`);
       } else {
         const errorDetail = data.detail || data.error || "";
         if (errorDetail.includes("401") || errorDetail.toLowerCase().includes("unauthorized")) {
