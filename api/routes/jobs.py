@@ -88,10 +88,13 @@ async def get_job_status(match_id: str):
             ).fetchall()
 
             # Fetch total grenades count
-            total_grenades = db.execute(
-                text("SELECT COUNT(*) FROM grenades WHERE match_id = :id"),
-                {"id": match_id},
-            ).scalar() or 0
+            total_grenades = (
+                db.execute(
+                    text("SELECT COUNT(*) FROM grenades WHERE match_id = :id"),
+                    {"id": match_id},
+                ).scalar()
+                or 0
+            )
 
             import json
             import math
@@ -107,18 +110,20 @@ async def get_job_status(match_id: str):
             # and map them to clean sequential indices 1 to N
             clean_rounds = []
             orig_idx_to_seq_num = {}
-            
+
             for r in rounds:
                 db_round_num = r[1]
                 winner_side = r[2]
                 if winner_side in ("CT", "T"):
                     seq_num = len(clean_rounds) + 1
-                    clean_rounds.append({
-                        "round": seq_num,
-                        "winner": winner_side,
-                        "ct_spend": r[3] or 0,
-                        "t_spend": r[4] or 0,
-                    })
+                    clean_rounds.append(
+                        {
+                            "round": seq_num,
+                            "winner": winner_side,
+                            "ct_spend": r[3] or 0,
+                            "t_spend": r[4] or 0,
+                        }
+                    )
                     orig_idx_to_seq_num[db_round_num] = seq_num
 
             # Map kills to the new sequential round indices
@@ -127,22 +132,24 @@ async def get_job_status(match_id: str):
                 for k in kills:
                     db_round_num = k[3]
                     if db_round_num in orig_idx_to_seq_num:
-                        mapped_kills.append({
-                            "killer": k[0],
-                            "victim": k[1],
-                            "weapon": k[2],
-                            "round": orig_idx_to_seq_num[db_round_num],
-                            "killer_team": k[4],
-                            "attacker_x": k[5],
-                            "attacker_y": k[6],
-                            "victim_x": k[7],
-                            "victim_y": k[8],
-                            "attacker_steamid": k[9],
-                            "victim_steamid": k[10],
-                            "tick": k[11],
-                            "headshot": k[12],
-                            "victim_team": k[13],
-                        })
+                        mapped_kills.append(
+                            {
+                                "killer": k[0],
+                                "victim": k[1],
+                                "weapon": k[2],
+                                "round": orig_idx_to_seq_num[db_round_num],
+                                "killer_team": k[4],
+                                "attacker_x": k[5],
+                                "attacker_y": k[6],
+                                "victim_x": k[7],
+                                "victim_y": k[8],
+                                "attacker_steamid": k[9],
+                                "victim_steamid": k[10],
+                                "tick": k[11],
+                                "headshot": k[12],
+                                "victim_team": k[13],
+                            }
+                        )
             else:
                 # Fallback to raw DB round numbers if no clean rounds are resolved
                 clean_rounds = [
@@ -176,7 +183,7 @@ async def get_job_status(match_id: str):
                     return {k: sanitize_nan(v) for k, v in val.items()}
                 elif isinstance(val, list):
                     return [sanitize_nan(x) for x in val]
-                elif hasattr(val, '__float__') and not isinstance(val, (int, str, bool)):
+                elif hasattr(val, "__float__") and not isinstance(val, (int, str, bool)):
                     try:
                         fval = float(val)
                         return None if (math.isnan(fval) or math.isinf(fval)) else fval

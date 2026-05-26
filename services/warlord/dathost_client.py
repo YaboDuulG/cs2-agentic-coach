@@ -1,7 +1,8 @@
 import logging
 import os
-import requests
 import secrets
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,9 @@ def get_dathost_auth() -> tuple:
     email = os.environ.get("DATHOST_EMAIL")
     password = os.environ.get("DATHOST_PASSWORD") or os.environ.get("DATHOST_API_KEY")
     if not email or not password:
-        raise ValueError("DATHOST_EMAIL and DATHOST_PASSWORD (or DATHOST_API_KEY) must be configured in environment")
+        raise ValueError(
+            "DATHOST_EMAIL and DATHOST_PASSWORD (or DATHOST_API_KEY) must be configured in environment"
+        )
     return (email.strip(), password.strip())
 
 
@@ -52,9 +55,7 @@ def provision_practice_server(match_id: str, webhook_url: str, region: str = "df
         # 1. Create the server
         logger.info(f"Creating DatHost server '{server_name}' in {dathost_location}...")
         response = requests.post(
-            "https://dathost.net/api/0.1/game-servers",
-            auth=auth,
-            data=payload
+            "https://dathost.net/api/0.1/game-servers", auth=auth, data=payload
         )
         response.raise_for_status()
         server_data = response.json()
@@ -63,13 +64,12 @@ def provision_practice_server(match_id: str, webhook_url: str, region: str = "df
         # 2. Get server IP and Port
         ip_address = server_data.get("ip")
         port = server_data.get("ports", {}).get("game")
-        
+
         # If IP or port are not in creation response, query the server details
         if not ip_address or not port:
             logger.info("IP or port not in creation response. Querying server details...")
             details_r = requests.get(
-                f"https://dathost.net/api/0.1/game-servers/{dathost_id}",
-                auth=auth
+                f"https://dathost.net/api/0.1/game-servers/{dathost_id}", auth=auth
             )
             details_r.raise_for_status()
             details = details_r.json()
@@ -81,8 +81,7 @@ def provision_practice_server(match_id: str, webhook_url: str, region: str = "df
         # 3. Start the server
         logger.info(f"Starting DatHost server {dathost_id}...")
         start_r = requests.post(
-            f"https://dathost.net/api/0.1/game-servers/{dathost_id}/start",
-            auth=auth
+            f"https://dathost.net/api/0.1/game-servers/{dathost_id}/start", auth=auth
         )
         start_r.raise_for_status()
 
@@ -105,16 +104,12 @@ def destroy_practice_server(dathost_id: str):
     try:
         # First stop the server to be clean
         logger.info(f"Stopping DatHost server {dathost_id}...")
-        requests.post(
-            f"https://dathost.net/api/0.1/game-servers/{dathost_id}/stop",
-            auth=auth
-        )
-        
+        requests.post(f"https://dathost.net/api/0.1/game-servers/{dathost_id}/stop", auth=auth)
+
         # Delete the server
         logger.info(f"Deleting DatHost server {dathost_id}...")
         response = requests.delete(
-            f"https://dathost.net/api/0.1/game-servers/{dathost_id}",
-            auth=auth
+            f"https://dathost.net/api/0.1/game-servers/{dathost_id}", auth=auth
         )
         response.raise_for_status()
         logger.info(f"Successfully destroyed DatHost server {dathost_id}")
