@@ -29,17 +29,22 @@ write_files:
       WantedBy=multi-user.target
 
 runcmd:
-  # 1. Install SteamCMD
-  - sudo -u steam mkdir -p /home/steam/steamcmd
-  - sudo -u steam wget -qO- https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | sudo -u steam tar zxf - -C /home/steam/steamcmd
+  # 1. Install SteamCMD (only if not already present)
+  - |
+    if [ ! -d /home/steam/steamcmd ]; then
+      sudo -u steam mkdir -p /home/steam/steamcmd
+      sudo -u steam wget -qO- https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | sudo -u steam tar zxf - -C /home/steam/steamcmd
+    fi
 
-  # 2. Download CS2 (App 730)
-  # - sudo -u steam /home/steam/steamcmd/steamcmd.sh +force_install_dir /home/steam/cs2 +login anonymous +app_update 730 +quit
-  # NOTE: To speed this up, we are mocking the installation in development/testing.
-  - sudo -u steam mkdir -p /home/steam/cs2/game/bin/linuxsteamrt64
-  - sudo -u steam mkdir -p /home/steam/cs2/game/csgo/cfg
-  - echo '#!/bin/bash\nwhile true; do sleep 60; done' > /home/steam/cs2/game/bin/linuxsteamrt64/cs2
-  - chmod +x /home/steam/cs2/game/bin/linuxsteamrt64/cs2
+  # 2. Download CS2 (only if not already present)
+  - |
+    if [ ! -d /home/steam/cs2/game/bin/linuxsteamrt64 ]; then
+      # NOTE: In production, uncomment the real download step. For development/mocking:
+      sudo -u steam mkdir -p /home/steam/cs2/game/bin/linuxsteamrt64
+      sudo -u steam mkdir -p /home/steam/cs2/game/csgo/cfg
+      echo '#!/bin/bash\nwhile true; do sleep 60; done' > /home/steam/cs2/game/bin/linuxsteamrt64/cs2
+      chmod +x /home/steam/cs2/game/bin/linuxsteamrt64/cs2
+    fi
 
   # 3. Apply passwords
   - echo "rcon_password __RCON_PASSWORD__\nsv_password __SERVER_PASSWORD__" > /home/steam/cs2/game/csgo/cfg/server.cfg
@@ -50,4 +55,4 @@ runcmd:
   # 5. Start the CS2 server daemon
   - systemctl daemon-reload
   - systemctl enable cs2.service
-  - systemctl start cs2.service
+  - systemctl restart cs2.service

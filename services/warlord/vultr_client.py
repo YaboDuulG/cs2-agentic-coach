@@ -40,14 +40,20 @@ def provision_practice_server(match_id: str, webhook_url: str, region: str = "df
 
     encoded_user_data = base64.b64encode(user_data.encode("utf-8")).decode("utf-8")
 
+    snapshot_id = os.environ.get("VULTR_SNAPSHOT_ID")
     payload = {
         "region": region,
         "plan": "vhf-1c-2gb",  # Vultr High Frequency 1 vCPU, 2GB RAM
-        "os_id": 2136,  # Ubuntu 22.04 LTS x64
         "label": f"demosage-prac-{match_id[:8]}",
         "user_data": encoded_user_data,
         "tags": ["demosage", "practice-server"],
     }
+
+    if snapshot_id:
+        payload["snapshot_id"] = snapshot_id
+    else:
+        payload["os_id"] = 2136  # Ubuntu 22.04 LTS x64
+
 
     try:
         response = requests.post(
