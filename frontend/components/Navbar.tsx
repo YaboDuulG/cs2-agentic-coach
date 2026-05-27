@@ -60,9 +60,11 @@ export function Navbar() {
                 <Link href="/teams" className={`transition-colors ${isActive("/teams")}`}>
                   Teams
                 </Link>
-                <Link href="/billing" className={`transition-colors ${isActive("/billing")}`}>
-                  Pricing
-                </Link>
+                {plan !== "pro" && (
+                  <Link href="/billing" className={`transition-colors ${isActive("/billing")}`}>
+                    Pricing
+                  </Link>
+                )}
               </div>
               <span className={`text-xs font-semibold font-mono hidden sm:inline ${planColor}`}>
                 {planLabel}

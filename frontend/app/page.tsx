@@ -12,7 +12,7 @@ import {
   Upload, Target, BarChart3, Zap, Shield, Users, ArrowRight,
   Star, CheckCircle, Crosshair, Brain, ChevronRight
 } from "lucide-react";
-import { SoyomboIcon, UlziiBorder } from "@/components/patterns/mongolian";
+import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
 import { PLAN_LIMITS } from "@/lib/flags";
 
 const MAX_MB = PLAN_LIMITS.free.maxFileSizeMB;
@@ -66,32 +66,7 @@ const PLANS = [
   },
 ];
 
-// --- Video Background ---
-function VideoBackground() {
-  // CS2 highlights compilation — YouTube ID. Replace with preferred video.
-  const videoId = "wGkfSivITCs";
-  return (
-    <div className="absolute inset-0 overflow-hidden">
-      <iframe
-        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3`}
-        className="absolute"
-        allow="autoplay; encrypted-media"
-        style={{
-          pointerEvents: "none",
-          border: "none",
-          width: "150vw",
-          height: "150vh",
-          top: "-25vh",
-          left: "-25vw",
-          opacity: 0.35,
-        }}
-      />
-      {/* Multi-layer dark overlay */}
-      <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(5,12,21,0.75) 0%, rgba(5,12,21,0.55) 40%, rgba(5,12,21,0.85) 100%)" }} />
-      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, transparent 0%, rgba(5,12,21,0.6) 100%)" }} />
-    </div>
-  );
-}
+
 
 
 
@@ -99,11 +74,11 @@ export default function HomePage() {
   const { user, isLoaded } = useUser();
 
   return (
-    <div style={{ background: "#050C15", minHeight: "100vh" }}>
+    <div className="relative" style={{ background: "#050C15", minHeight: "100vh" }}>
+      <CloudMotifBg />
 
       {/* ── HERO ── */}
       <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-24 pb-32 overflow-hidden">
-        <VideoBackground />
         <div className="relative z-10 max-w-4xl mx-auto text-center">
           {/* Badge */}
           <div className="inline-flex items-center gap-2 mb-8"
