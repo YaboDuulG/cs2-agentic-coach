@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from api.routes import analyses, coaching, health, jobs, presign, servers, teams, upload
 
@@ -17,6 +18,10 @@ app = FastAPI(
     description="CS2 Agentic Coaching Platform — Backend API",
     version="0.1.0",
 )
+
+# Ensure data/logos exists and mount it for local development
+os.makedirs("data/logos", exist_ok=True)
+app.mount("/logos", StaticFiles(directory="data/logos"), name="logos")
 
 app.add_middleware(
     CORSMiddleware,

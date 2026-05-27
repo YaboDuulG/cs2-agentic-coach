@@ -31,6 +31,7 @@ def run_migrations():
             "ALTER TABLE first_contacts ALTER COLUMN attacker_team TYPE VARCHAR(64);",
         ),
         ("trajectories_team", "ALTER TABLE trajectories ALTER COLUMN team TYPE VARCHAR(64);"),
+        ("teams_logo_url", "ALTER TABLE teams ADD COLUMN logo_url VARCHAR(512);"),
     ]
     for col_name, sql in columns:
         with engine.begin() as conn:

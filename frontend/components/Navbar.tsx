@@ -44,6 +44,30 @@ export function Navbar() {
 
           {/* Right side — auth-aware */}
           <div className="flex items-center gap-3">
+            {user && (
+              <div className="flex items-center bg-[#070D18]/90 border border-[#1E3A5F]/60 rounded-lg p-0.5 text-[11px] sm:text-xs font-semibold shadow-inner mr-1 z-10">
+                <Link
+                  href="/profile"
+                  className={`px-2.5 py-1 rounded-md transition-all duration-250 select-none ${
+                    !pathname.startsWith("/teams")
+                      ? "bg-gradient-to-r from-[#1B4F8A] to-[#2D7DD2] text-white shadow-sm font-bold"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  Individual
+                </Link>
+                <Link
+                  href="/teams"
+                  className={`px-2.5 py-1 rounded-md transition-all duration-250 select-none ${
+                    pathname.startsWith("/teams")
+                      ? "bg-gradient-to-r from-[#1B4F8A] to-[#2D7DD2] text-white shadow-sm font-bold"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  Team
+                </Link>
+              </div>
+            )}
             {user ? (
               /* ── Logged-in nav ── */
               <>

@@ -35,3 +35,34 @@ export async function POST(
   });
   return NextResponse.json(await res.json(), { status: res.status });
 }
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ teamId: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { teamId } = await params;
+  const body = await req.json();
+  const res = await fetch(`${API_URL}/api/teams/${teamId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...body, user_id: userId }),
+  });
+  return NextResponse.json(await res.json(), { status: res.status });
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ teamId: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { teamId } = await params;
+  const res = await fetch(`${API_URL}/api/teams/${teamId}?user_id=${userId}`, {
+    method: "DELETE",
+  });
+  return NextResponse.json(await res.json(), { status: res.status });
+}

@@ -5,12 +5,20 @@ Teams endpoints — create, join, list, and view team analyses.
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException
+import os
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class UpdateTeamRequest(BaseModel):
+    name: str | None = None
+    logo_url: str | None = None
+    user_id: str
+
 
 
 class CreateTeamRequest(BaseModel):
@@ -122,12 +130,12 @@ async def list_teams(user_id: str = ""):
             rows = db.execute(
                 text("""
                     SELECT t.id, t.name, t.invite_code, t.owner_user_id, t.created_at,
-                           COUNT(tm2.id) as member_count
+                           COUNT(tm2.id) as member_count, t.logo_url
                     FROM teams t
                     JOIN team_members tm ON t.id = tm.team_id
                     LEFT JOIN team_members tm2 ON t.id = tm2.team_id
                     WHERE tm.user_id = :user_id
-                    GROUP BY t.id, t.name, t.invite_code, t.owner_user_id, t.created_at
+                    GROUP BY t.id, t.name, t.invite_code, t.owner_user_id, t.created_at, t.logo_url
                     ORDER BY t.created_at DESC
                 """),
                 {"user_id": user_id},
@@ -141,6 +149,7 @@ async def list_teams(user_id: str = ""):
                     "is_owner": r[3] == user_id,
                     "created_at": r[4].isoformat() if r[4] else None,
                     "member_count": r[5],
+                    "logo_url": r[6],
                 }
                 for r in rows
             ]
@@ -210,7 +219,7 @@ async def get_team(team_id: str):
         try:
             team = db.execute(
                 text(
-                    "SELECT id, name, invite_code, owner_user_id, created_at FROM teams WHERE id = :id"
+                    "SELECT id, name, invite_code, owner_user_id, created_at, logo_url FROM teams WHERE id = :id"
                 ),
                 {"id": team_id},
             ).fetchone()
@@ -230,6 +239,7 @@ async def get_team(team_id: str):
                 "invite_code": team[2],
                 "owner_user_id": team[3],
                 "created_at": team[4].isoformat() if team[4] else None,
+                "logo_url": team[5],
                 "members": [
                     {"user_id": m[0], "role": m[1], "joined_at": m[2].isoformat() if m[2] else None}
                     for m in members
@@ -242,3 +252,139 @@ async def get_team(team_id: str):
     except Exception as e:
         logger.error(f"Failed to get team {team_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch team")
+
+
+@router.patch("/{team_id}", summary="Update team name")
+async def update_team(team_id: str, body: UpdateTeamRequest):
+    try:
+        from db.database import SessionLocal  # noqa: PLC0415
+        db = SessionLocal()
+        try:
+            team = db.execute(
+                text("SELECT owner_user_id FROM teams WHERE id = :id"),
+                {"id": team_id},
+            ).fetchone()
+            if not team:
+                raise HTTPException(status_code=404, detail="Team not found")
+            if team[0] != body.user_id:
+                raise HTTPException(status_code=403, detail="Only the captain can modify team settings")
+
+            if body.name and body.name.strip():
+                db.execute(
+                    text("UPDATE teams SET name = :name WHERE id = :id"),
+                    {"name": body.name.strip(), "id": team_id},
+                )
+                db.commit()
+
+            return {"status": "updated"}
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update team {team_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update team")
+
+
+@router.post("/{team_id}/logo", summary="Upload a team logo image")
+async def upload_team_logo(team_id: str, user_id: str = "", file: UploadFile = File(...)):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID is required")
+
+    try:
+        from db.database import SessionLocal  # noqa: PLC0415
+        db = SessionLocal()
+        try:
+            team = db.execute(
+                text("SELECT owner_user_id FROM teams WHERE id = :id"),
+                {"id": team_id},
+            ).fetchone()
+            if not team:
+                raise HTTPException(status_code=404, detail="Team not found")
+            if team[0] != user_id:
+                raise HTTPException(status_code=403, detail="Only the captain can upload a logo")
+
+            if not file.content_type.startswith("image/"):
+                raise HTTPException(status_code=400, detail="Only image files are accepted")
+
+            content = await file.read()
+            if len(content) > 5 * 1024 * 1024:
+                raise HTTPException(status_code=400, detail="Logo file size must be under 5MB")
+
+            ext = os.path.splitext(file.filename)[1] if file.filename else ".png"
+            dest_filename = f"{team_id}{ext}"
+
+            bucket_name = os.environ.get("GCS_BUCKET", "").strip()
+            local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
+
+            logo_url = ""
+            if local_mode or not bucket_name:
+                os.makedirs("data/logos", exist_ok=True)
+                local_path = os.path.join("data/logos", dest_filename)
+                with open(local_path, "wb") as f:
+                    f.write(content)
+                logo_url = f"/logos/{dest_filename}"
+            else:
+                import json
+                from google.cloud import storage  # noqa: PLC0415
+                from google.oauth2 import service_account  # noqa: PLC0415
+
+                sa_key_json = os.environ.get("GCP_SA_KEY")
+                if sa_key_json:
+                    creds = service_account.Credentials.from_service_account_info(json.loads(sa_key_json))
+                    client = storage.Client(credentials=creds)
+                else:
+                    client = storage.Client()
+
+                bucket = client.bucket(bucket_name)
+                blob = bucket.blob(f"teams/logos/{dest_filename}")
+                blob.upload_from_string(content, content_type=file.content_type)
+                try:
+                    blob.make_public()
+                except Exception:
+                    pass
+                logo_url = f"https://storage.googleapis.com/{bucket_name}/teams/logos/{dest_filename}"
+
+            db.execute(
+                text("UPDATE teams SET logo_url = :logo_url WHERE id = :id"),
+                {"logo_url": logo_url, "id": team_id},
+            )
+            db.commit()
+            return {"logo_url": logo_url}
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to upload logo for team {team_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to upload logo")
+
+
+@router.delete("/{team_id}", summary="Delete a team")
+async def delete_team(team_id: str, user_id: str = ""):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID is required")
+
+    try:
+        from db.database import SessionLocal  # noqa: PLC0415
+        db = SessionLocal()
+        try:
+            team = db.execute(
+                text("SELECT owner_user_id FROM teams WHERE id = :id"),
+                {"id": team_id},
+            ).fetchone()
+            if not team:
+                raise HTTPException(status_code=404, detail="Team not found")
+            if team[0] != user_id:
+                raise HTTPException(status_code=403, detail="Only the owner can delete the team")
+
+            db.execute(text("DELETE FROM teams WHERE id = :id"), {"id": team_id})
+            db.commit()
+            return {"status": "deleted"}
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete team {team_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete team")

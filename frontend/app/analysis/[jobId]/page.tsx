@@ -2338,6 +2338,7 @@ export default function AnalysisPage() {
   // Sync with backend elapsed_seconds if available
   useEffect(() => {
     if (result?.elapsed_seconds !== undefined) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect */
       setElapsedSeconds(prev => Math.max(prev, result.elapsed_seconds || 0));
     }
   }, [result?.elapsed_seconds]);

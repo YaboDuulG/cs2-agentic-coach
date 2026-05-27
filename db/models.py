@@ -256,6 +256,7 @@ class Team(Base):
     owner_user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     # 8-char alphanumeric code shared with teammates
     invite_code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True, index=True)
+    logo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(UTC)
     )

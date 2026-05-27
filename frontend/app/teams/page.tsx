@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Users, Plus, LogIn, Copy, Check, ChevronRight } from "lucide-react";
 import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
+import { TeamIcon } from "@/components/TeamIcon";
 
 interface Team {
   team_id: string;
@@ -13,6 +14,7 @@ interface Team {
   is_owner: boolean;
   created_at: string;
   member_count: number;
+  logo_url?: string | null;
 }
 
 export default function TeamsPage() {
@@ -195,9 +197,7 @@ export default function TeamsPage() {
                 onClick={() => router.push(`/teams/${team.team_id}`)}
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "rgba(45,125,210,0.1)", border: "1px solid rgba(45,125,210,0.2)" }}>
-                    <Users size={20} color="#2D7DD2" />
-                  </div>
+                  <TeamIcon teamId={team.team_id} name={team.name} logoUrl={team.logo_url} size="md" />
                   <div>
                     <div className="flex items-center gap-2">
                       <span style={{ color: "#F0F4FF", fontWeight: 600 }}>{team.name}</span>

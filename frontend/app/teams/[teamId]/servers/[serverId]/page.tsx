@@ -72,7 +72,9 @@ export default function ServerDashboardPage() {
   const [activeTab, setActiveTab] = useState<"settings" | "configs">("settings");
 
   const handleTabChange = (tab: "settings" | "configs") => {
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
     if (typeof document !== "undefined" && (document as any).startViewTransition) {
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
       (document as any).startViewTransition(() => {
         setActiveTab(tab);
       });

@@ -1,17 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { Users, Copy, Check, ArrowLeft, MapPin, Crosshair, Clock } from "lucide-react";
+import { 
+  Users, Copy, Check, ArrowLeft, MapPin, Crosshair, Clock,
+  Settings, LayoutDashboard, Lock, Shield, Key, CreditCard, AlertTriangle, Trash2, Camera
+} from "lucide-react";
 import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
+import { TeamIcon, getDevilFruit } from "@/components/TeamIcon";
 
 interface TeamDetail {
   team_id: string;
   name: string;
   invite_code: string;
   owner_user_id: string;
+  logo_url?: string | null;
   members: { user_id: string; role: string; joined_at: string }[];
 }
 
@@ -61,9 +66,21 @@ export default function TeamDetailPage() {
   const [copied, setCopied] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
+  // Tabs
+  const [activeTab, setActiveTab] = useState<"overview" | "settings">("overview");
+  const [settingsTab, setSettingsTab] = useState<"profile" | "password" | "members" | "subscription" | "danger">("profile");
 
+  // Profile Edit fields
+  const [editName, setEditName] = useState("");
+  const [updatingName, setUpdatingName] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchTeamDetails = () => {
     if (!isLoaded || !user) return;
     Promise.all([
       fetch(`/api/teams/${teamId}`).then(r => r.json().catch(() => null)),
@@ -75,7 +92,17 @@ export default function TeamDetailPage() {
       setServers(Array.isArray(serverData) ? serverData : []);
       setLoading(false);
     }).catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchTeamDetails();
   }, [teamId, user, isLoaded]);
+
+  useEffect(() => {
+    if (team) {
+      setEditName(team.name);
+    }
+  }, [team]);
 
   // Poll for server status if any server is booting
   useEffect(() => {
@@ -130,8 +157,6 @@ export default function TeamDetailPage() {
     setSpinningUp(false);
   }
 
-
-
   function copyInvite() {
     if (!team) return;
     navigator.clipboard.writeText(team.invite_code);
@@ -139,15 +164,86 @@ export default function TeamDetailPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function handleUpdateName() {
+    if (!team || !editName.trim() || editName.trim() === team.name) return;
+    setUpdatingName(true);
+    setSaveSuccess(false);
+    try {
+      const res = await fetch(`/api/teams/${teamId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName.trim() }),
+      });
+      if (res.ok) {
+        setSaveSuccess(true);
+        fetchTeamDetails();
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
+        alert("Failed to update team name.");
+      }
+    } catch (e) {
+      console.error("Failed to update team name:", e);
+    }
+    setUpdatingName(false);
+  }
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !team) return;
+
+    setLogoUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(`/api/teams/${teamId}/logo`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        fetchTeamDetails();
+      } else {
+        const data = await res.json();
+        alert(data.detail || "Failed to upload logo image");
+      }
+    } catch (err) {
+      console.error("Failed to upload logo:", err);
+      alert("An error occurred while uploading the logo.");
+    }
+    setLogoUploading(false);
+  }
+
+  async function handleDeleteTeam() {
+    if (!team || deleteConfirm !== team.name) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/teams/${teamId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        router.push("/teams");
+      } else {
+        alert("Failed to delete team");
+      }
+    } catch (e) {
+      console.error("Failed to delete team:", e);
+      alert("Error deleting team");
+    }
+    setDeleting(false);
+  }
+
   if (!isLoaded) return null;
   if (!user) { router.push("/sign-in"); return null; }
 
+  const isOwner = team ? team.owner_user_id === user.id : false;
+  const fruit = team ? getDevilFruit(team.team_id) : null;
+
   return (
-    <div className="min-h-screen px-6 py-16" style={{ background: "#080E1A" }}>
+    <div className="min-h-screen px-6 py-20 relative" style={{ background: "#080E1A" }}>
       <CloudMotifBg />
-      <div className="relative max-w-4xl mx-auto">
+      <div className="relative max-w-5xl mx-auto z-10">
         {/* Back */}
-        <Link href="/teams" className="inline-flex items-center gap-2 mb-8 text-sm hover:text-white transition-colors" style={{ color: "#4A6A8A" }}>
+        <Link href="/teams" className="inline-flex items-center gap-2 mb-6 text-sm hover:text-white transition-colors" style={{ color: "#4A6A8A" }}>
           <ArrowLeft size={14} /> All Teams
         </Link>
 
@@ -163,19 +259,29 @@ export default function TeamDetailPage() {
         ) : (
           <>
             {/* Header */}
-            <div className="flex items-start justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div className="flex items-center gap-4">
-                <SoyomboIcon size={36} color="#C9A227" />
+                <TeamIcon teamId={team.team_id} name={team.name} logoUrl={team.logo_url} size="lg" />
                 <div>
-                  <h1 className="heading-display" style={{ fontSize: "1.8rem" }}>{team.name}</h1>
-                  <p style={{ color: "#8BA7CC", fontSize: "0.875rem" }}>{team.members.length} member{team.members.length !== 1 ? "s" : ""}</p>
+                  <div className="flex items-center gap-2.5">
+                    <h1 className="heading-display text-white" style={{ fontSize: "1.8rem" }}>{team.name}</h1>
+                    {isOwner && (
+                      <span className="rounded px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase border bg-yellow-500/10 border-yellow-500/20 text-[#C9A227]">
+                        Captain
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1" style={{ color: "#8BA7CC", fontSize: "0.875rem" }}>
+                    {team.members.length} member{team.members.length !== 1 ? "s" : ""}
+                  </p>
                 </div>
               </div>
 
               {/* Invite Code */}
               <button
                 onClick={copyInvite}
-                className="card flex items-center gap-3 px-4 py-3 hover:border-[#2D7DD2]/40 transition-colors group"
+                className="card flex items-center gap-3 px-4 py-3 hover:border-[#2D7DD2]/40 transition-colors group self-start sm:self-center"
+                style={{ background: "rgba(13,24,37,0.7)", border: "1px solid #1E3A5F" }}
               >
                 <div>
                   <p style={{ color: "#4A6A8A", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>Invite Code</p>
@@ -185,160 +291,462 @@ export default function TeamDetailPage() {
               </button>
             </div>
 
-            <UlziiBorder className="mb-8" />
+            {/* Tab switchers */}
+            <div className="flex gap-6 border-b border-[#1E3A5F] mb-8">
+              <button
+                onClick={() => setActiveTab("overview")}
+                className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 select-none ${
+                  activeTab === "overview"
+                    ? "border-[#2D7DD2] text-white"
+                    : "border-transparent text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <LayoutDashboard size={14} /> Overview
+              </button>
+              <button
+                onClick={() => setActiveTab("settings")}
+                className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 select-none ${
+                  activeTab === "settings"
+                    ? "border-[#2D7DD2] text-white"
+                    : "border-transparent text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <Settings size={14} /> Settings
+              </button>
+            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Members panel */}
-              <div className="card p-5">
-                <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>
-                  <Users size={14} className="inline mr-2" />Members
-                </h2>
-                <div className="space-y-3">
-                  {team.members.map(m => (
-                    <div key={m.user_id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: "rgba(45,125,210,0.15)", color: "#2D7DD2" }}>
-                          {m.user_id.slice(-2).toUpperCase()}
-                        </div>
-                        <span style={{ color: "#C4CEDD", fontSize: "0.8rem", fontFamily: "JetBrains Mono" }}>
-                          {m.user_id === user.id ? "You" : `···${m.user_id.slice(-6)}`}
-                        </span>
-                      </div>
-                      <span className="rounded px-1.5 py-0.5 text-xs" style={{
-                        background: m.role === "owner" ? "rgba(201,162,39,0.1)" : "rgba(45,125,210,0.08)",
-                        color: m.role === "owner" ? "#C9A227" : "#4A6A8A",
-                        border: `1px solid ${m.role === "owner" ? "rgba(201,162,39,0.2)" : "#1E3A5F"}`,
-                      }}>{m.role}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Practice Servers panel */}
-              <div className="card p-5 mt-6">
-                <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>
-                  <CloudMotifBg /> Practice Server
-                </h2>
-                
-                {servers.length > 0 ? (
+            {activeTab === "overview" ? (
+              /* ── OVERVIEW VIEW ── */
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Members panel */}
+                <div className="card p-5 h-fit" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                  <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>
+                    <Users size={14} className="inline mr-2" />Members
+                  </h2>
                   <div className="space-y-3">
-                    {servers.map(s => (
-                      <div key={s.id} className="rounded-lg bg-white/5 p-4 border border-white/10 flex flex-col gap-3">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${s.status === 'active' ? 'bg-[#22D3A0] animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-200">{s.mode} Server</span>
+                    {team.members.map(m => (
+                      <div key={m.user_id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold font-mono" style={{ background: "rgba(45,125,210,0.15)", color: "#2D7DD2", border: "1px solid rgba(45,125,210,0.2)" }}>
+                            {m.user_id.slice(-2).toUpperCase()}
                           </div>
-                          <span className={`text-xs px-2 py-0.5 rounded font-mono ${s.status === 'active' ? 'bg-[#22D3A0]/10 text-[#22D3A0] border border-[#22D3A0]/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
-                            {s.status}
+                          <span style={{ color: "#C4CEDD", fontSize: "0.8rem", fontFamily: "JetBrains Mono" }}>
+                            {m.user_id === user.id ? "You" : `···${m.user_id.slice(-6)}`}
                           </span>
                         </div>
-                        {s.ip_address ? (
-                          <div className="bg-black/40 p-2.5 rounded text-xs font-mono text-[#C4CEDD] break-all select-all border border-white/5">
-                            connect {s.ip_address}; password {s.server_password}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-[#8BA7CC] italic">Provisioning server instance...</div>
-                        )}
-                        <Link
-                          href={`/teams/${teamId}/servers/${s.id}`}
-                          className="mt-1 w-full text-center text-xs font-bold uppercase tracking-wider py-2 rounded bg-[#2D7DD2] hover:bg-[#2D7DD2]/80 text-white transition-all duration-200 border border-[#2D7DD2]/20"
-                        >
-                          Manage Server
-                        </Link>
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{
+                          background: m.role === "owner" ? "rgba(201,162,39,0.1)" : "rgba(45,125,210,0.08)",
+                          color: m.role === "owner" ? "#C9A227" : "#4A6A8A",
+                          border: `1px solid ${m.role === "owner" ? "rgba(201,162,39,0.2)" : "#1E3A5F"}`,
+                        }}>{m.role === "owner" ? "captain" : m.role}</span>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-[#8BA7CC] mb-3">No active practice servers.</p>
-                    <div className="flex gap-2 mb-3">
-                      <select 
-                        value={region}
-                        onChange={(e) => setRegion(e.target.value)}
-                        className="flex-1 rounded bg-[#0F172A] border border-white/10 px-3 py-2 text-sm text-[#C4CEDD] outline-none focus:border-[#2D7DD2]"
-                      >
-                        <option value="dfw">US South (Dallas, TX)</option>
-                        <option value="ord">US Central (Chicago, IL)</option>
-                        <option value="ewr">US East (New Jersey/NY)</option>
-                        <option value="sea">US Northwest (Seattle, WA)</option>
-                        <option value="sjc">US Southwest (Silicon Valley, CA)</option>
-                      </select>
+                </div>
 
-                    </div>
-                    <button
-                      onClick={spinUpServer}
-                      disabled={spinningUp}
-                      className="w-full rounded bg-[#2D7DD2] py-2 text-sm font-bold text-white transition hover:bg-[#2D7DD2]/80 disabled:opacity-50"
-                    >
-                      {spinningUp ? "Starting..." : "Spin Up Server"}
-                    </button>
-                    {serverError && (
-                      <div className="mt-3 p-2.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs text-left leading-relaxed">
-                        {serverError}
-                      </div>
-                    )}
-                  </div>
-
-
-                )}
-              </div>
-
-
-              {/* Analyses feed */}
-              <div className="md:col-span-2">
-                <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>Team Analyses</h2>
-                {analyses.length === 0 ? (
-                  <div className="card p-8 text-center">
-                    <MapPin size={32} color="#1E3A5F" className="mx-auto mb-3" />
-                    <p style={{ color: "#8BA7CC", fontSize: "0.875rem" }}>No analyses yet. Have a teammate upload a demo!</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {analyses.map(a => (
-                      <Link
-                        key={a.match_id}
-                        href={`/analysis/${a.match_id}`}
-                        className="card p-4 flex items-center justify-between group hover:border-[#2D7DD2]/40 transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(45,125,210,0.1)", border: "1px solid rgba(45,125,210,0.15)" }}>
-                            <MapPin size={16} color="#2D7DD2" />
+                {/* Practice Servers panel */}
+                <div className="card p-5 h-fit" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                  <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>
+                    <Crosshair size={14} className="inline mr-2" /> Practice Server
+                  </h2>
+                  
+                  {servers.length > 0 ? (
+                    <div className="space-y-3">
+                      {servers.map(s => (
+                        <div key={s.id} className="rounded-lg bg-white/5 p-4 border border-white/10 flex flex-col gap-3">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${s.status === 'active' ? 'bg-[#22D3A0] animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">{s.mode} Server</span>
+                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded font-mono ${s.status === 'active' ? 'bg-[#22D3A0]/10 text-[#22D3A0] border border-[#22D3A0]/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
+                              {s.status}
+                            </span>
                           </div>
-                          <div>
-                            <p style={{ color: "#F0F4FF", fontWeight: 600, fontSize: "0.9rem" }}>{a.map || "Unknown Map"}</p>
-                            <div className="flex items-center gap-3 mt-0.5">
-                              {a.total_rounds > 0 && (
-                                <span style={{ color: "#4A6A8A", fontSize: "0.72rem" }}>{a.total_rounds} rounds</span>
-                              )}
-                              {a.total_kills > 0 && (
-                                <span style={{ color: "#4A6A8A", fontSize: "0.72rem", display: "flex", alignItems: "center", gap: 3 }}>
-                                  <Crosshair size={10} /> {a.total_kills} kills
+                          {s.ip_address ? (
+                            <div className="bg-black/40 p-2.5 rounded text-xs font-mono text-[#C4CEDD] break-all select-all border border-white/5">
+                              connect {s.ip_address}; password {s.server_password}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-[#8BA7CC] italic">Provisioning server instance...</div>
+                          )}
+                          <Link
+                            href={`/teams/${teamId}/servers/${s.id}`}
+                            className="mt-1 w-full text-center text-xs font-bold uppercase tracking-wider py-2 rounded bg-[#2D7DD2] hover:bg-[#2D7DD2]/80 text-white transition-all duration-200 border border-[#2D7DD2]/20 shadow-md"
+                          >
+                            Manage Server
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-[#8BA7CC] mb-3">No active practice servers.</p>
+                      <div className="flex gap-2 mb-3">
+                        <select 
+                          value={region}
+                          onChange={(e) => setRegion(e.target.value)}
+                          className="flex-1 rounded bg-[#070D18] border border-white/10 px-3 py-2 text-sm text-[#C4CEDD] outline-none focus:border-[#2D7DD2] cursor-pointer"
+                        >
+                          <option value="dfw">US South (Dallas, TX)</option>
+                          <option value="ord">US Central (Chicago, IL)</option>
+                          <option value="ewr">US East (New Jersey/NY)</option>
+                          <option value="sea">US Northwest (Seattle, WA)</option>
+                          <option value="sjc">US Southwest (Silicon Valley, CA)</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={spinUpServer}
+                        disabled={spinningUp}
+                        className="w-full rounded bg-[#2D7DD2] py-2 text-sm font-bold text-white transition hover:bg-[#2D7DD2]/80 disabled:opacity-50 shadow-md"
+                      >
+                        {spinningUp ? "Starting..." : "Spin Up Server"}
+                      </button>
+                      {serverError && (
+                        <div className="mt-3 p-2.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs text-left leading-relaxed">
+                          {serverError}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Analyses feed */}
+                <div className="md:col-span-2">
+                  <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>Team Analyses</h2>
+                  {analyses.length === 0 ? (
+                    <div className="card p-8 text-center" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                      <MapPin size={32} color="#1E3A5F" className="mx-auto mb-3" />
+                      <p style={{ color: "#8BA7CC", fontSize: "0.875rem" }}>No analyses yet. Have a teammate upload a demo!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {analyses.map(a => (
+                        <Link
+                          key={a.match_id}
+                          href={`/analysis/${a.match_id}`}
+                          className="card p-4 flex items-center justify-between group hover:border-[#2D7DD2]/40 transition-all hover:scale-[1.005]"
+                          style={{ background: "rgba(13,24,37,0.7)", border: "1px solid #1E3A5F" }}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(45,125,210,0.1)", border: "1px solid rgba(45,125,210,0.15)" }}>
+                              <MapPin size={16} color="#2D7DD2" />
+                            </div>
+                            <div>
+                              <p style={{ color: "#F0F4FF", fontWeight: 600, fontSize: "0.9rem" }}>{a.map || "Unknown Map"}</p>
+                              <div className="flex items-center gap-3 mt-0.5">
+                                {a.total_rounds > 0 && (
+                                  <span style={{ color: "#4A6A8A", fontSize: "0.72rem" }}>{a.total_rounds} rounds</span>
+                                )}
+                                {a.total_kills > 0 && (
+                                  <span style={{ color: "#4A6A8A", fontSize: "0.72rem", display: "flex", alignItems: "center", gap: 3 }}>
+                                    <Crosshair size={10} /> {a.total_kills} kills
+                                  </span>
+                                )}
+                                <span style={{ color: "#4A6A8A", fontSize: "0.72rem", fontFamily: "JetBrains Mono" }}>
+                                  ···{a.user_id?.slice(-6) ?? "?"}
                                 </span>
-                              )}
-                              <span style={{ color: "#4A6A8A", fontSize: "0.72rem", fontFamily: "JetBrains Mono" }}>
-                                ···{a.user_id?.slice(-6) ?? "?"}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <div className="flex items-center gap-1.5 justify-end">
+                                <div className="w-2 h-2 rounded-full" style={{ background: STATUS_COLORS[a.status] ?? "#8BA7CC" }} />
+                                <span style={{ fontSize: "0.75rem", color: STATUS_COLORS[a.status] ?? "#8BA7CC", fontWeight: 500 }}>{a.status}</span>
+                              </div>
+                              <span style={{ color: "#4A6A8A", fontSize: "0.7rem", display: "flex", alignItems: "center", gap: 3, justifySelf: "flex-end" }}>
+                                <Clock size={9} /> {a.created_at ? timeAgo(a.created_at) : "–"}
                               </span>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <div className="flex items-center gap-1.5 justify-end">
-                              <div className="w-2 h-2 rounded-full" style={{ background: STATUS_COLORS[a.status] ?? "#8BA7CC" }} />
-                              <span style={{ fontSize: "0.75rem", color: STATUS_COLORS[a.status] ?? "#8BA7CC", fontWeight: 500 }}>{a.status}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* ── SETTINGS VIEW (SCL SIDEBAR STYLE) ── */
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                {/* Left side sub-tabs */}
+                <div className="col-span-1 flex flex-col gap-1.5">
+                  <button
+                    onClick={() => setSettingsTab("profile")}
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-bold tracking-wide uppercase transition-all duration-200 border text-left select-none ${
+                      settingsTab === "profile"
+                        ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/40 text-[#2E86AB]"
+                        : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                    }`}
+                  >
+                    <Shield size={14} /> Team Profile
+                  </button>
+                  <button
+                    onClick={() => setSettingsTab("password")}
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-bold tracking-wide uppercase transition-all duration-200 border text-left select-none ${
+                      settingsTab === "password"
+                        ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/40 text-[#2E86AB]"
+                        : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                    }`}
+                  >
+                    <Key size={14} /> Password
+                  </button>
+                  <button
+                    onClick={() => setSettingsTab("members")}
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-bold tracking-wide uppercase transition-all duration-200 border text-left select-none ${
+                      settingsTab === "members"
+                        ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/40 text-[#2E86AB]"
+                        : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                    }`}
+                  >
+                    <Users size={14} /> Members
+                  </button>
+                  <button
+                    onClick={() => setSettingsTab("subscription")}
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-bold tracking-wide uppercase transition-all duration-200 border text-left select-none ${
+                      settingsTab === "subscription"
+                        ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/40 text-[#2E86AB]"
+                        : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                    }`}
+                  >
+                    <CreditCard size={14} /> Subscription
+                  </button>
+                  <button
+                    onClick={() => setSettingsTab("danger")}
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-bold tracking-wide uppercase transition-all duration-200 border text-left select-none ${
+                      settingsTab === "danger"
+                        ? "bg-rose-500/10 border-rose-500/30 text-rose-500"
+                        : "border-transparent text-slate-400 hover:text-rose-500 hover:bg-rose-500/5"
+                    }`}
+                  >
+                    <AlertTriangle size={14} /> Danger Zone
+                  </button>
+                </div>
+
+                {/* Right side panels */}
+                <div className="col-span-1 md:col-span-3">
+                  {!isOwner ? (
+                    /* Captain-Only Lock Screen */
+                    <div className="card p-12 text-center flex flex-col items-center justify-center min-h-[340px]" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                      <div className="w-16 h-16 rounded-full bg-[#0F172A] flex items-center justify-center mb-5 border border-white/5 shadow-inner">
+                        <Lock size={26} className="text-slate-400" />
+                      </div>
+                      <h3 className="text-lg font-bold text-white mb-2 tracking-wide">Captain-Only Access</h3>
+                      <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
+                        This section is restricted to the team captain. Contact your captain to make changes here.
+                      </p>
+                    </div>
+                  ) : (
+                    /* Settings Panels for Captain */
+                    <div className="card p-6 min-h-[340px] flex flex-col justify-between" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                      
+                      {/* Sub-tab 1: TEAM PROFILE */}
+                      {settingsTab === "profile" && (
+                        <div className="space-y-6">
+                          <div>
+                            <h3 className="heading-display mb-1" style={{ fontSize: "1rem" }}>Team Settings</h3>
+                            <p className="text-xs text-slate-400">Configure team identities, names, and logos</p>
+                          </div>
+
+                          {/* Image upload row */}
+                          <div className="flex flex-col sm:flex-row items-center gap-5 bg-white/2 rounded-xl p-4 border border-white/5">
+                            <div className="relative group">
+                              <TeamIcon teamId={team.team_id} name={team.name} logoUrl={team.logo_url} size="xl" />
+                              <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="absolute inset-0 bg-black/60 rounded-3xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-200 cursor-pointer"
+                                disabled={logoUploading}
+                              >
+                                <Camera size={24} className="text-white" />
+                              </button>
                             </div>
-                            <span style={{ color: "#4A6A8A", fontSize: "0.7rem", display: "flex", alignItems: "center", gap: 3, justifyContent: "flex-end" }}>
-                              <Clock size={9} /> {a.created_at ? timeAgo(a.created_at) : "–"}
-                            </span>
+                            <div className="flex-1 text-center sm:text-left">
+                              <h4 className="text-sm font-bold text-white mb-1">Custom Team Icon</h4>
+                              <p className="text-xs text-slate-400 mb-3 leading-relaxed">Upload a PNG or JPG. Recommended size is 250x250px (Max 5MB).</p>
+                              <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleLogoUpload}
+                                accept="image/*"
+                                className="hidden"
+                              />
+                              <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={logoUploading}
+                                className="rounded-lg border border-[#2D7DD2]/40 hover:bg-[#2D7DD2]/10 px-4 py-2 text-xs font-bold text-[#2D7DD2] transition-all duration-200 disabled:opacity-50 select-none shadow"
+                              >
+                                {logoUploading ? "Uploading..." : "Upload Logo Image"}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Team Name Form */}
+                          <div className="space-y-2">
+                            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Team Name</label>
+                            <div className="flex gap-3">
+                              <input
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                placeholder="E.g. Team Liquid"
+                                className="flex-1 rounded-lg px-4 py-2.5 text-sm outline-none"
+                                style={{ background: "#070D18", border: "1px solid #1E3A5F", color: "#F0F4FF" }}
+                              />
+                              <button
+                                onClick={handleUpdateName}
+                                disabled={updatingName || !editName.trim() || editName.trim() === team.name}
+                                className="rounded-lg bg-[#2D7DD2] hover:bg-[#2D7DD2]/85 px-5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 select-none shadow-md"
+                              >
+                                {updatingName ? "Saving..." : "Save Name"}
+                              </button>
+                            </div>
+                            {saveSuccess && (
+                              <p className="text-xs text-[#22D3A0] mt-1 font-semibold flex items-center gap-1">✓ Settings applied successfully!</p>
+                            )}
+                          </div>
+
+                          {/* Devil Fruit Description Panel */}
+                          {fruit && (
+                            <div className="border-t border-[#1E3A5F] pt-6">
+                              <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">Deterministic Devil Fruit</h4>
+                              <div className="flex items-start gap-4 p-4 rounded-xl border" style={{ background: "rgba(13,24,37,0.4)", borderColor: `${fruit.color}25` }}>
+                                <div className="flex-shrink-0">
+                                  <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-bold text-white border text-base"
+                                    style={{
+                                      background: `linear-gradient(135deg, ${fruit.color}66 0%, #080E1A 100%)`,
+                                      borderColor: `${fruit.color}33`,
+                                    }}>
+                                    <span className="font-mono text-slate-200">{team.name.slice(0,2).toUpperCase()}</span>
+                                    <span className="text-sm absolute bottom-1 right-1">{fruit.emoji}</span>
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide text-white" style={{ background: fruit.color }}>
+                                    {fruit.type} Class
+                                  </span>
+                                  <h4 className="text-sm font-bold text-white mt-2 leading-none">{fruit.name}</h4>
+                                  <p className="text-xs text-slate-400 mt-2 leading-relaxed max-w-lg">{fruit.description}</p>
+                                  <p className="text-[10px] text-[#4A6A8A] mt-3 leading-relaxed italic">Your team is assigned this One Piece Devil Fruit based on your team ID's hash. Upload a custom logo above to override it.</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Sub-tab 2: PASSWORD */}
+                      {settingsTab === "password" && (
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="heading-display mb-1" style={{ fontSize: "1rem" }}>Credentials</h3>
+                            <p className="text-xs text-slate-400">Manage credentials and authentication profiles</p>
+                          </div>
+                          <div className="bg-[#070D18] p-5 rounded-xl border border-[#1E3A5F] flex items-center gap-4">
+                            <Key className="text-[#2D7DD2] flex-shrink-0" size={24} />
+                            <div>
+                              <h4 className="text-sm font-bold text-white mb-0.5">Managed Provider</h4>
+                              <p className="text-xs text-slate-400 leading-relaxed">This team's security profile is managed by Clerk. Password-free sessions are enabled by default for all captains and members.</p>
+                            </div>
                           </div>
                         </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
+                      )}
+
+                      {/* Sub-tab 3: MEMBERS */}
+                      {settingsTab === "members" && (
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="heading-display mb-1" style={{ fontSize: "1rem" }}>Member Configuration</h3>
+                            <p className="text-xs text-slate-400">View roster membership and manage player assignments</p>
+                          </div>
+                          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                            {team.members.map((m) => (
+                              <div key={m.user_id} className="flex items-center justify-between bg-white/2 rounded-xl p-3 border border-white/5">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold font-mono" style={{ background: "rgba(45,125,210,0.1)", color: "#2D7DD2", border: "1px solid rgba(45,125,210,0.15)" }}>
+                                    {m.user_id.slice(-2).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-mono text-white leading-none">{m.user_id === user.id ? "You (Owner)" : `···${m.user_id.slice(-8)}`}</p>
+                                    <p className="text-[10px] text-slate-500 mt-1 leading-none">Joined: {new Date(m.joined_at).toLocaleDateString()}</p>
+                                  </div>
+                                </div>
+                                <span className="rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border" style={{
+                                  background: m.role === "owner" ? "rgba(201,162,39,0.1)" : "rgba(45,125,210,0.08)",
+                                  color: m.role === "owner" ? "#C9A227" : "#4A6A8A",
+                                  borderColor: m.role === "owner" ? "rgba(201,162,39,0.2)" : "#1E3A5F",
+                                }}>
+                                  {m.role === "owner" ? "captain" : m.role}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sub-tab 4: SUBSCRIPTION */}
+                      {settingsTab === "subscription" && (
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="heading-display mb-1" style={{ fontSize: "1rem" }}>Subscription</h3>
+                            <p className="text-xs text-slate-400">View team subscription details and platform quotas</p>
+                          </div>
+                          <div className="bg-gradient-to-r from-[#070D18] to-[#1E3A5F]/20 p-5 rounded-xl border border-[#1E3A5F] flex items-center gap-4">
+                            <CreditCard className="text-[#2D7DD2] flex-shrink-0" size={24} />
+                            <div>
+                              <h4 className="text-sm font-bold text-white mb-0.5">Synchronized Plan</h4>
+                              <p className="text-xs text-slate-400 leading-relaxed">This team's subscription is synchronized with your captain account plan. Roster size limit: <b>Unlimited</b>.</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sub-tab 5: DANGER ZONE */}
+                      {settingsTab === "danger" && (
+                        <div className="space-y-5">
+                          <div>
+                            <h3 className="heading-display text-rose-500 mb-1" style={{ fontSize: "1rem" }}>Danger Zone</h3>
+                            <p className="text-xs text-slate-400">Destructive, permanent administrative actions</p>
+                          </div>
+                          
+                          <div className="bg-rose-500/5 p-5 rounded-xl border border-rose-500/20 space-y-4">
+                            <div className="flex gap-3">
+                              <AlertTriangle className="text-rose-500 flex-shrink-0" size={20} />
+                              <div>
+                                <h4 className="text-xs font-bold text-white mb-1 uppercase tracking-wide">Delete Team</h4>
+                                <p className="text-xs text-slate-400 leading-relaxed">
+                                  Deleting this team is permanent. All analyses and server connections associated with this team will be lost.
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 pt-2">
+                              <p className="text-xs text-slate-300">
+                                To confirm deletion, type the team name <b className="text-white select-all">{team.name}</b> below:
+                              </p>
+                              <div className="flex flex-col sm:flex-row gap-3">
+                                <input
+                                  value={deleteConfirm}
+                                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                                  placeholder="Confirm team name"
+                                  className="flex-1 rounded-lg px-4 py-2.5 text-xs outline-none"
+                                  style={{ background: "#070D18", border: "1px solid #1E3A5F", color: "#F0F4FF" }}
+                                />
+                                <button
+                                  onClick={handleDeleteTeam}
+                                  disabled={deleting || deleteConfirm !== team.name}
+                                  className="rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-40 px-5 py-2 text-xs font-bold text-white transition-all flex items-center gap-1.5 justify-center select-none shadow"
+                                >
+                                  <Trash2 size={13} /> {deleting ? "Deleting..." : "Delete Team"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
       </div>
