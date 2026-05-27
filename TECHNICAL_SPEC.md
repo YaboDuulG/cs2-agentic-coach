@@ -1,5 +1,5 @@
 # 🏹 DemoSage — Technical Specification & Progress Tracker
-> **Version:** 0.4.0-beta | **Status:** Phase A Complete — Live at Vercel | **Last Updated:** 2026-05-15
+> **Version:** 0.5.0-beta | **Status:** Phase C Active — Training Server System | **Last Updated:** 2026-05-27
 
 ---
 
@@ -361,55 +361,68 @@ GitHub Action: runs nightly (cron: 0 2 * * *)
 
 ## 7. Practice Server System
 
-Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to spin up a server, and the Warlord agent provisions it automatically.
+Inspired by **SCL practice modes**. The Training Server panel lets team members pick a mode and spin up a DatHost server instantly — fully configured with the correct console commands for that mode.
 
 ### 7.1 Architecture
 
-- **Base:** CS2 Dedicated Server (Linux, Docker container per session)
-- **Plugin Framework:** MetaMod:Source + CounterStrikeSharp
-- **Provisioning:** Warlord agent calls server management API (custom FastAPI service)
-- **Hosting:** **DatHost** — on-demand instant CS2 server provisioning via REST API
-- **Lifecycle:** Auto-shutdown after 2h of inactivity; server destroyed after session to avoid idle costs
+- **Hosting:** **DatHost** — on-demand instant CS2 server provisioning via REST API (`multipart/form-data`)
+- **Tickrate:** **128-tick** on all provisioned servers (`cs2_settings.tickrate=128`)
+- **Game Mode:** `competitive` (or `deathmatch` for aim/spray modes)
+- **Lifecycle:** 2-hour TTL; cron job (`/api/servers/cron/cleanup`) auto-terminates expired servers
+- **Mode Config:** Each mode applies a set of RCON console commands after server start (sv_cheats, infinite ammo, grenade trajectory, etc.)
+- **Update Guard:** Live CS2 update detection via Steam News API — provisioning is blocked for 2h after a real Valve update is posted; fails open if Steam API is unreachable
 
-### 7.2 Practice Modes
+### 7.2 Training Modes (Implemented)
 
-| Mode | Description | Key Features |
+| Mode Key | Label | Game Mode | Key Console Commands |
+| :--- | :--- | :--- | :--- |
+| `practice` | Practice Mode | competitive | sv_cheats 1, infinite ammo, bot_kick, mp_startmoney 60000 |
+| `prefire` | Prefire Mode | competitive | sv_cheats 1, infinite ammo, 60min rounds, bot_kick |
+| `defense` | Defense Mode | competitive | sv_cheats 1, infinite ammo, mp_freezetime 3 |
+| `tradefire` | Tradefire Mode | deathmatch | sv_cheats 1, DM bonus off, infinite ammo |
+| `spray` | Spray Transfer/Pattern | deathmatch | sv_cheats 1, ammo clip only (sv_infinite_ammo 2), recoil scale 2 |
+| `awp` | AWP Mode | deathmatch | sv_cheats 1, AWP-only infinite ammo, DM |
+| `aimtrainer` | Aim Trainer | deathmatch | sv_cheats 1, hard bots (difficulty 3) |
+| `promode` | Pro Mode | competitive | sv_cheats 0, real economy (800 start), standard rules |
+| `grenade` | Grenade Learner | competitive | sv_cheats 1, trajectory visualization on, 15s display, bot_kick |
+| `retake` | Retake Mode | competitive | sv_cheats 1, 4000 start money, short rounds |
+
+### 7.3 Training Modes UI
+
+- **Route:** `/teams/[teamId]/training`
+- **Layout:** 2-column image card grid (matching SCL Training Server design)
+- **Features:**
+  - Click card to select mode → region + map dropdowns → "Start Training Session"
+  - Active server banner: copy-to-clipboard connect string + password
+  - Live CS2 update warning banner (populated with real Steam News API detail)
+  - Search/filter across modes and tags
+  - Statistics tab (placeholder for session stats)
+- **Team Page:** Practice Server card replaced with Training Server launcher (3-image preview strip linking to `/training`)
+
+### 7.4 CS2 Update Detection (Steam News API)
+
+```python
+# services/warlord/dathost_client.py
+def check_cs2_update_active() -> tuple[bool, str]:
+    # Calls api.steampowered.com/ISteamNews/GetNewsForApp — no API key needed
+    # Looks for "release notes" / "cs2 update" in last 5 CS2 announcements
+    # Returns (is_active, human-readable detail with time remaining)
+    # Cached 10 min in-process; fails open if Steam API unreachable
+    # Block window: UPDATE_BLOCK_DURATION_SECONDS (default 7200 = 2h, env-configurable)
+```
+
+### 7.5 Server API Endpoints
+
+| Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| **Prefire** | Train common prefire angles on any map | OpenPrefirePrac plugin, difficulty settings, multiplayer support |
-| **Nades** | Grenade lineup practice with guided hints | CS2PracticeMod, grenade trajectory display, position save/load |
-| **Retakes** | Planted bomb retake scenarios | Custom round spawns, random site selection |
-| **Executes** | Full team execute practice with bots | Coordinate execute timing, bot CT behavior |
-| **Deathmatch** | Warm-up/aim training | Respawn on death, custom weapon rules |
-| **1v1 Arena** | Head-to-head duels | Auto-generated arenas, Elo tracking |
-| **Free Prac** | Open practice with all tools enabled | Noclip, infinite money, save/load positions |
+| `/api/teams/{id}/servers` | POST | Provision server — validates mode, checks update window |
+| `/api/teams/{id}/servers` | GET | List active servers for team |
+| `/api/servers/{id}` | DELETE | Terminate server |
+| `/api/servers/modes` | GET | List training modes + live update status |
+| `/api/servers/webhook` | POST | DatHost ping when server is ready |
+| `/api/servers/cron/cleanup` | POST | Vercel cron — destroy expired servers |
 
-### 7.3 Server Chat Commands
-
-```
-!mode prefire [map]     - Start prefire practice
-!mode nades [map]       - Start nade practice  
-!mode retakes [map]     - Start retake scenarios
-!mode exec [map]        - Execute practice
-!mode dm                - Deathmatch
-!mode 1v1               - 1v1 arena
-!save [name]            - Save current position
-!load [name]            - Load saved position
-!noclip                 - Toggle noclip
-!rethrow                - Rethrow last grenade
-!help                   - Show all commands
-```
-
-### 7.4 Chatbot Commands (via DemoSage UI)
-
-```
-"Spin up a prefire server on Mirage"
-"Start a nades server, dust2"
-"Give me a retakes server for my team (5 slots)"
-"Shut down my practice server"
-"What servers do I have running?"
-```
-
-### 7.5 Utility Auto-Updater
+### 7.6 Utility Auto-Updater (Planned)
 
 > Keeps all grenade lineups and prefire routes current with each CS2 patch.
 
@@ -532,6 +545,9 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - [x] Validate output against local demo — de_nuke 64tick: 26 rounds, 185 kills, 232 grenades ✓
 - [x] Scout deployed to Cloud Run staging (internal, no-allow-unauthenticated)
 - [x] Pub/Sub push trigger: GCS OBJECT_FINALIZE → `demo-uploaded` topic → Scout `/parse-from-gcs`
+- [x] **Warmup round filtering** — two-rule system: `is_warmup_period` flag (primary) + equipment budget fallback (≤$4,500 combined = pistol round or earlier); excludes warmup from kills, grenades, first_contacts, player stats, KAST
+- [x] **KAST fix** — survival loop now iterates actual `valid_round_nums` set instead of `range(tot_r)` (was generating incorrect sequential indices)
+- [x] `warmup_rounds_excluded` list added to `metadata` output for debugging
 - [ ] Validate output against real CS2 FACEIT / Matchmaking demo (pending FACEIT integration)
 
 ### Phase 2: The Great Khan — Orchestrator
@@ -584,15 +600,31 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - [ ] SCL match schedule sync (or manual fallback)
 - [ ] SCL pre-match opponent analysis report
 
-### Phase 8: Practice Server System
+### Phase C: Training Server System ✅ Core Complete
+- [x] DatHost provisioning working (`multipart/form-data` fix)
+- [x] 128-tick + `game_mode=competitive` on all provisioned servers
+- [x] 10 training mode configs with per-mode RCON commands (`dathost_client.py`)
+- [x] Mode validation + 503 response on update window block
+- [x] `GET /api/servers/modes` — returns mode list + live update status
+- [x] Live CS2 update detection via Steam News API (`check_cs2_update_active`)
+  - No API key needed; searches last 5 CS2 announcements for update keywords
+  - Blocks provisioning for 2h after real update detected (env-configurable)
+  - 10-min in-process cache; fails open if Steam unreachable
+- [x] Training Modes page (`/teams/[teamId]/training`) — SCL-style 2-col card grid
+- [x] 10 AI-generated training mode images in `/public`
+- [x] Team page updated: old spin-up widget → Training Server launcher card
+- [x] `/api/servers/modes` Next.js proxy route
+- [ ] Integrate CounterStrikeSharp plugins (OpenPrefirePrac, CS2PracticeMod) for deeper in-server functionality
+- [ ] Session stats tracking per player per training mode
+- [ ] In-game bot management via RCON for retake/execute scenarios
+- [ ] Utility auto-updater pipeline (post CS2 patch lineup validation)
+
+### Phase 8: Practice Server System (Legacy — merged into Phase C)
 - [ ] Build CS2 dedicated server Docker image (MetaMod + CounterStrikeSharp)
 - [ ] Integrate OpenPrefirePrac plugin
 - [ ] Integrate CS2PracticeMod plugin
-- [ ] Build Warlord agent (server provisioning via FastAPI)
-- [ ] Implement all 7 practice modes
 - [ ] Implement chat command parser in DemoSage UI
 - [ ] Build utility auto-updater pipeline
-- [ ] Set up CS2 update detection GitHub Action
 
 ### Phase A: Beta Frontend — Path to Beta ✅ COMPLETE
 - [x] Next.js 15 scaffold (App Router, TypeScript, Tailwind v4)
@@ -639,6 +671,13 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 | **Task Queue** | Cloud Tasks (serverless) | Replaces Celery + Redis; 1M tasks/mo free |
 | **Compute** | Cloud Run (serverless containers) | API + agents; scales to zero |
 | **Practice Server Hosting** | DatHost API (on-demand game servers) | Sub-10-second instant server provisioning |
+| **DatHost API Format** | `multipart/form-data` (not JSON) | DatHost `POST /game-servers` requires form-data; JSON gives 500 |
+| **Server Tickrate** | 128-tick (`cs2_settings.tickrate=128`) | Competitive-standard; applied to all provisioned servers |
+| **Server Game Mode** | `competitive` default, `deathmatch` for aim/spray | Per-mode override in `TRAINING_MODE_CONFIGS` dict |
+| **CS2 Update Guard** | Live Steam News API (not fixed Tuesday window) | `ISteamNews/GetNewsForApp` appid=730; no API key needed; detects real updates only; 10-min cache; fails open |
+| **Update Block Duration** | 2 hours (`UPDATE_BLOCK_DURATION_SECONDS=7200`) | Env-configurable; DatHost typically updates fleet within 30–90 min |
+| **Warmup Detection** | Two-rule: `is_warmup_period` flag + equipment budget ≤$4,500 | `is_warmup_period` is primary; budget threshold catches knife rounds and edge cases |
+| **KAST Round Iteration** | Iterate `valid_round_nums` set (not `range(tot_r)`) | `range(tot_r)` generated wrong sequential indices; round numbers are non-sequential after filtering |
 | **LLM Provider** | Google Gemini API (Vertex AI) | See Section 3 for per-agent model breakdown |
 | **Audio Transcription** | Gemini 2.5 Flash (native audio) | Eliminates Whisper; no separate service needed |
 | **SCL Integration** | Future feature | No current API access; deferred to Phase 11+ |
@@ -669,6 +708,10 @@ Inspired by **Pracc** and **SCL practice modes**. Users can ask the chatbot to s
 - **VOD / Clip Export** — Auto-clip flagged moments from the demo for review (kill events, bad rotations, missed utility)
 - **Historical Trend Tracking** — Week-over-week player improvement graphs; detect regression early
 - **Player Rating System** — Internal Elo-style rating per player per role, tracked across all matches
+- **Training Session Stats** — Track kills, accuracy, time-in-server per mode; personal records per player
+- **CounterStrikeSharp Plugin Integration** — OpenPrefirePrac + CS2PracticeMod for in-server guided drills and lineup hints
+- **Map Selector per Mode** — Override the default map per training mode (currently map picker is present in UI but not forwarded to DatHost)
+- **FACEIT Auto-Analysis** — Webhook receiver to auto-download and analyze every FACEIT match on completion
 
 ---
 
