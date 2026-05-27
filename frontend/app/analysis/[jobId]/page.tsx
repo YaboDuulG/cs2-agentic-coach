@@ -2414,7 +2414,6 @@ export default function AnalysisPage() {
     return () => { stopped = true; };
   }, [jobId]);
 
-  const status = result?.status ?? "queued";
   const cfg = STATUS_CONFIG[status];
 
   return (
