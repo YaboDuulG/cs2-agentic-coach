@@ -1,14 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
 import { Upload } from "lucide-react";
 import { SoyomboIcon } from "@/components/patterns/mongolian";
+import { UploadModal } from "@/components/UploadModal";
 
 export function Navbar() {
   const pathname = usePathname();
   const { user } = useUser();
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const plan = (user?.publicMetadata?.plan as string) ?? "free";
 
   const planLabel = plan === "pro" ? "Pro" : plan === "basic" ? "Basic" : "Free";
@@ -21,34 +24,36 @@ export function Navbar() {
   const isHome = pathname === "/";
 
   return (
-    <nav
-      className="fixed top-0 left-0 right-0 z-50 border-b"
-      style={{
-        background: isHome ? "rgba(5,12,21,0.7)" : "rgba(8,14,26,0.92)",
-        borderColor: isHome ? "rgba(255,255,255,0.06)" : "#1E3A5F",
-        backdropFilter: "blur(14px)",
-      }}
-    >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <SoyomboIcon size={26} color="#C9A227" />
-          <span style={{ fontFamily: "Cinzel, serif", fontWeight: 700, fontSize: "1.05rem", color: "#F0F4FF", letterSpacing: "0.02em" }}>
-            Demo<span style={{ color: "#2D7DD2" }}>Sage</span>
-          </span>
-        </Link>
+    <>
+      <nav
+        className="fixed top-0 left-0 right-0 z-50 border-b"
+        style={{
+          background: isHome ? "rgba(5,12,21,0.7)" : "rgba(8,14,26,0.92)",
+          borderColor: isHome ? "rgba(255,255,255,0.06)" : "#1E3A5F",
+          backdropFilter: "blur(14px)",
+        }}
+      >
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <SoyomboIcon size={26} color="#C9A227" />
+            <span style={{ fontFamily: "Cinzel, serif", fontWeight: 700, fontSize: "1.05rem", color: "#F0F4FF", letterSpacing: "0.02em" }}>
+              Demo<span style={{ color: "#2D7DD2" }}>Sage</span>
+            </span>
+          </Link>
 
-        {/* Right side — auth-aware */}
-        <div className="flex items-center gap-3">
-          {user ? (
-            /* ── Logged-in nav ── */
-            <>
-              <div className="hidden md:flex items-center gap-5 mr-3 text-sm font-medium">
-                <Link href="/" className={`transition-colors ${isActive("/")}`}>
-                  <span className="flex items-center gap-1.5">
+          {/* Right side — auth-aware */}
+          <div className="flex items-center gap-3">
+            {user ? (
+              /* ── Logged-in nav ── */
+              <>
+                <div className="hidden md:flex items-center gap-5 mr-3 text-sm font-medium">
+                  <button
+                    onClick={() => setIsUploadOpen(true)}
+                    className="transition-colors text-slate-400 hover:text-white flex items-center gap-1.5 focus:outline-none cursor-pointer"
+                  >
                     <Upload size={13} /> Upload
-                  </span>
-                </Link>
+                  </button>
                 <Link href="/profile" className={`transition-colors ${isActive("/profile")}`}>
                   My Analyses
                 </Link>
@@ -89,5 +94,7 @@ export function Navbar() {
         </div>
       </div>
     </nav>
+    <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
+    </>
   );
 }

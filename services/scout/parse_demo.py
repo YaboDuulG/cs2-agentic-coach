@@ -511,15 +511,15 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             # We don't have round from ticks directly — use kill/round data to bucket
             # For now, output all positions without round grouping (Phase 3 refinement)
             for player_name, grp in sampled.groupby("name"):
+                grp_clean = grp.dropna(subset=["X"])
                 positions = [
                     {
-                        "tick": int(r["tick"]),
-                        "x": round(float(r["X"]), 2),
-                        "y": round(float(r["Y"]), 2),
-                        "z": round(float(r["Z"]), 2),
+                        "tick": int(t),
+                        "x": round(float(x), 2),
+                        "y": round(float(y), 2),
+                        "z": round(float(z), 2),
                     }
-                    for _, r in grp.iterrows()
-                    if r.get("X") is not None
+                    for t, x, y, z in zip(grp_clean["tick"], grp_clean["X"], grp_clean["Y"], grp_clean["Z"])
                 ]
                 if positions:
                     team = _safe_str(grp["team_name"].iloc[0]) if len(grp) > 0 else ""

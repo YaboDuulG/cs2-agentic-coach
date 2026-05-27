@@ -83,7 +83,7 @@ export default function TeamsPage() {
   }
 
   return (
-    <div className="min-h-screen px-6 py-16" style={{ background: "#080E1A" }}>
+    <div className="min-h-screen px-6 py-16 relative" style={{ background: "#080E1A" }}>
       <CloudMotifBg />
       <div className="relative max-w-4xl mx-auto">
         {/* Header */}

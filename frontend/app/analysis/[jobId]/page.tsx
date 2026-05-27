@@ -2415,7 +2415,7 @@ export default function AnalysisPage() {
   const cfg = STATUS_CONFIG[status];
 
   return (
-    <div className="min-h-screen px-6 py-16" style={{ background: "#080E1A" }}>
+    <div className="min-h-screen px-6 py-16 relative" style={{ background: "#080E1A" }}>
       <CloudMotifBg />
       <div className="relative max-w-5xl mx-auto">
         {/* Header */}
