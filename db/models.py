@@ -82,6 +82,7 @@ class Match(Base):
     gcs_audio_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     gcs_parsed_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     player_stats_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parse_duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(UTC)
     )

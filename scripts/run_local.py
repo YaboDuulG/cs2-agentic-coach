@@ -159,9 +159,14 @@ def main() -> None:
     # 3. Parse the demo
     logger.info(f"Parsing: {dem_path}")
     # Import here so awpy errors surface cleanly
+    import time
+
     from services.scout.parse_demo import parse_demo, write_to_db
 
+    start_time = time.perf_counter()
     result = parse_demo(str(dem_path))
+    duration = time.perf_counter() - start_time
+    logger.info(f"Parsing finished in {duration:.2f} seconds")
 
     # Save JSON locally for inspection
     out = Path(f"data/processed/{match_id}_scout.json")
@@ -170,7 +175,7 @@ def main() -> None:
     logger.info(f"JSON saved: {out}")
 
     # 4. Write to DB
-    write_to_db(result, match_id)
+    write_to_db(result, match_id, parse_duration=duration)
 
     # 5. Summary
     print_summary(match_id)

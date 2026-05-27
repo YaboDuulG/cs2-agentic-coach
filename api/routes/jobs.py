@@ -47,7 +47,7 @@ async def get_job_status(match_id: str):
             # Check if match record exists and has been parsed
             result = db.execute(
                 text(
-                    "SELECT match_id, map_name, status, error_message, player_stats_json FROM matches WHERE match_id = :id"
+                    "SELECT match_id, map_name, status, error_message, player_stats_json, created_at, parse_duration_seconds FROM matches WHERE match_id = :id"
                 ),
                 {"id": match_id},
             ).fetchone()
@@ -59,12 +59,26 @@ async def get_job_status(match_id: str):
             match_status = result[2].lower() if result[2] else "processing"
             error_message = result[3]
             player_stats_raw = result[4]
+            created_at = result[5] if len(result) > 5 else None
+            parse_duration_seconds = result[6] if len(result) > 6 else None
 
             if match_status == "failed":
                 return {"status": "failed", "match_id": match_id, "error": error_message}
 
+            if match_status in ("pending", "queued"):
+                return {
+                    "status": "queued",
+                    "match_id": match_id,
+                    "created_at": created_at.isoformat() if created_at else None,
+                }
+
             if match_status not in ("done", "complete", "parsed"):
-                return {"status": "processing", "match_id": match_id, "map": result[1]}
+                return {
+                    "status": "processing",
+                    "match_id": match_id,
+                    "map": result[1],
+                    "created_at": created_at.isoformat() if created_at else None,
+                }
 
             # Fetch kills
             kills = db.execute(
@@ -203,6 +217,7 @@ async def get_job_status(match_id: str):
                 "player_stats": player_stats,
                 "kills": mapped_kills,
                 "rounds": clean_rounds,
+                "parse_duration_seconds": parse_duration_seconds,
             }
             return sanitize_nan(response_data)
         finally:

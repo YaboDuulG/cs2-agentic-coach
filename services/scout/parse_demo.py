@@ -569,7 +569,7 @@ def upload_to_gcs(data: dict, match_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def write_to_db(data: dict, match_id: str) -> None:
+def write_to_db(data: dict, match_id: str, parse_duration: float | None = None) -> None:
     """Write parsed Scout output to PostgreSQL (or SQLite in local/test mode)."""
     from pathlib import Path as _Path
     import sys
@@ -623,6 +623,8 @@ def write_to_db(data: dict, match_id: str) -> None:
         match.total_rounds = meta.get("total_rounds", 0)
         match.status = MatchStatus.COMPLETE
         match.player_stats_json = json.dumps(sanitize_nan(data.get("player_stats", {})))
+        if parse_duration is not None:
+            match.parse_duration_seconds = parse_duration
 
         db.query(Kill).filter(Kill.match_id == match_id).delete()
         db.query(Grenade).filter(Grenade.match_id == match_id).delete()

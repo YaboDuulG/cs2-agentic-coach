@@ -268,3 +268,54 @@ body {
 ::-webkit-scrollbar-track { background: #080E1A; }
 ::-webkit-scrollbar-thumb { background: #1E3A5F; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #2D7DD2; }
+
+/* ============================================================
+   Google I/O Web Features: Anchor Positioning, Popover, Transitions
+   ============================================================ */
+
+/* CSS Anchor Positioning & Popover API */
+@supports (anchor-name: --test) {
+  #tooltip-anchor {
+    anchor-name: --tooltip-anchor;
+  }
+  #tooltip-popover {
+    position-anchor: --tooltip-anchor;
+    left: anchor(center) !important;
+    bottom: anchor(top) !important;
+    transform: translateX(-50%) translateY(-8px) !important;
+    top: auto !important;
+  }
+}
+
+/* Popover reset (since browsers style [popover] default states uniquely) */
+[popover] {
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+}
+
+[popover]:popover-open {
+  display: block;
+}
+
+/* Element-Scoped View Transitions */
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+::view-transition-old(tab-content) {
+  animation: 120ms cubic-bezier(0.4, 0, 1, 1) both fade-out;
+}
+
+::view-transition-new(tab-content) {
+  animation: 250ms cubic-bezier(0, 0, 0.2, 1) 90ms both fade-in;
+}

@@ -42,6 +42,8 @@ interface JobResult {
   rounds?: RoundResult[];
   player_stats?: Record<string, any>;
   error?: string;
+  created_at?: string;
+  parse_duration_seconds?: number;
 }
 
 interface Coaching {
@@ -168,6 +170,22 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
     y: number;
     content: React.ReactNode;
   }>({ show: false, x: 0, y: 0, content: null });
+
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const popover = popoverRef.current;
+    if (!popover) return;
+    try {
+      if (tooltip.show) {
+        popover.showPopover();
+      } else {
+        popover.hidePopover();
+      }
+    } catch (e) {
+      // Fallback if browser doesn't support popover API
+    }
+  }, [tooltip.show]);
 
   // Zoom & Pan states
   const [zoom, setZoom] = useState<number>(1);
@@ -571,12 +589,34 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
 
           {tooltip.show && (
             <div
-              className="absolute z-10 pointer-events-none bg-slate-950/95 border border-slate-800 rounded-lg p-3 shadow-2xl backdrop-blur-md -translate-x-1/2 -translate-y-full min-w-[200px]"
-              style={{ left: tooltip.x, top: tooltip.y }}
-            >
-              {tooltip.content}
-            </div>
+              id="tooltip-anchor"
+              style={{
+                position: "absolute",
+                left: `${tooltip.x}px`,
+                top: `${tooltip.y}px`,
+                width: "1px",
+                height: "1px",
+                pointerEvents: "none",
+              }}
+            />
           )}
+
+          <div
+            ref={popoverRef}
+            {...{ popover: "manual" }}
+            id="tooltip-popover"
+            className="bg-slate-950/95 border border-slate-800 rounded-lg p-3 shadow-2xl backdrop-blur-md min-w-[200px]"
+            style={{
+              position: "absolute",
+              left: `${tooltip.x}px`,
+              top: `${tooltip.y}px`,
+              transform: "translate(-50%, -100%) translateY(-8px)",
+              pointerEvents: "none",
+              display: tooltip.show ? "block" : "none",
+            }}
+          >
+            {tooltip.content}
+          </div>
         </div>
       </div>
     </div>
@@ -2240,11 +2280,121 @@ function RoundTimeline({
   );
 }
 
+const COACHING_TIPS = [
+  {
+    icon: <Brain size={16} color="#C9A227" />,
+    quote: "An empire is not built in a single round. Force-buying when your teammates are broke destroys your economy.",
+    author: "Great Khan AI"
+  },
+  {
+    icon: <Lightbulb size={16} color="#2D7DD2" />,
+    quote: "A retake is a coordinated horde execute. Never enter the site one-by-one; wait for utility and push together.",
+    author: "Tactical Manual"
+  },
+  {
+    icon: <Shield size={16} color="#22D3A0" />,
+    quote: "Utility is the wall that shields your warriors. A single smoke grenade can delay an execute for 15 seconds.",
+    author: "Mirage Strategy"
+  },
+  {
+    icon: <Zap size={16} color="#eb5e28" />,
+    quote: "First contact determines the battle lines. A tactical retreat is better than giving away the opening death.",
+    author: "Sun Tzu of CS2"
+  },
+  {
+    icon: <Crosshair size={16} color="#FF4D6D" />,
+    quote: "Control your territory. Holding crossfires on defense prevents enemy lurkers from cutting off rotations.",
+    author: "Coaching Tip"
+  },
+  {
+    icon: <Layers size={16} color="#8BA7CC" />,
+    quote: "Information is victory. Listen to the audio comms and coordinate radar updates to spot rotates early.",
+    author: "Leader's Wisdom"
+  }
+];
+
 // --- Main Page ---
 export default function AnalysisPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const [result, setResult] = useState<JobResult | null>(null);
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
+
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [tipIndex, setTipIndex] = useState(0);
+
+  // Sync elapsed time based on created_at from backend
+  useEffect(() => {
+    if (!result?.created_at) return;
+    const createdTime = new Date(result.created_at).getTime();
+    
+    const interval = setInterval(() => {
+      const diff = Math.floor((Date.now() - createdTime) / 1000);
+      setElapsedSeconds(diff > 0 ? diff : 0);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [result?.created_at]);
+
+  // Local timer fallback
+  useEffect(() => {
+    if (result?.created_at) return;
+    const interval = setInterval(() => {
+      setElapsedSeconds(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [result?.created_at]);
+
+  // Coaching tips rotation
+  useEffect(() => {
+    const status = result?.status ?? "queued";
+    if (status === "done" || status === "failed") return;
+    const interval = setInterval(() => {
+      setTipIndex(prev => (prev + 1) % COACHING_TIPS.length);
+    }, 7000);
+    return () => clearInterval(interval);
+  }, [result?.status]);
+
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const status = result?.status ?? "queued";
+
+  // Smart progress value based on elapsed seconds
+  const progressPercent = useMemo(() => {
+    if (status === "done") return 100;
+    if (status === "failed") return 0;
+    const scale = 80;
+    const percent = Math.floor(100 * (1 - Math.exp(-elapsedSeconds / scale)));
+    return Math.min(98, Math.max(5, percent));
+  }, [elapsedSeconds, status]);
+
+  // Dynamic stages
+  const loaderStage = useMemo(() => {
+    if (elapsedSeconds < 25) {
+      return {
+        title: "Extracting Demo Package",
+        description: "Decompressing the CS2 replay file and extracting tick stream...",
+      };
+    } else if (elapsedSeconds < 70) {
+      return {
+        title: "Parsing Match Ticks",
+        description: "Scanning player positions, weapon logs, and round status...",
+      };
+    } else if (elapsedSeconds < 130) {
+      return {
+        title: "Analyzing Economy and Strategies",
+        description: "Calculating round values, utility detonations, and entry paths...",
+      };
+    } else {
+      return {
+        title: "Formulating Great Khan's AI Verdict",
+        description: "Synthesizing strategic advice and plotting tactical mistakes...",
+      };
+    }
+  }, [elapsedSeconds]);
 
   useEffect(() => {
     if (!jobId) return;
@@ -2288,13 +2438,94 @@ export default function AnalysisPage() {
         <UlziiBorder className="mb-10" />
 
         {(status === "queued" || status === "processing") && (
-          <div className="card p-12 text-center">
-            <div className="w-16 h-16 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-6"
-              style={{ borderColor: "#2D7DD2", borderTopColor: "transparent" }} />
-            <h2 className="heading-display mb-3" style={{ fontSize: "1.4rem" }}>
-              The Khan is reading your demo…
-            </h2>
-            <p style={{ color: "#8BA7CC" }}>Parsing rounds, kills, and utility. This takes 30–90 seconds.</p>
+          <div className="card p-12 text-center relative overflow-hidden animate-pulse-glow" style={{ minHeight: 480, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            {/* Background Video */}
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover opacity-25 pointer-events-none"
+            >
+              <source src="https://cdn.pixabay.com/video/2021/08/04/83951-584742749_large.mp4" type="video/mp4" />
+              <source src="https://assets.mixkit.co/videos/preview/mixkit-smoke-in-the-dark-4848-large.mp4" type="video/mp4" />
+            </video>
+            <div className="absolute inset-0" style={{ background: "radial-gradient(circle at center, rgba(13,24,37,0.3) 0%, #0D1825 100%)" }} />
+
+            {/* Glowing Ulzii Motif Border Overlay */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#2D7DD2] to-transparent animate-pulse" />
+
+            {/* Content Container */}
+            <div className="relative z-10 space-y-8 flex flex-col items-center">
+              
+              {/* Pulsing Soyombo/Spinner Combo */}
+              <div className="relative flex items-center justify-center">
+                <div className="w-24 h-24 rounded-full border-4 border-slate-800 border-t-[#2D7DD2] border-r-[#C9A227] animate-spin" />
+                <div className="absolute animate-float">
+                  <SoyomboIcon size={42} color="#C9A227" className="animate-pulse" />
+                </div>
+              </div>
+
+              {/* Dynamic Loader Stage & Stage Progress */}
+              <div>
+                <span className="text-[10px] bg-[#2D7DD2]/10 border border-[#2D7DD2]/20 px-3 py-1 rounded-full text-[#2D7DD2] uppercase tracking-widest font-extrabold font-mono mb-2 inline-block">
+                  Stage: {loaderStage.title}
+                </span>
+                <h2 className="heading-display mt-2 mb-2" style={{ fontSize: "1.5rem" }}>
+                  The Khan is reading your demo…
+                </h2>
+                <p className="text-slate-400 text-sm max-w-md mx-auto">
+                  {loaderStage.description}
+                </p>
+              </div>
+
+              {/* Smart Progress Bar & Counters */}
+              <div className="w-full max-w-md space-y-2">
+                <div className="flex justify-between text-xs font-bold text-slate-400 font-mono">
+                  <span>Progress: {progressPercent}%</span>
+                  <span className="flex items-center gap-1.5">
+                    <Clock size={12} className="text-[#2D7DD2] animate-pulse" />
+                    Elapsed: {formatTime(elapsedSeconds)}
+                  </span>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-slate-950/60 overflow-hidden border border-white/5 p-0.5">
+                  <div 
+                    className="h-full rounded-full transition-all duration-1000 ease-out"
+                    style={{
+                      width: `${progressPercent}%`,
+                      background: "linear-gradient(90deg, #1B4F8A 0%, #2D7DD2 50%, #C9A227 100%)",
+                      boxShadow: "0 0 10px rgba(45,125,210,0.5)"
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-500 font-medium italic">
+                  <span>*Parsing time depends on demo size</span>
+                  <span>Est: ~2.5 mins total</span>
+                </div>
+              </div>
+
+              {/* Tips Carousel */}
+              <div 
+                key={tipIndex} 
+                className="animate-fade-in-up flex flex-col items-center gap-2 max-w-lg w-full p-4 rounded-xl bg-slate-950/65 border border-white/5 backdrop-blur-md"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-slate-900 border border-white/10 shrink-0">
+                    {COACHING_TIPS[tipIndex].icon}
+                  </div>
+                  <span className="text-[9px] text-[#C9A227] uppercase tracking-widest font-extrabold font-mono">
+                    Khan&apos;s Wisdom
+                  </span>
+                </div>
+                <p className="text-xs italic text-slate-200 px-3 text-center leading-relaxed">
+                  &ldquo;{COACHING_TIPS[tipIndex].quote}&rdquo;
+                </p>
+                <span className="text-[9px] text-slate-500 font-mono tracking-wider">
+                  &mdash; {COACHING_TIPS[tipIndex].author}
+                </span>
+              </div>
+
+            </div>
           </div>
         )}
 

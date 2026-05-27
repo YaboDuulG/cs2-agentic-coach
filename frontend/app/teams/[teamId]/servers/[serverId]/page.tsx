@@ -71,6 +71,16 @@ export default function ServerDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"settings" | "configs">("settings");
 
+  const handleTabChange = (tab: "settings" | "configs") => {
+    if (typeof document !== "undefined" && (document as any).startViewTransition) {
+      (document as any).startViewTransition(() => {
+        setActiveTab(tab);
+      });
+    } else {
+      setActiveTab(tab);
+    }
+  };
+
   // Server state settings (localStorage persistent)
   const [serverMap, setServerMap] = useState("de_mirage");
   const [serverLocation, setServerLocation] = useState("ord");
@@ -467,7 +477,7 @@ export default function ServerDashboardPage() {
             {/* Tabs Toggle (Settings vs Configs) */}
             <div className="flex border-b border-white/10">
               <button
-                onClick={() => setActiveTab("settings")}
+                onClick={() => handleTabChange("settings")}
                 className={`flex items-center gap-2 px-6 py-3.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
                   activeTab === "settings"
                     ? "border-[#2D7DD2] text-[#2D7DD2]"
@@ -478,7 +488,7 @@ export default function ServerDashboardPage() {
                 Settings
               </button>
               <button
-                onClick={() => setActiveTab("configs")}
+                onClick={() => handleTabChange("configs")}
                 className={`flex items-center gap-2 px-6 py-3.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
                   activeTab === "configs"
                     ? "border-[#2D7DD2] text-[#2D7DD2]"
@@ -491,8 +501,9 @@ export default function ServerDashboardPage() {
             </div>
 
             {/* TAB CONTENT */}
-            {activeTab === "settings" ? (
-              <div className="space-y-6">
+            <div style={{ viewTransitionName: "tab-content" } as React.CSSProperties}>
+              {activeTab === "settings" ? (
+                <div className="space-y-6">
                 
                 {/* Map, Location, Game Mode selector card */}
                 <div className="card p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -845,6 +856,7 @@ export default function ServerDashboardPage() {
 
               </div>
             )}
+            </div>
 
           </div>
         )}

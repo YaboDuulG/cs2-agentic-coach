@@ -128,8 +128,11 @@ async def parse_match(req: ParseRequest):
     Main parse endpoint — called by Cloud Tasks or directly in local mode.
     Downloads demo, parses it, writes to DB, uploads results to GCS.
     """
+    import time
+
     from parse_demo import parse_demo, upload_to_gcs, write_to_db
 
+    start_time = time.perf_counter()
     logger.info(f"[Scout] Starting parse for match {req.match_id}")
 
     # --- Resolve demo file ---
@@ -156,7 +159,9 @@ async def parse_match(req: ParseRequest):
         result = parse_demo(dem_file)
 
         # --- Write to DB ---
-        write_to_db(result, req.match_id)
+        duration = time.perf_counter() - start_time
+        logger.info(f"[Scout] Parse completed in {duration:.2f} seconds")
+        write_to_db(result, req.match_id, parse_duration=duration)
 
         # --- Upload parsed JSON to GCS (cloud mode only) ---
         gcs_parsed_uri = None
