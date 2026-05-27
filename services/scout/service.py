@@ -154,6 +154,21 @@ async def parse_match(req: ParseRequest):
         tmp_file = _download_from_gcs(req.gcs_uri, req.match_id)
         dem_file = tmp_file
 
+        if dem_file.endswith(".gz"):
+            import gzip
+            import shutil
+
+            decompressed_path = dem_file.replace(".gz", "")
+            logger.info(f"[Scout] Decompressing {dem_file} → {decompressed_path}")
+            with gzip.open(dem_file, "rb") as f_in:
+                with open(decompressed_path, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            # Remove the compressed temp file
+            if Path(dem_file).exists():
+                Path(dem_file).unlink()
+            dem_file = decompressed_path
+            tmp_file = decompressed_path
+
     try:
         # --- Parse ---
         result = parse_demo(dem_file)

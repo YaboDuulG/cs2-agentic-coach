@@ -28,8 +28,8 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
     Returns a short-lived presigned PUT URL so the browser can upload
     directly to GCS without proxying through the API server.
     """
-    if not body.filename.endswith(".dem"):
-        raise HTTPException(status_code=400, detail="Only .dem files are accepted.")
+    if not body.filename.endswith(".dem") and not body.filename.endswith(".dem.gz"):
+        raise HTTPException(status_code=400, detail="Only .dem or .dem.gz files are accepted.")
 
     if body.size_bytes > MAX_DEMO_SIZE_BYTES:
         raise HTTPException(status_code=413, detail="File exceeds 2GB limit.")

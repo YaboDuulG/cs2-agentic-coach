@@ -52,16 +52,33 @@ export function UploadZone({ onSuccess }: UploadZoneProps) {
     setUploading(true);
     setProgress(0);
     setBytesUploaded(0);
-    setTotalBytes(file.size);
-    setUploadSpeed("Calculating...");
-    startTimeRef.current = Date.now();
+    setUploadSpeed("Preparing...");
 
     try {
+      let uploadFile: File | Blob = file;
+      let uploadName = file.name;
+
+      if (typeof CompressionStream !== "undefined") {
+        try {
+          setUploadSpeed("Compressing...");
+          const compressedStream = file.stream().pipeThrough(new CompressionStream("gzip"));
+          const compressedBlob = await new Response(compressedStream).blob();
+          uploadFile = compressedBlob;
+          uploadName = file.name + ".gz";
+        } catch (err) {
+          console.error("Compression failed, using raw file:", err);
+        }
+      }
+
+      setTotalBytes(uploadFile.size);
+      setUploadSpeed("Calculating...");
+      startTimeRef.current = Date.now();
+
       // 1. Get presigned URL
       const presignRes = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, size_bytes: file.size }),
+        body: JSON.stringify({ filename: uploadName, size_bytes: uploadFile.size }),
       });
       
       if (!presignRes.ok) {
@@ -115,7 +132,7 @@ export function UploadZone({ onSuccess }: UploadZoneProps) {
 
       xhr.open("PUT", upload_url);
       xhr.setRequestHeader("Content-Type", "application/octet-stream");
-      xhr.send(file);
+      xhr.send(uploadFile);
 
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed.");

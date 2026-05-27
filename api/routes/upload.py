@@ -12,7 +12,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-ALLOWED_DEMO_TYPES = {".dem"}
+ALLOWED_DEMO_TYPES = {".dem", ".dem.gz"}
 ALLOWED_AUDIO_TYPES = {".mp3", ".wav", ".ogg"}
 MAX_AUDIO_SIZE_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 

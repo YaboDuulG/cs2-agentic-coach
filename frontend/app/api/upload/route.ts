@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
   try {
     const { filename, size_bytes } = await req.json();
 
-    if (!filename || !filename.endsWith(".dem")) {
-      return NextResponse.json({ error: "Only .dem files are accepted." }, { status: 400 });
+    if (!filename || (!filename.endsWith(".dem") && !filename.endsWith(".dem.gz"))) {
+      return NextResponse.json({ error: "Only .dem or .dem.gz files are accepted." }, { status: 400 });
     }
 
     // --- Get presigned URL from FastAPI ---

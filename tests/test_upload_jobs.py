@@ -42,6 +42,18 @@ class TestPresignEndpoint:
         assert "upload_url" in data
         assert data["local_mode"] is True
 
+    def test_presign_valid_dem_gz_local_mode(self):
+        """Presign for a valid .dem.gz file in LOCAL_MODE should return stub URL."""
+        response = client.post(
+            "/api/upload/presign",
+            json={"filename": "match.dem.gz", "size_bytes": 1024 * 1024 * 50},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "match_id" in data
+        assert "upload_url" in data
+        assert data["local_mode"] is True
+
     def test_presign_file_too_large(self):
         """Presign for a file over 2GB should return 413."""
         response = client.post(
