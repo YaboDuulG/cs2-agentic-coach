@@ -36,6 +36,19 @@ logger = logging.getLogger("scout")
 # At 64 tick, sampling every 8 ticks ≈ 8 positions/second
 TRAJECTORY_SAMPLE_TICKS = int(os.getenv("TRAJECTORY_SAMPLE_TICKS", "8"))
 
+# ---------------------------------------------------------------------------
+# Round identification constants (Rule 2 fallback)
+# ---------------------------------------------------------------------------
+# In a pistol round, each team has 5 players starting with $800.
+# We treat any round where BOTH sides have combined equipment ≤ this value
+# as a candidate pistol / warmup round.
+# This threshold is generous to account for partial team sizes or eco rounds.
+PISTOL_ROUND_MAX_EQUIP_PER_SIDE = int(os.getenv("PISTOL_ROUND_MAX_EQUIP", "4500"))
+
+# Minimum total rounds we expect a real competitive half to contain.
+# If we haven't found at least this many rounds we skip filtering.
+MIN_COMPETITIVE_ROUNDS = int(os.getenv("MIN_COMPETITIVE_ROUNDS", "10"))
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -82,6 +95,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             "map": map_name,
             "tickrate": tickrate,
             "total_rounds": 0,
+            "warmup_rounds_excluded": [],
         },
         "kills": [],
         "grenades": [],
@@ -163,13 +177,24 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
 
     # --- Round events (Economy + Winners) ---
     eco_lookup: dict[int, dict] = {}
+    # warmup_rounds: set of round numbers (total_rounds_played) to exclude
+    warmup_rounds: set[int] = set()
     freeze_df = None
     try:
+        # Rule 1 — is_warmup_period flag (most reliable when available)
         freeze_df = parser.parse_event(
             "round_freeze_end",
-            other=["total_rounds_played"],
+            other=["total_rounds_played", "is_warmup_period"],
         )
         if freeze_df is not None and not freeze_df.empty:
+            if "is_warmup_period" in freeze_df.columns:
+                warmup_mask = freeze_df["is_warmup_period"].fillna(False).astype(bool)
+                warmup_rnds = freeze_df.loc[warmup_mask, "total_rounds_played"].dropna()
+                warmup_rounds.update(int(r) for r in warmup_rnds)
+                logger.info(
+                    f"Rule 1 (is_warmup_period): excluded rounds {sorted(warmup_rounds)}"
+                )
+
             ticks = freeze_df["tick"].tolist()
             ticks_df = parser.parse_ticks(["current_equip_value", "team_name"])
             filtered_ticks_df = ticks_df[ticks_df["tick"].isin(ticks)]
@@ -183,6 +208,36 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
     except Exception as e:
         logger.debug(f"Economy data unavailable: {e}")
 
+    # Rule 2 — Equipment-value budget (fallback / cross-check)
+    # Identify the two pistol rounds (round 1 and round 13/switch) as the first
+    # rounds where BOTH sides are under the pistol-round budget.
+    # Any round before the FIRST pistol round is treated as warmup.
+    if eco_lookup:
+        sorted_round_nums = sorted(eco_lookup.keys())
+        # Find the first round where both sides look like a pistol start
+        first_pistol_round: int | None = None
+        for rn in sorted_round_nums:
+            eco = eco_lookup[rn]
+            if (
+                eco["ct"] <= PISTOL_ROUND_MAX_EQUIP_PER_SIDE
+                and eco["t"] <= PISTOL_ROUND_MAX_EQUIP_PER_SIDE
+            ):
+                first_pistol_round = rn
+                break
+
+        if first_pistol_round is not None:
+            # All rounds BEFORE the first pistol round are warmup/knife
+            before_pistol = {rn for rn in sorted_round_nums if rn < first_pistol_round}
+            if before_pistol:
+                logger.info(
+                    f"Rule 2 (equip budget): excluding pre-pistol rounds {sorted(before_pistol)}"
+                )
+                warmup_rounds.update(before_pistol)
+
+    if warmup_rounds:
+        logger.info(f"Total warmup/invalid rounds excluded: {sorted(warmup_rounds)}")
+    output["metadata"]["warmup_rounds_excluded"] = sorted(warmup_rounds)
+
     try:
         round_df = parser.parse_event(
             "round_end",
@@ -192,12 +247,24 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             ct_score = t_score = 0
             for _, row in round_df.sort_values("total_rounds_played").iterrows():
                 rnd_num = _safe_int(row.get("total_rounds_played"))
+
+                # Skip warmup / pre-match rounds identified by the rules above
+                if rnd_num in warmup_rounds:
+                    logger.debug(f"Skipping warmup round {rnd_num}")
+                    continue
+
                 winner = row.get("winner")
                 winner_side = ""
                 if winner in (3, "CT"):
                     winner_side = "CT"
                 elif winner in (2, "T", "TERRORIST"):
                     winner_side = "T"
+
+                # Additional guard: skip rounds with no valid winner side
+                # (knife rounds, technical rounds, etc.)
+                if not winner_side:
+                    logger.debug(f"Skipping round {rnd_num} with no valid winner side")
+                    continue
 
                 if winner_side == "CT":
                     ct_score += 1
@@ -235,6 +302,22 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 )
 
     output["metadata"]["total_rounds"] = len(output["rounds"])
+
+    # Build a set of valid (non-warmup) round numbers for downstream filtering
+    valid_round_nums: set[int] = {r["round_num"] for r in output["rounds"]}
+
+    # --- Filter kills / grenades / first_contacts to competitive rounds only ---
+    if warmup_rounds:
+        pre_filter_kills = len(output["kills"])
+        output["kills"] = [k for k in output["kills"] if k["round"] in valid_round_nums]
+        output["grenades"] = [g for g in output["grenades"] if g["round"] in valid_round_nums]
+        output["first_contacts"] = [
+            fc for fc in output["first_contacts"] if fc["round"] in valid_round_nums
+        ]
+        logger.info(
+            f"Filtered out {pre_filter_kills - len(output['kills'])} warmup kills; "
+            f"{len(output['kills'])} competitive kills remain"
+        )
 
     # --- Player and Utility Stats Compilation ---
     player_stats = {}
@@ -297,6 +380,9 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             }
             freeze_ticks = ticks_df_all[ticks_df_all["tick"].isin(tick_to_round_local.keys())]
             for _, row in freeze_ticks.iterrows():
+                rn = tick_to_round_local.get(int(row.get("tick", 0)), -1)
+                if rn not in valid_round_nums:
+                    continue  # skip warmup freeze ticks
                 p = get_stat_player(row.get("steamid"), row.get("name"), row.get("team_name"))
                 if p:
                     p["rounds_played"] += 1
@@ -306,6 +392,8 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         if kills_df is not None and not kills_df.empty:
             for _, row in kills_df.iterrows():
                 round_num = _safe_int(row.get("total_rounds_played"))
+                if round_num not in valid_round_nums:
+                    continue  # skip warmup kills
 
                 att_id = row.get("attacker_steamid")
                 p_att = get_stat_player(
@@ -340,6 +428,8 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
 
         if fire_df is not None and not fire_df.empty:
             for _, row in fire_df.iterrows():
+                if _safe_int(row.get("total_rounds_played")) not in valid_round_nums:
+                    continue  # skip warmup utility
                 usr_id = row.get("user_steamid")
                 wep = str(row.get("weapon", ""))
                 p = get_stat_player(usr_id, row.get("user_name"))
@@ -357,6 +447,8 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
 
         if hurt_df is not None and not hurt_df.empty:
             for _, row in hurt_df.iterrows():
+                if _safe_int(row.get("total_rounds_played")) not in valid_round_nums:
+                    continue  # skip warmup damage
                 att_id = row.get("attacker_steamid")
                 vic_id = row.get("user_steamid")
                 att_team = row.get("attacker_team_name")
@@ -375,6 +467,8 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
 
         if blind_df is not None and not blind_df.empty:
             for _, row in blind_df.iterrows():
+                if _safe_int(row.get("total_rounds_played")) not in valid_round_nums:
+                    continue  # skip warmup flash events
                 att_id = row.get("attacker_steamid")
                 vic_id = row.get("user_steamid")
                 att_team = row.get("attacker_team_name")
@@ -397,6 +491,8 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         if kills_df is not None and not kills_df.empty:
             for _, row in kills_df.iterrows():
                 round_num = _safe_int(row.get("total_rounds_played"))
+                if round_num not in valid_round_nums:
+                    continue  # skip warmup entry kills
                 tick = _safe_int(row.get("tick"))
                 if round_num not in entry_map or tick < entry_map[round_num]["tick"]:
                     entry_map[round_num] = {
@@ -418,18 +514,18 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 p_vic["entry_attempts"] += 1
 
         if kills_df is not None and not kills_df.empty:
-            kills_list = []
-            for _, row in kills_df.iterrows():
-                kills_list.append(
-                    {
-                        "tick": _safe_int(row.get("tick")),
-                        "round": _safe_int(row.get("total_rounds_played")),
-                        "attacker_steamid": _safe_str(row.get("attacker_steamid")),
-                        "attacker_team": _safe_str(row.get("attacker_team_name")),
-                        "victim_steamid": _safe_str(row.get("user_steamid")),
-                        "victim_team": _safe_str(row.get("user_team_name")),
-                    }
-                )
+            kills_list = [
+                {
+                    "tick": _safe_int(row.get("tick")),
+                    "round": _safe_int(row.get("total_rounds_played")),
+                    "attacker_steamid": _safe_str(row.get("attacker_steamid")),
+                    "attacker_team": _safe_str(row.get("attacker_team_name")),
+                    "victim_steamid": _safe_str(row.get("user_steamid")),
+                    "victim_team": _safe_str(row.get("user_team_name")),
+                }
+                for _, row in kills_df.iterrows()
+                if _safe_int(row.get("total_rounds_played")) in valid_round_nums
+            ]
 
             for idx, k in enumerate(kills_list):
                 for jdx in range(idx + 1, len(kills_list)):
@@ -455,14 +551,18 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         if kills_df is not None and not kills_df.empty:
             for _, row in kills_df.iterrows():
                 round_num = _safe_int(row.get("total_rounds_played"))
+                if round_num not in valid_round_nums:
+                    continue  # skip warmup deaths
                 vic_id = _safe_str(row.get("user_steamid"))
                 if vic_id:
                     deaths_by_round.setdefault(round_num, set()).add(vic_id)
 
+        # KAST survival: a player survives a round if they weren't killed in it.
+        # Iterate over actual valid round numbers, not a sequential range.
         for steamid, p in raw_players.items():
-            for r in range(tot_r):
-                if steamid not in deaths_by_round.get(r, set()):
-                    p["kast_rounds"].add(r)
+            for rn in valid_round_nums:
+                if steamid not in deaths_by_round.get(rn, set()):
+                    p["kast_rounds"].add(rn)
 
         for steamid, p in raw_players.items():
             rc = p["rounds_played"] if p["rounds_played"] > 0 else tot_r
@@ -536,6 +636,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
 
     logger.info(
         f"Parsed — Rounds: {output['metadata']['total_rounds']} | "
+        f"Warmup excluded: {len(warmup_rounds)} | "
         f"Kills: {len(output['kills'])} | "
         f"Grenades: {len(output['grenades'])} | "
         f"First Contacts: {len(output['first_contacts'])} | "

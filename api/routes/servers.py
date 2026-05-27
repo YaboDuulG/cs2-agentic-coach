@@ -10,11 +10,19 @@ from sqlalchemy.orm import Session
 
 from db.database import get_session
 from db.models import PracticeServer, TeamMember
-from services.warlord.dathost_client import destroy_practice_server, provision_practice_server
+from services.warlord.dathost_client import (
+    TRAINING_MODE_CONFIGS,
+    check_cs2_update_active,
+    destroy_practice_server,
+    get_available_modes,
+    provision_practice_server,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+VALID_MODES = list(TRAINING_MODE_CONFIGS.keys())
 
 
 class ServerCreateRequest(BaseModel):
@@ -41,6 +49,17 @@ def _verify_team_member(db: Session, user_id: str, team_id: str):
     return member
 
 
+@router.get("/servers/modes")
+def list_training_modes():
+    """Returns available training modes and live CS2 update status."""
+    is_active, detail = check_cs2_update_active()
+    return {
+        "modes": get_available_modes(),
+        "update_window_active": is_active,
+        "update_detail": detail,
+    }
+
+
 @router.post("/teams/{team_id}/servers", response_model=ServerResponse)
 def spin_up_server(
     team_id: str,
@@ -54,6 +73,13 @@ def spin_up_server(
 
     _verify_team_member(db, user_id, team_id)
 
+    # Validate mode
+    if req_body.mode not in VALID_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid mode '{req_body.mode}'. Valid modes: {VALID_MODES}",
+        )
+
     # Check if team already has an active server
     active_server = db.execute(
         select(PracticeServer).where(
@@ -66,13 +92,8 @@ def spin_up_server(
             status_code=400, detail="Team already has an active server. Terminate it first."
         )
 
-    # Generate an ID for the server record
     import uuid
-
     server_id = str(uuid.uuid4())
-
-    # Provision via Hetzner
-    # In a real app, we would dynamically set region based on req_body.region
     webhook_url = f"{request.base_url}api/servers/webhook"
 
     try:
@@ -85,7 +106,18 @@ def spin_up_server(
                 "server_password": "local_server_pass",
             }
         else:
-            vultr_data = provision_practice_server(server_id, webhook_url, region=req_body.region)
+            vultr_data = provision_practice_server(
+                server_id,
+                webhook_url,
+                region=req_body.region,
+                mode=req_body.mode,
+            )
+    except ValueError as e:
+        err_str = str(e)
+        # Tuesday update window — surface as 503 Service Unavailable
+        if "maintenance window" in err_str:
+            raise HTTPException(status_code=503, detail=err_str)
+        raise HTTPException(status_code=500, detail=err_str)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

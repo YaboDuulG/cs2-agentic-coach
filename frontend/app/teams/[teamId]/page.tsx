@@ -343,71 +343,74 @@ export default function TeamDetailPage() {
                   </div>
                 </div>
 
-                {/* Practice Servers panel */}
+                {/* Training Server panel */}
                 <div className="card p-5 h-fit" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
                   <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>
-                    <Crosshair size={14} className="inline mr-2" /> Practice Server
+                    <Crosshair size={14} className="inline mr-2" /> Training Server
                   </h2>
-                  
-                  {servers.length > 0 ? (
-                    <div className="space-y-3">
-                      {servers.map(s => (
-                        <div key={s.id} className="rounded-lg bg-white/5 p-4 border border-white/10 flex flex-col gap-3">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${s.status === 'active' ? 'bg-[#22D3A0] animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
-                              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">{s.mode} Server</span>
-                            </div>
-                            <span className={`text-xs px-2 py-0.5 rounded font-mono ${s.status === 'active' ? 'bg-[#22D3A0]/10 text-[#22D3A0] border border-[#22D3A0]/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
-                              {s.status}
-                            </span>
-                          </div>
-                          {s.ip_address ? (
-                            <div className="bg-black/40 p-2.5 rounded text-xs font-mono text-[#C4CEDD] break-all select-all border border-white/5">
-                              connect {s.ip_address}; password {s.server_password}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-[#8BA7CC] italic">Provisioning server instance...</div>
-                          )}
-                          <Link
-                            href={`/teams/${teamId}/servers/${s.id}`}
-                            className="mt-1 w-full text-center text-xs font-bold uppercase tracking-wider py-2 rounded bg-[#2D7DD2] hover:bg-[#2D7DD2]/80 text-white transition-all duration-200 border border-[#2D7DD2]/20 shadow-md"
-                          >
-                            Manage Server
-                          </Link>
+
+                  {/* Active server quick info */}
+                  {servers.filter(s => s.status !== "terminated").map(s => (
+                    <div key={s.id} className="rounded-lg bg-white/5 p-4 border border-white/10 flex flex-col gap-3 mb-3">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${s.status === 'active' ? 'bg-[#22D3A0] animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
+                          <span className="text-xs font-bold uppercase tracking-wider text-slate-200">{s.mode} Server</span>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded font-mono ${s.status === 'active' ? 'bg-[#22D3A0]/10 text-[#22D3A0] border border-[#22D3A0]/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
+                          {s.status}
+                        </span>
+                      </div>
+                      {s.ip_address ? (
+                        <div className="bg-black/40 p-2.5 rounded text-xs font-mono text-[#C4CEDD] break-all select-all border border-white/5">
+                          connect {s.ip_address}; password {s.server_password}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-[#8BA7CC] italic">Provisioning server instance...</div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Training modes launcher */}
+                  <Link
+                    href={`/teams/${teamId}/training`}
+                    style={{
+                      display: "block",
+                      borderRadius: "10px",
+                      overflow: "hidden",
+                      position: "relative",
+                      minHeight: "120px",
+                      textDecoration: "none",
+                      background: "linear-gradient(135deg, #0D1825 0%, #142135 100%)",
+                      border: "1px solid #1E3A5F",
+                      marginTop: servers.filter(s => s.status !== "terminated").length > 0 ? "8px" : "0",
+                    }}
+                  >
+                    {/* Mode previews */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", height: "80px", overflow: "hidden" }}>
+                      {["defense","prefire","grenade"].map((m) => (
+                        <div key={m} style={{ position: "relative", overflow: "hidden" }}>
+                          <img src={`/training_${m}.png`} alt={m} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.7 }} />
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-[#8BA7CC] mb-3">No active practice servers.</p>
-                      <div className="flex gap-2 mb-3">
-                        <select 
-                          value={region}
-                          onChange={(e) => setRegion(e.target.value)}
-                          className="flex-1 rounded bg-[#070D18] border border-white/10 px-3 py-2 text-sm text-[#C4CEDD] outline-none focus:border-[#2D7DD2] cursor-pointer"
-                        >
-                          <option value="dfw">US South (Dallas, TX)</option>
-                          <option value="ord">US Central (Chicago, IL)</option>
-                          <option value="ewr">US East (New Jersey/NY)</option>
-                          <option value="sea">US Northwest (Seattle, WA)</option>
-                          <option value="sjc">US Southwest (Silicon Valley, CA)</option>
-                        </select>
-                      </div>
-                      <button
-                        onClick={spinUpServer}
-                        disabled={spinningUp}
-                        className="w-full rounded bg-[#2D7DD2] py-2 text-sm font-bold text-white transition hover:bg-[#2D7DD2]/80 disabled:opacity-50 shadow-md"
-                      >
-                        {spinningUp ? "Starting..." : "Spin Up Server"}
-                      </button>
-                      {serverError && (
-                        <div className="mt-3 p-2.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs text-left leading-relaxed">
-                          {serverError}
+                    <div style={{ padding: "12px 14px", background: "linear-gradient(to top, rgba(8,14,26,0.95) 0%, rgba(8,14,26,0.6) 100%)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <div style={{ fontSize: "13px", fontWeight: 700, color: "#F0F4FF" }}>Open Training Modes</div>
+                          <div style={{ fontSize: "11px", color: "#8BA7CC", marginTop: "2px" }}>Defense · Prefire · AWP · Grenades · Retake + more</div>
                         </div>
-                      )}
+                        <div style={{
+                          width: "28px", height: "28px", borderRadius: "50%",
+                          backgroundColor: "#2D7DD2",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0,
+                        }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="m9 18 6-6-6-6"/></svg>
+                        </div>
+                      </div>
                     </div>
-                  )}
+                  </Link>
                 </div>
 
                 {/* Analyses feed */}
