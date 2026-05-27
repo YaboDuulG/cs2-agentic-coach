@@ -20,6 +20,7 @@ MAX_DEMO_SIZE_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB hard cap
 class PresignRequest(BaseModel):
     filename: str
     size_bytes: int = 0
+    team_id: str | None = None
 
 
 @router.post("/presign", summary="Get a presigned GCS URL for direct browser upload")
@@ -39,8 +40,25 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
     local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
     user_id = request.headers.get("x-clerk-user-id")
 
+    # Verify team membership if uploading to a team
+    if body.team_id:
+        if not user_id:
+            raise HTTPException(status_code=403, detail="Upload to a team requires user authentication.")
+        from db.database import SessionLocal  # noqa: PLC0415
+        from sqlalchemy import text  # noqa: PLC0415
+        db = SessionLocal()
+        try:
+            member_check = db.execute(
+                text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
+                {"team_id": body.team_id, "user_id": user_id},
+            ).fetchone()
+            if not member_check:
+                raise HTTPException(status_code=403, detail="You are not a member of this team.")
+        finally:
+            db.close()
+
     # Create match record in DB immediately so jobs endpoint returns 'queued'
-    _create_match_record(match_id, body.filename, user_id)
+    _create_match_record(match_id, body.filename, user_id, body.team_id)
 
     if local_mode or not bucket_name:
         # Local dev: return a fake presigned URL
@@ -94,7 +112,9 @@ async def stub_upload(match_id: str):
     return {"ok": True, "match_id": match_id}
 
 
-def _create_match_record(match_id: str, filename: str, user_id: str | None = None) -> None:
+def _create_match_record(
+    match_id: str, filename: str, user_id: str | None = None, team_id: str | None = None
+) -> None:
     """Insert a queued match row so /api/jobs/{id} returns 'queued' immediately."""
     try:
         from sqlalchemy import text  # noqa: PLC0415
@@ -107,12 +127,12 @@ def _create_match_record(match_id: str, filename: str, user_id: str | None = Non
                 text("""
                     INSERT INTO matches (
                         match_id, map_name, tickrate, total_rounds,
-                        demo_filename, status, user_id, created_at, updated_at
+                        demo_filename, status, user_id, team_id, created_at, updated_at
                     )
-                    VALUES (:id, 'unknown', 64, 0, :filename, 'PENDING', :user_id, NOW(), NOW())
+                    VALUES (:id, 'unknown', 64, 0, :filename, 'PENDING', :user_id, :team_id, NOW(), NOW())
                     ON CONFLICT (match_id) DO NOTHING
                 """),
-                {"id": match_id, "filename": filename, "user_id": user_id},
+                {"id": match_id, "filename": filename, "user_id": user_id, "team_id": team_id},
             )
             db.commit()
         finally:

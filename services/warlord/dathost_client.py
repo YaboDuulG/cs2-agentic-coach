@@ -54,8 +54,9 @@ def provision_practice_server(match_id: str, webhook_url: str, region: str = "df
     try:
         # 1. Create the server
         logger.info(f"Creating DatHost server '{server_name}' in {dathost_location}...")
+        multipart_data = {k: (None, str(v)) for k, v in payload.items()}
         response = requests.post(
-            "https://dathost.net/api/0.1/game-servers", auth=auth, data=payload
+            "https://dathost.net/api/0.1/game-servers", auth=auth, files=multipart_data
         )
         response.raise_for_status()
         server_data = response.json()
@@ -93,7 +94,7 @@ def provision_practice_server(match_id: str, webhook_url: str, region: str = "df
         }
 
     except requests.exceptions.RequestException as e:
-        error_msg = e.response.text if e.response else str(e)
+        error_msg = e.response.text if (e.response is not None and e.response.text) else str(e)
         logger.error(f"Failed to provision DatHost server: {error_msg}")
         raise ValueError(f"DatHost provision failed: {error_msg}")
 

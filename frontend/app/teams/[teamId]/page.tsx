@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { 
   Users, Copy, Check, ArrowLeft, MapPin, Crosshair, Clock,
-  Settings, LayoutDashboard, Lock, Shield, Key, CreditCard, AlertTriangle, Trash2, Camera
+  Settings, LayoutDashboard, Lock, Shield, Key, CreditCard, AlertTriangle, Trash2, Camera, Upload
 } from "lucide-react";
-import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
+import { CloudMotifBg } from "@/components/patterns/mongolian";
 import { TeamIcon, getDevilFruit } from "@/components/TeamIcon";
+import { UploadModal } from "@/components/UploadModal";
 
 interface TeamDetail {
   team_id: string;
@@ -77,10 +78,11 @@ export default function TeamDetailPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchTeamDetails = () => {
+  const fetchTeamDetails = useCallback(() => {
     if (!isLoaded || !user) return;
     Promise.all([
       fetch(`/api/teams/${teamId}`).then(r => r.json().catch(() => null)),
@@ -88,21 +90,18 @@ export default function TeamDetailPage() {
       fetch(`/api/teams/${teamId}/servers`).then(r => r.json().catch(() => [])),
     ]).then(([teamData, analysisData, serverData]) => {
       setTeam(teamData);
+      if (teamData) {
+        setEditName(teamData.name);
+      }
       setAnalyses(Array.isArray(analysisData) ? analysisData : []);
       setServers(Array.isArray(serverData) ? serverData : []);
       setLoading(false);
     }).catch(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchTeamDetails();
   }, [teamId, user, isLoaded]);
 
   useEffect(() => {
-    if (team) {
-      setEditName(team.name);
-    }
-  }, [team]);
+    fetchTeamDetails();
+  }, [fetchTeamDetails]);
 
   // Poll for server status if any server is booting
   useEffect(() => {
@@ -135,7 +134,7 @@ export default function TeamDetailPage() {
       let data;
       try {
         data = await res.json();
-      } catch (e) {
+      } catch {
         data = { error: "Failed to parse API response", detail: res.statusText || "Internal Server Error" };
       }
 
@@ -413,11 +412,25 @@ export default function TeamDetailPage() {
 
                 {/* Analyses feed */}
                 <div className="md:col-span-2">
-                  <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>Team Analyses</h2>
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="heading-display" style={{ fontSize: "0.95rem" }}>Team Analyses</h2>
+                    <button
+                      onClick={() => setIsUploadModalOpen(true)}
+                      className="rounded-lg bg-[#2D7DD2] hover:bg-[#2D7DD2]/85 px-4 py-2 text-xs font-bold text-white transition-all select-none shadow-md flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Upload size={13} /> Upload Match
+                    </button>
+                  </div>
                   {analyses.length === 0 ? (
                     <div className="card p-8 text-center" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
                       <MapPin size={32} color="#1E3A5F" className="mx-auto mb-3" />
-                      <p style={{ color: "#8BA7CC", fontSize: "0.875rem" }}>No analyses yet. Have a teammate upload a demo!</p>
+                      <p style={{ color: "#8BA7CC", fontSize: "0.875rem", marginBottom: "1rem" }}>No analyses yet. Have a teammate upload a demo!</p>
+                      <button
+                        onClick={() => setIsUploadModalOpen(true)}
+                        className="mx-auto rounded-lg bg-[#2D7DD2] hover:bg-[#2D7DD2]/85 px-4 py-2 text-xs font-bold text-white transition-all select-none shadow-md flex items-center gap-1.5 cursor-pointer w-fit"
+                      >
+                        <Upload size={13} /> Upload Match
+                      </button>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -625,7 +638,7 @@ export default function TeamDetailPage() {
                                   </span>
                                   <h4 className="text-sm font-bold text-white mt-2 leading-none">{fruit.name}</h4>
                                   <p className="text-xs text-slate-400 mt-2 leading-relaxed max-w-lg">{fruit.description}</p>
-                                  <p className="text-[10px] text-[#4A6A8A] mt-3 leading-relaxed italic">Your team is assigned this One Piece Devil Fruit based on your team ID's hash. Upload a custom logo above to override it.</p>
+                                  <p className="text-[10px] text-[#4A6A8A] mt-3 leading-relaxed italic">Your team is assigned this One Piece Devil Fruit based on your team ID&apos;s hash. Upload a custom logo above to override it.</p>
                                 </div>
                               </div>
                             </div>
@@ -644,7 +657,7 @@ export default function TeamDetailPage() {
                             <Key className="text-[#2D7DD2] flex-shrink-0" size={24} />
                             <div>
                               <h4 className="text-sm font-bold text-white mb-0.5">Managed Provider</h4>
-                              <p className="text-xs text-slate-400 leading-relaxed">This team's security profile is managed by Clerk. Password-free sessions are enabled by default for all captains and members.</p>
+                              <p className="text-xs text-slate-400 leading-relaxed">This team&apos;s security profile is managed by Clerk. Password-free sessions are enabled by default for all captains and members.</p>
                             </div>
                           </div>
                         </div>
@@ -693,7 +706,7 @@ export default function TeamDetailPage() {
                             <CreditCard className="text-[#2D7DD2] flex-shrink-0" size={24} />
                             <div>
                               <h4 className="text-sm font-bold text-white mb-0.5">Synchronized Plan</h4>
-                              <p className="text-xs text-slate-400 leading-relaxed">This team's subscription is synchronized with your captain account plan. Roster size limit: <b>Unlimited</b>.</p>
+                              <p className="text-xs text-slate-400 leading-relaxed">This team&apos;s subscription is synchronized with your captain account plan. Roster size limit: <b>Unlimited</b>.</p>
                             </div>
                           </div>
                         </div>
@@ -750,6 +763,14 @@ export default function TeamDetailPage() {
           </>
         )}
       </div>
+      <UploadModal
+        isOpen={isUploadModalOpen}
+        onClose={() => {
+          setIsUploadModalOpen(false);
+          fetchTeamDetails();
+        }}
+        teamId={teamId}
+      />
     </div>
   );
 }

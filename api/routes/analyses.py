@@ -26,7 +26,7 @@ async def list_analyses(user_id: str = ""):
                 text("""
                     SELECT match_id, map_name, status, created_at
                     FROM matches
-                    WHERE user_id = :user_id
+                    WHERE user_id = :user_id AND team_id IS NULL
                     ORDER BY created_at DESC
                     LIMIT 100
                 """),

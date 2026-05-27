@@ -19,17 +19,41 @@ async def trigger_coaching(match_id: str, background_tasks: BackgroundTasks):
 
 
 @router.get("/{match_id}", summary="Get cached coaching notes for a match")
-async def get_coaching(match_id: str):
+async def get_coaching(match_id: str, user_id: str | None = None):
     """Return cached AI coaching output, or 202 if not ready yet."""
     try:
         from db.database import SessionLocal  # noqa: PLC0415
         from db.models import Match  # noqa: PLC0415
+        from sqlalchemy import text  # noqa: PLC0415
 
         db = SessionLocal()
         try:
             match = db.query(Match).filter(Match.match_id == match_id).first()
             if not match:
                 raise HTTPException(status_code=404, detail="Match not found")
+
+            # Access check
+            if match.team_id:
+                if not user_id:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Access denied: Team match requires user authentication.",
+                    )
+                member_check = db.execute(
+                    text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
+                    {"team_id": match.team_id, "user_id": user_id},
+                ).fetchone()
+                if not member_check:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Access denied: You are not a member of this team.",
+                    )
+            else:
+                if match.user_id and match.user_id != user_id:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Access denied: This match belongs to another user.",
+                    )
             if not match.coaching_notes:
                 return {"status": "pending", "match_id": match_id}
             return {

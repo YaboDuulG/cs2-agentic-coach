@@ -5,6 +5,9 @@ import sys
 # Ensure project root is in sys.path when executed directly
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from sqlalchemy import text
 
 from db.database import engine
@@ -32,6 +35,7 @@ def run_migrations():
         ),
         ("trajectories_team", "ALTER TABLE trajectories ALTER COLUMN team TYPE VARCHAR(64);"),
         ("teams_logo_url", "ALTER TABLE teams ADD COLUMN logo_url VARCHAR(512);"),
+        ("matches_team_id", "ALTER TABLE matches ADD COLUMN team_id VARCHAR(36) REFERENCES teams(id) ON DELETE SET NULL;"),
     ]
     for col_name, sql in columns:
         with engine.begin() as conn:

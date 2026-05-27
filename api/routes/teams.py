@@ -182,8 +182,7 @@ async def team_analyses(team_id: str, user_id: str = ""):
                     SELECT m.match_id, m.map_name, m.status, m.created_at, m.user_id,
                            m.total_rounds
                     FROM matches m
-                    JOIN team_members tm ON m.user_id = tm.user_id
-                    WHERE tm.team_id = :team_id
+                    WHERE m.team_id = :team_id
                     ORDER BY m.created_at DESC
                     LIMIT 50
                 """),

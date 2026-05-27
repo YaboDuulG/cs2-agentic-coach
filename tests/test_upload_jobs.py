@@ -101,6 +101,10 @@ class TestJobStatusEndpoint:
                 "done",
                 None,
                 '{"player1": {"adr": NaN, "kills": 10}}',
+                None,
+                None,
+                "test-user",
+                None,
             )
 
             mock_result_kills = [
@@ -129,7 +133,7 @@ class TestJobStatusEndpoint:
             mock_exec.fetchone.return_value = mock_result_match
             mock_exec.fetchall.side_effect = [mock_result_kills, mock_result_rounds]
 
-            response = client.get("/api/jobs/test-match-nan")
+            response = client.get("/api/jobs/test-match-nan?user_id=test-user")
             assert response.status_code == 200
             data = response.json()
 

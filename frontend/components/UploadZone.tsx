@@ -11,9 +11,10 @@ const MAX_BYTES = MAX_MB * 1024 * 1024;
 
 interface UploadZoneProps {
   onSuccess?: () => void;
+  teamId?: string;
 }
 
-export function UploadZone({ onSuccess }: UploadZoneProps) {
+export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
   const router = useRouter();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +79,11 @@ export function UploadZone({ onSuccess }: UploadZoneProps) {
       const presignRes = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: uploadName, size_bytes: uploadFile.size }),
+        body: JSON.stringify({
+          filename: uploadName,
+          size_bytes: uploadFile.size,
+          team_id: teamId,
+        }),
       });
       
       if (!presignRes.ok) {
@@ -138,7 +143,7 @@ export function UploadZone({ onSuccess }: UploadZoneProps) {
       setError(e instanceof Error ? e.message : "Upload failed.");
       setUploading(false);
     }
-  }, [router, onSuccess]);
+  }, [router, onSuccess, teamId]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

@@ -53,7 +53,7 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
 
     for i in range(max_retries):
         time.sleep(5)
-        status_res = requests.get(f"{api_url}/api/jobs/{match_id}")
+        status_res = requests.get(f"{api_url}/api/jobs/{match_id}?user_id={user_id}")
         if not status_res.ok:
             continue
 
@@ -77,7 +77,7 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
     print("\n[4/4] Polling for AI Coaching Notes (Great Khan)...")
     for i in range(12):  # 12 * 5s = 60 seconds for AI
         time.sleep(5)
-        coach_res = requests.get(f"{api_url}/api/coaching/{match_id}")
+        coach_res = requests.get(f"{api_url}/api/coaching/{match_id}?user_id={user_id}")
         if not coach_res.ok:
             continue
 

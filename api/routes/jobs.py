@@ -20,7 +20,7 @@ def _get_db():
 
 
 @router.get("/{match_id}", summary="Get demo parse job status and results")
-async def get_job_status(match_id: str):
+async def get_job_status(match_id: str, user_id: str | None = None):
     """
     Poll this endpoint after uploading a demo.
     Returns status: queued | processing | done | failed
@@ -47,7 +47,7 @@ async def get_job_status(match_id: str):
             # Check if match record exists and has been parsed
             result = db.execute(
                 text(
-                    "SELECT match_id, map_name, status, error_message, player_stats_json, created_at, parse_duration_seconds FROM matches WHERE match_id = :id"
+                    "SELECT match_id, map_name, status, error_message, player_stats_json, created_at, parse_duration_seconds, user_id, team_id FROM matches WHERE match_id = :id"
                 ),
                 {"id": match_id},
             ).fetchone()
@@ -55,6 +55,32 @@ async def get_job_status(match_id: str):
             if result is None:
                 # Not in DB yet — still queued or Scout hasn't started
                 return {"status": "queued", "match_id": match_id}
+
+            match_user_id = result[7]
+            match_team_id = result[8]
+
+            # Access check
+            if match_team_id:
+                if not user_id:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Access denied: Team match requires user authentication.",
+                    )
+                member_check = db.execute(
+                    text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
+                    {"team_id": match_team_id, "user_id": user_id},
+                ).fetchone()
+                if not member_check:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Access denied: You are not a member of this team.",
+                    )
+            else:
+                if match_user_id and match_user_id != user_id:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Access denied: This match belongs to another user.",
+                    )
 
             match_status = result[2].lower() if result[2] else "processing"
             error_message = result[3]

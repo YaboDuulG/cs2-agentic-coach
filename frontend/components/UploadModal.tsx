@@ -8,9 +8,10 @@ import { SoyomboIcon } from "./patterns/mongolian";
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
+  teamId?: string;
 }
 
-export function UploadModal({ isOpen, onClose }: UploadModalProps) {
+export function UploadModal({ isOpen, onClose, teamId }: UploadModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape key press
@@ -91,7 +92,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
 
         {/* Upload Zone */}
         <div className="w-full">
-          <UploadZone onSuccess={onClose} />
+          <UploadZone onSuccess={onClose} teamId={teamId} />
         </div>
       </div>
     </div>
