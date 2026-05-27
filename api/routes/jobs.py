@@ -62,6 +62,15 @@ async def get_job_status(match_id: str):
             created_at = result[5] if len(result) > 5 else None
             parse_duration_seconds = result[6] if len(result) > 6 else None
 
+            from datetime import UTC, datetime
+
+            elapsed_seconds = 0
+            if created_at:
+                now_utc = datetime.now(UTC)
+                if created_at.tzinfo is None:
+                    now_utc = now_utc.replace(tzinfo=None)
+                elapsed_seconds = max(0, int((now_utc - created_at).total_seconds()))
+
             if match_status == "failed":
                 return {"status": "failed", "match_id": match_id, "error": error_message}
 
@@ -70,6 +79,7 @@ async def get_job_status(match_id: str):
                     "status": "queued",
                     "match_id": match_id,
                     "created_at": created_at.isoformat() if created_at else None,
+                    "elapsed_seconds": elapsed_seconds,
                 }
 
             if match_status not in ("done", "complete", "parsed"):
@@ -78,6 +88,7 @@ async def get_job_status(match_id: str):
                     "match_id": match_id,
                     "map": result[1],
                     "created_at": created_at.isoformat() if created_at else None,
+                    "elapsed_seconds": elapsed_seconds,
                 }
 
             # Fetch kills

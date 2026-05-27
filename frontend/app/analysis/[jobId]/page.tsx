@@ -44,6 +44,7 @@ interface JobResult {
   error?: string;
   created_at?: string;
   parse_duration_seconds?: number;
+  elapsed_seconds?: number;
 }
 
 interface Coaching {
@@ -2322,27 +2323,24 @@ export default function AnalysisPage() {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [tipIndex, setTipIndex] = useState(0);
 
-  // Sync elapsed time based on created_at from backend
+  // Sync timer using local ticks
   useEffect(() => {
-    if (!result?.created_at) return;
-    const createdTime = new Date(result.created_at).getTime();
-    
-    const interval = setInterval(() => {
-      const diff = Math.floor((Date.now() - createdTime) / 1000);
-      setElapsedSeconds(diff > 0 ? diff : 0);
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, [result?.created_at]);
+    const status = result?.status ?? "queued";
+    if (status === "done" || status === "failed") return;
 
-  // Local timer fallback
-  useEffect(() => {
-    if (result?.created_at) return;
     const interval = setInterval(() => {
       setElapsedSeconds(prev => prev + 1);
     }, 1000);
+
     return () => clearInterval(interval);
-  }, [result?.created_at]);
+  }, [result?.status]);
+
+  // Sync with backend elapsed_seconds if available
+  useEffect(() => {
+    if (result?.elapsed_seconds !== undefined) {
+      setElapsedSeconds(prev => Math.max(prev, result.elapsed_seconds || 0));
+    }
+  }, [result?.elapsed_seconds]);
 
   // Coaching tips rotation
   useEffect(() => {
