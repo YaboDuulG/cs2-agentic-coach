@@ -3,10 +3,10 @@ Teams endpoints — create, join, list, and view team analyses.
 """
 
 import logging
+import os
 import uuid
 
-import os
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import text
 
@@ -325,6 +325,7 @@ async def upload_team_logo(team_id: str, user_id: str = "", file: UploadFile = F
                 logo_url = f"/logos/{dest_filename}"
             else:
                 import json
+
                 from google.cloud import storage  # noqa: PLC0415
                 from google.oauth2 import service_account  # noqa: PLC0415
 

@@ -44,8 +44,9 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
     if body.team_id:
         if not user_id:
             raise HTTPException(status_code=403, detail="Upload to a team requires user authentication.")
-        from db.database import SessionLocal  # noqa: PLC0415
         from sqlalchemy import text  # noqa: PLC0415
+
+        from db.database import SessionLocal  # noqa: PLC0415
         db = SessionLocal()
         try:
             member_check = db.execute(

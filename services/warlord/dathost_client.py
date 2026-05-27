@@ -266,6 +266,7 @@ def provision_practice_server(
     webhook_url: str,
     region: str = "dfw",
     mode: str = "practice",
+    map_name: str | None = None,
 ) -> dict:
     """
     Creates and starts a DatHost CS2 server instance.
@@ -275,6 +276,8 @@ def provision_practice_server(
         webhook_url: URL DatHost pings when the server is ready.
         region:      Region code — 'eu', 'na', 'dfw', 'fra', 'ord'.
         mode:        Training mode key from TRAINING_MODE_CONFIGS.
+        map_name:    Optional map override (e.g. "de_mirage"). Falls back to
+                     the mode's default start_map when None or empty.
 
     Raises:
         ValueError:  During Valve's Tuesday update window (Option A guard).
@@ -307,7 +310,7 @@ def provision_practice_server(
     # Resolve training mode config
     mode_cfg = TRAINING_MODE_CONFIGS.get(mode, TRAINING_MODE_CONFIGS["practice"])
     game_mode = mode_cfg["game_mode"]
-    start_map = mode_cfg["start_map"]
+    start_map = map_name if map_name else mode_cfg["start_map"]
 
     rcon_password = secrets.token_urlsafe(12)
     server_password = secrets.token_urlsafe(8)

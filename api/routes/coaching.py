@@ -22,9 +22,10 @@ async def trigger_coaching(match_id: str, background_tasks: BackgroundTasks):
 async def get_coaching(match_id: str, user_id: str | None = None):
     """Return cached AI coaching output, or 202 if not ready yet."""
     try:
+        from sqlalchemy import text  # noqa: PLC0415
+
         from db.database import SessionLocal  # noqa: PLC0415
         from db.models import Match  # noqa: PLC0415
-        from sqlalchemy import text  # noqa: PLC0415
 
         db = SessionLocal()
         try:

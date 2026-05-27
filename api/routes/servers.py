@@ -4,7 +4,7 @@ import os
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -26,8 +26,11 @@ VALID_MODES = list(TRAINING_MODE_CONFIGS.keys())
 
 
 class ServerCreateRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     mode: str = "practice"
     region: str = "eu"  # "eu" or "na"
+    map_name: str = Field(default="de_dust2", alias="map")
 
 
 class ServerResponse(BaseModel):
@@ -111,6 +114,7 @@ def spin_up_server(
                 webhook_url,
                 region=req_body.region,
                 mode=req_body.mode,
+                map_name=req_body.map_name,
             )
     except ValueError as e:
         err_str = str(e)

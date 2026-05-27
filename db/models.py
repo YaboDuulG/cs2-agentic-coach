@@ -11,7 +11,9 @@ Tables:
     first_contacts   - First engagement per round (FCR data for Tactician)
     trajectories     - Player movement paths per round (heatmap data)
     teams            - Team groups (owner + invite code)
-    team_members     - Many-to-many: users ↔ teams
+    team_members     - Many-to-many: users <-> teams
+    practice_servers - On-demand DatHost CS2 server instances
+    training_sessions - Per-session training stats (mode, map, duration)
 
 Notes:
     - All tables use match_id (UUID string) as the foreign key to matches
@@ -326,3 +328,39 @@ class PracticeServer(Base):
 
     def __repr__(self) -> str:
         return f"<PracticeServer {self.id} status={self.status} ip={self.ip_address}>"
+
+
+# ---------------------------------------------------------------------------
+# TrainingSession — per-session training log
+# ---------------------------------------------------------------------------
+
+
+class TrainingSession(Base):
+    """
+    Records each training server session. Created when a server is spun up,
+    updated (ended_at + duration) when the server is terminated.
+    """
+
+    __tablename__ = "training_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Clerk user ID of whoever spun up the server
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # FK to the practice_servers row (nullable — server may be deleted)
+    server_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("practice_servers.id", ondelete="SET NULL"), nullable=True
+    )
+    mode: Mapped[str] = mapped_column(String(32), nullable=False, default="practice")
+    map_name: Mapped[str] = mapped_column(String(64), nullable=False, default="de_dust2")
+    region: Mapped[str] = mapped_column(String(16), nullable=False, default="dfw")
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<TrainingSession {self.id} mode={self.mode} user={self.user_id}>"

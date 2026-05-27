@@ -210,7 +210,7 @@ export default function TrainingPage() {
       const res = await fetch(`/api/teams/${teamId}/servers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: selectedMode, region }),
+        body: JSON.stringify({ mode: selectedMode, region, map: map }),
       });
       const data = await res.json();
       if (!res.ok) {
