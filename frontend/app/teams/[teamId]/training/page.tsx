@@ -32,6 +32,24 @@ interface ServerInfo {
   mode: string;
 }
 
+interface TrainingSessionRecord {
+  id: string;
+  mode: string;
+  map_name: string;
+  region: string;
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number | null;
+}
+
+interface TrainingStats {
+  sessions: TrainingSessionRecord[];
+  total_sessions: number;
+  total_seconds: number;
+  favourite_mode: string | null;
+  sessions_this_week: number;
+}
+
 // ---------------------------------------------------------------------------
 // Training Mode Definitions
 // ---------------------------------------------------------------------------
@@ -167,6 +185,8 @@ export default function TrainingPage() {
   const [loadingServer, setLoadingServer] = useState(true);
   const [copied, setCopied] = useState<"connect" | "pass" | null>(null);
   const [activeTab, setActiveTab] = useState<"modes" | "stats">("modes");
+  const [stats, setStats] = useState<TrainingStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   // Load current server + update window status
   const fetchStatus = useCallback(async () => {
@@ -193,6 +213,33 @@ export default function TrainingPage() {
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
+
+  // Load training stats when stats tab is opened
+  useEffect(() => {
+    if (activeTab !== "stats" || !isLoaded || !user) return;
+    setLoadingStats(true);
+    fetch(`/api/teams/${teamId}/training-sessions`)
+      .then((r) => r.json())
+      .then((d) => setStats(d))
+      .catch(() => setStats(null))
+      .finally(() => setLoadingStats(false));
+  }, [activeTab, teamId, isLoaded, user]);
+
+  // Also auto-create a session record when server starts
+  async function createSessionRecord(serverId: string) {
+    try {
+      await fetch(`/api/teams/${teamId}/training-sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          server_id: serverId,
+          mode: selectedMode || "practice",
+          map_name: map,
+          region,
+        }),
+      });
+    } catch { /* non-critical */ }
+  }
 
   // Filter modes by search
   const filteredModes = TRAINING_MODES.filter(
@@ -222,6 +269,8 @@ export default function TrainingPage() {
         return;
       }
       setServer(data);
+      // Record the session
+      if (data?.id) createSessionRecord(data.id);
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -712,18 +761,78 @@ export default function TrainingPage() {
           </div>
         )}
 
-        {/* ── Statistics Tab (placeholder) ─────────────────────── */}
+        {/* ── Statistics Tab ───────────────────────────────────── */}
         {activeTab === "stats" && (
-          <div style={{
-            textAlign: "center",
-            padding: "60px 20px",
-            color: "#4A6A8A",
-          }}>
-            <Target size={40} style={{ marginBottom: "16px", opacity: 0.4 }} />
-            <div style={{ fontSize: "16px", fontWeight: 600, color: "#8BA7CC" }}>Training Statistics</div>
-            <div style={{ fontSize: "13px", marginTop: "8px" }}>
-              Session stats and personal records will appear here after your first training session.
-            </div>
+          <div>
+            {loadingStats ? (
+              <div style={{ textAlign: "center", padding: "40px", color: "#4A6A8A" }}>Loading stats…</div>
+            ) : !stats || stats.total_sessions === 0 ? (
+              <div style={{ textAlign: "center", padding: "60px 20px", color: "#4A6A8A" }}>
+                <Target size={40} style={{ marginBottom: "16px", opacity: 0.4 }} />
+                <div style={{ fontSize: "16px", fontWeight: 600, color: "#8BA7CC" }}>No sessions yet</div>
+                <div style={{ fontSize: "13px", marginTop: "8px" }}>Start your first training session to see stats here.</div>
+              </div>
+            ) : (
+              <div>
+                {/* Aggregate cards */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "24px" }}>
+                  {[
+                    { label: "Total Sessions", value: stats.total_sessions.toString(), icon: "🎯" },
+                    { label: "Total Hours", value: (stats.total_seconds / 3600).toFixed(1) + "h", icon: "⏱️" },
+                    { label: "This Week", value: stats.sessions_this_week.toString(), icon: "📅" },
+                    { label: "Favourite Mode", value: stats.favourite_mode
+                      ? (TRAINING_MODES.find(m => m.key === stats.favourite_mode)?.label ?? stats.favourite_mode)
+                      : "—", icon: "⭐" },
+                  ].map(({ label, value, icon }) => (
+                    <div key={label} style={{
+                      backgroundColor: "#0D1825",
+                      border: "1px solid #1E3A5F",
+                      borderRadius: "10px",
+                      padding: "14px 16px",
+                    }}>
+                      <div style={{ fontSize: "20px", marginBottom: "6px" }}>{icon}</div>
+                      <div style={{ fontSize: "20px", fontWeight: 700, color: "#F0F4FF" }}>{value}</div>
+                      <div style={{ fontSize: "11px", color: "#8BA7CC", marginTop: "2px" }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Session history table */}
+                <div style={{ backgroundColor: "#0D1825", border: "1px solid #1E3A5F", borderRadius: "10px", overflow: "hidden" }}>
+                  <div style={{ padding: "12px 16px", borderBottom: "1px solid #1E3A5F", fontSize: "13px", fontWeight: 600, color: "#8BA7CC" }}>Session History</div>
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid #1E3A5F" }}>
+                          {["Mode", "Map", "Region", "Date", "Duration"].map(h => (
+                            <th key={h} style={{ padding: "8px 16px", textAlign: "left", color: "#4A6A8A", fontWeight: 600, whiteSpace: "nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.sessions.slice(0, 20).map((s) => (
+                          <tr key={s.id} style={{ borderBottom: "1px solid rgba(30,58,95,0.4)" }}>
+                            <td style={{ padding: "10px 16px", color: "#F0F4FF" }}>
+                              {TRAINING_MODES.find(m => m.key === s.mode)?.label ?? s.mode}
+                            </td>
+                            <td style={{ padding: "10px 16px", color: "#8BA7CC", fontFamily: "monospace" }}>{s.map_name}</td>
+                            <td style={{ padding: "10px 16px", color: "#8BA7CC" }}>{s.region.toUpperCase()}</td>
+                            <td style={{ padding: "10px 16px", color: "#8BA7CC", whiteSpace: "nowrap" }}>
+                              {new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </td>
+                            <td style={{ padding: "10px 16px", color: s.duration_seconds ? "#22D3A0" : "#4A6A8A" }}>
+                              {s.duration_seconds
+                                ? `${Math.floor(s.duration_seconds / 60)}m ${s.duration_seconds % 60}s`
+                                : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

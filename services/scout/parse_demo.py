@@ -245,7 +245,15 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         )
         if round_df is not None and not round_df.empty:
             ct_score = t_score = 0
-            for _, row in round_df.sort_values("total_rounds_played").iterrows():
+            # Deduplicate: CS2 can fire multiple round_end events for the same
+            # round (e.g. both ct_killed and bomb_exploded for an eco defuse).
+            # Keep the LAST event per total_rounds_played so we get the definitive
+            # winner/reason without creating duplicate round_num entries.
+            round_df = (
+                round_df.sort_values("total_rounds_played")
+                .drop_duplicates(subset=["total_rounds_played"], keep="last")
+            )
+            for _, row in round_df.iterrows():
                 rnd_num = _safe_int(row.get("total_rounds_played"))
 
                 # Skip warmup / pre-match rounds identified by the rules above

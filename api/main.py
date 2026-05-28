@@ -9,7 +9,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import analyses, coaching, health, jobs, presign, servers, teams, upload
+from api.routes import (
+    analyses,
+    coaching,
+    faceit,
+    fcr,
+    health,
+    jobs,
+    presign,
+    servers,
+    teams,
+    training_sessions,
+    upload,
+)
 
 load_dotenv()
 
@@ -40,6 +52,9 @@ app.include_router(analyses.router, prefix="/api/analyses", tags=["Analyses"])
 app.include_router(coaching.router, prefix="/api/coaching", tags=["Coaching"])
 app.include_router(teams.router, prefix="/api/teams", tags=["Teams"])
 app.include_router(servers.router, prefix="/api", tags=["Servers"])
+app.include_router(training_sessions.router, prefix="/api", tags=["TrainingSessions"])
+app.include_router(faceit.router, prefix="/api/faceit", tags=["FACEIT"])
+app.include_router(fcr.router, prefix="/api", tags=["FCR"])
 
 
 @app.get("/")
