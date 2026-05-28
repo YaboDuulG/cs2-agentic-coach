@@ -3,7 +3,20 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
+
+const Viewer3D = dynamic(() => import("@/components/Viewer3D").then(m => m.Viewer3D), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[600px] bg-[#0D1825] rounded-lg border border-slate-800 flex items-center justify-center text-slate-400">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-8 h-8 border-4 border-[#FF4D6D] border-t-transparent rounded-full animate-spin"></div>
+        <p>Initializing 3D Environment...</p>
+      </div>
+    </div>
+  )
+});
 import { CheckCircle, AlertCircle, Clock, Crosshair, TrendingUp, Layers, Brain, Lightbulb, Shield, Zap, List, BarChart2, Activity, ShieldAlert, Award, LayoutGrid } from "lucide-react";
 
 type JobStatus = "queued" | "processing" | "done" | "failed";
@@ -2345,7 +2358,10 @@ const COACHING_TIPS = [
 export default function AnalysisPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const [result, setResult] = useState<JobResult | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<"stats" | "logs">("stats");
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
+  const [viewerMode, setViewerMode] = useState<"2d" | "3d">("2d");
 
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [tipIndex, setTipIndex] = useState(0);
@@ -2674,9 +2690,38 @@ export default function AnalysisPage() {
 
               return (
                 <>
-                  {/* Kill Heatmap */}
+                  {/* Replay Viewer Toggle */}
                   {result.kills && result.kills.length > 0 && (
-                    <KillHeatmap kills={filteredKills} mapName={result.map} />
+                    <div className="card p-0 overflow-hidden mb-6">
+                      <div className="border-b border-slate-800 p-4 flex items-center justify-between">
+                        <div>
+                          <h2 className="heading-display mb-1" style={{ fontSize: "1.1rem" }}>Kill Replay Viewer</h2>
+                          <p className="text-sm text-slate-400 font-mono">View the spatial distribution of kills.</p>
+                        </div>
+                        <div className="flex items-center bg-slate-900 rounded-lg p-1 border border-slate-700">
+                          <button
+                            onClick={() => setViewerMode("2d")}
+                            className={`px-4 py-1.5 rounded-md text-xs font-mono font-medium transition-colors ${viewerMode === "2d" ? "bg-[#2D7DD2] text-white" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"}`}
+                          >
+                            2D Heatmap
+                          </button>
+                          <button
+                            onClick={() => setViewerMode("3d")}
+                            className={`px-4 py-1.5 rounded-md text-xs font-mono font-medium transition-colors ${viewerMode === "3d" ? "bg-[#FF4D6D] text-white" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"}`}
+                          >
+                            3D Replay
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="p-0">
+                        {viewerMode === "2d" ? (
+                          <KillHeatmap kills={filteredKills} mapName={result.map} />
+                        ) : (
+                          <Viewer3D kills={filteredKills} mapName={result.map} />
+                        )}
+                      </div>
+                    </div>
                   )}
 
                   {/* Kill Feed */}

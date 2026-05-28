@@ -502,6 +502,7 @@ export default function TrainingPage() {
             }}>
               {activeMode ? (
                 <>
+                  {/* @ts-ignore - LucideIcon expects size but TS inference fails here */}
                   <activeMode.icon size={14} style={{ color: "#2D7DD2" }} />
                   <span style={{ fontSize: "13px", color: "#F0F4FF" }}>{activeMode.label}</span>
                 </>
@@ -700,6 +701,7 @@ export default function TrainingPage() {
                     transition: "all 0.2s",
                     backdropFilter: "blur(4px)",
                   }}>
+                    {/* @ts-ignore - LucideIcon expects size but TS inference fails here */}
                     <Icon size={15} style={{ color: isSelected ? "#fff" : "#5BA3E8" }} />
                   </div>
 
