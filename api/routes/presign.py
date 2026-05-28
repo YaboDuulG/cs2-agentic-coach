@@ -205,8 +205,9 @@ async def compose_chunks(body: ComposeRequest, request: Request):
 
         # Compose them into the final file
         final_blob = bucket.blob(final_gcs_path)
+        final_blob.content_type = "application/octet-stream"
         logger.info(f"Composing {body.chunk_count} blobs into {final_gcs_path}...")
-        final_blob.compose(source_blobs, content_type="application/octet-stream")
+        final_blob.compose(source_blobs)
 
         # Delete chunk parts
         logger.info(f"Deleting {body.chunk_count} temporary source chunks...")
