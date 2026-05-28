@@ -316,7 +316,6 @@ def provision_practice_server(
     # - cs2_settings: "deathmatch" -> "ffa_deathmatch"
     # - csgo_settings: "competitive" -> "classic_competitive"
     cs2_game_mode = "ffa_deathmatch" if game_mode == "deathmatch" else game_mode
-    csgo_game_mode = "classic_competitive" if game_mode == "competitive" else game_mode
 
     rcon_password = secrets.token_urlsafe(12)
     server_password = secrets.token_urlsafe(8)
