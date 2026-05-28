@@ -312,6 +312,12 @@ def provision_practice_server(
     game_mode = mode_cfg["game_mode"]
     start_map = map_name if map_name else mode_cfg["start_map"]
 
+    # Map game mode to DatHost-specific API values to prevent "Unknown game mode" validation errors
+    # - cs2_settings: "deathmatch" -> "ffa_deathmatch"
+    # - csgo_settings: "competitive" -> "classic_competitive"
+    cs2_game_mode = "ffa_deathmatch" if game_mode == "deathmatch" else game_mode
+    csgo_game_mode = "classic_competitive" if game_mode == "competitive" else game_mode
+
     rcon_password = secrets.token_urlsafe(12)
     server_password = secrets.token_urlsafe(8)
     server_name = f"demosage-{mode[:6]}-{match_id[:8]}"
@@ -327,7 +333,7 @@ def provision_practice_server(
         "cs2_settings.start_map": start_map,
         "cs2_settings.slots": "14",          # 10 players + 4 spectator slots
         "cs2_settings.tickrate": "128",       # 128-tick for competitive accuracy
-        "cs2_settings.game_mode": game_mode,
+        "cs2_settings.game_mode": cs2_game_mode,
         "cs2_settings.autostart": "true",
         # Legacy csgo_settings mirrors for schema safety across DatHost versions
         "csgo_settings.rcon": rcon_password,
@@ -335,7 +341,7 @@ def provision_practice_server(
         "csgo_settings.start_map": start_map,
         "csgo_settings.slots": "14",
         "csgo_settings.tickrate": "128",
-        "csgo_settings.game_mode": game_mode,
+        "csgo_settings.game_mode": csgo_game_mode,
     }
 
     try:
