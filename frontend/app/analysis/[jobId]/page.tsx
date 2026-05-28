@@ -425,8 +425,16 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
     setIsDragging(false);
   };
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const preventDefault = (e: WheelEvent) => e.preventDefault();
+    canvas.addEventListener("wheel", preventDefault, { passive: false });
+    return () => canvas.removeEventListener("wheel", preventDefault);
+  }, []);
+
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
+    // e.preventDefault() here might be passive, so we also rely on the native event listener above
     const zoomFactor = 0.15;
     let newZoom = zoom;
     if (e.deltaY < 0) {
@@ -2631,28 +2639,33 @@ export default function AnalysisPage() {
                   {result.kills && result.kills.length > 0 && (
                     <div className="card p-6">
                       <h2 className="heading-display mb-4" style={{ fontSize: "1.1rem" }}>Kill Feed</h2>
-                      <div className="space-y-2 max-h-80 overflow-y-auto">
-                        {filteredKills.slice(0, 50).map((k, i) => (
-                          <div key={i} className="flex items-center justify-between py-2 border-b" style={{ borderColor: "#142135" }}>
-                            <div className="flex items-center gap-3">
-                              <span style={{ color: "#4A6A8A", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>R{k.round}</span>
-                              <span style={{ color: "#22D3A0", fontWeight: 500, fontSize: "0.875rem" }}>
-                                {k.killer}
-                                {k.attacker_steamid && (
-                                  <span className="text-[10px] text-slate-500 font-mono ml-1">({k.attacker_steamid.slice(-8)})</span>
-                                )}
-                              </span>
-                              <span style={{ color: "#4A6A8A", fontSize: "0.75rem" }}>killed</span>
-                              <span style={{ color: "#FF4D6D", fontSize: "0.875rem" }}>
-                                {k.victim}
-                                {k.victim_steamid && (
-                                  <span className="text-[10px] text-slate-500 font-mono ml-1">({k.victim_steamid.slice(-8)})</span>
-                                )}
-                              </span>
+                      <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+                        {filteredKills.slice(0, 50).map((k, i) => {
+                          const killerColor = k.killer_team === "CT" ? "#2D7DD2" : k.killer_team === "T" ? "#C9A227" : "#22D3A0";
+                          const victimColor = k.victim_team === "CT" ? "#2D7DD2" : k.victim_team === "T" ? "#C9A227" : "#FF4D6D";
+                          
+                          return (
+                            <div key={i} className="flex items-center justify-between py-2 border-b" style={{ borderColor: "#142135" }}>
+                              <div className="flex items-center gap-3">
+                                <span style={{ color: "#4A6A8A", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>R{k.round}</span>
+                                <span style={{ color: killerColor, fontWeight: 500, fontSize: "0.875rem" }}>
+                                  {k.killer}
+                                  {k.attacker_steamid && (
+                                    <span className="text-[10px] text-slate-500 font-mono ml-1">({k.attacker_steamid.slice(-8)})</span>
+                                  )}
+                                </span>
+                                <span style={{ color: "#4A6A8A", fontSize: "0.75rem" }}>killed</span>
+                                <span style={{ color: victimColor, fontSize: "0.875rem" }}>
+                                  {k.victim}
+                                  {k.victim_steamid && (
+                                    <span className="text-[10px] text-slate-500 font-mono ml-1">({k.victim_steamid.slice(-8)})</span>
+                                  )}
+                                </span>
+                              </div>
+                              <span style={{ color: "#8BA7CC", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>{formatWeaponName(k.weapon)}</span>
                             </div>
-                            <span style={{ color: "#8BA7CC", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>{formatWeaponName(k.weapon)}</span>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
