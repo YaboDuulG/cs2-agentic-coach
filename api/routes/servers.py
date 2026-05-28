@@ -96,6 +96,7 @@ def spin_up_server(
         )
 
     import uuid
+
     server_id = str(uuid.uuid4())
     webhook_url = f"{request.base_url}api/servers/webhook"
 

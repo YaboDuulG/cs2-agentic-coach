@@ -26,9 +26,7 @@ router = APIRouter()
 
 def _load_match_data(match_id: str, db: Session) -> dict:
     """Load and decode the parsed match JSON from the DB."""
-    match = db.execute(
-        select(Match).where(Match.match_id == match_id)
-    ).scalar_one_or_none()
+    match = db.execute(select(Match).where(Match.match_id == match_id)).scalar_one_or_none()
 
     if not match:
         raise HTTPException(status_code=404, detail=f"Match {match_id} not found.")
@@ -86,10 +84,7 @@ def get_fcr_summary(
         "fcr_match_rate": full["fcr_match_rate"],
         "flags": full["flags"],
         "top_entry_fraggers": sorted(
-            [
-                p for p in full["player_stats"].values()
-                if p["first_kills"] >= 2
-            ],
+            [p for p in full["player_stats"].values() if p["first_kills"] >= 2],
             key=lambda p: p["first_kills"],
             reverse=True,
         )[:5],

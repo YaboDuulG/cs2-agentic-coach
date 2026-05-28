@@ -5,12 +5,11 @@ DemoSage — FastAPI Application Entry Point
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from api.auth import verify_shared_secret
-
 from api.routes import (
     analyses,
     coaching,
@@ -47,16 +46,54 @@ app.add_middleware(
 
 # --- Routers ---
 app.include_router(health.router, prefix="/api", tags=["Health"])
-app.include_router(upload.router, prefix="/api/upload", tags=["Upload"], dependencies=[Depends(verify_shared_secret)])
-app.include_router(presign.router, prefix="/api/upload", tags=["Upload"], dependencies=[Depends(verify_shared_secret)])
-app.include_router(jobs.router, prefix="/api/jobs", tags=["Jobs"], dependencies=[Depends(verify_shared_secret)])
-app.include_router(analyses.router, prefix="/api/analyses", tags=["Analyses"], dependencies=[Depends(verify_shared_secret)])
-app.include_router(coaching.router, prefix="/api/coaching", tags=["Coaching"], dependencies=[Depends(verify_shared_secret)])
-app.include_router(teams.router, prefix="/api/teams", tags=["Teams"], dependencies=[Depends(verify_shared_secret)])
-app.include_router(servers.router, prefix="/api", tags=["Servers"], dependencies=[Depends(verify_shared_secret)])
-app.include_router(training_sessions.router, prefix="/api", tags=["TrainingSessions"], dependencies=[Depends(verify_shared_secret)])
-app.include_router(faceit.router, prefix="/api/faceit", tags=["FACEIT"], dependencies=[Depends(verify_shared_secret)])
-app.include_router(fcr.router, prefix="/api", tags=["FCR"], dependencies=[Depends(verify_shared_secret)])
+app.include_router(
+    upload.router,
+    prefix="/api/upload",
+    tags=["Upload"],
+    dependencies=[Depends(verify_shared_secret)],
+)
+app.include_router(
+    presign.router,
+    prefix="/api/upload",
+    tags=["Upload"],
+    dependencies=[Depends(verify_shared_secret)],
+)
+app.include_router(
+    jobs.router, prefix="/api/jobs", tags=["Jobs"], dependencies=[Depends(verify_shared_secret)]
+)
+app.include_router(
+    analyses.router,
+    prefix="/api/analyses",
+    tags=["Analyses"],
+    dependencies=[Depends(verify_shared_secret)],
+)
+app.include_router(
+    coaching.router,
+    prefix="/api/coaching",
+    tags=["Coaching"],
+    dependencies=[Depends(verify_shared_secret)],
+)
+app.include_router(
+    teams.router, prefix="/api/teams", tags=["Teams"], dependencies=[Depends(verify_shared_secret)]
+)
+app.include_router(
+    servers.router, prefix="/api", tags=["Servers"], dependencies=[Depends(verify_shared_secret)]
+)
+app.include_router(
+    training_sessions.router,
+    prefix="/api",
+    tags=["TrainingSessions"],
+    dependencies=[Depends(verify_shared_secret)],
+)
+app.include_router(
+    faceit.router,
+    prefix="/api/faceit",
+    tags=["FACEIT"],
+    dependencies=[Depends(verify_shared_secret)],
+)
+app.include_router(
+    fcr.router, prefix="/api", tags=["FCR"], dependencies=[Depends(verify_shared_secret)]
+)
 
 
 @app.get("/")

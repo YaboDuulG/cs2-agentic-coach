@@ -5,7 +5,7 @@ import time
 import requests
 
 
-def run_e2e_test(api_url: str, demo_path: str, user_id: str):
+def run_e2e_test(api_url: str, demo_path: str, user_id: str, auth_token: str | None = None):
     print(f"Starting E2E test against {api_url}")
     print(f"Target demo: {demo_path}")
 
@@ -16,9 +16,14 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
     file_size = os.path.getsize(demo_path)
     filename = os.path.basename(demo_path)
 
+    token = auth_token or os.getenv("API_SHARED_SECRET")
+    headers = {"x-clerk-user-id": user_id, "Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+        print("Using API shared secret token for authentication.")
+
     # 1. Presign Upload URL
     print("\n[1/4] Requesting presigned URL...")
-    headers = {"x-clerk-user-id": user_id, "Content-Type": "application/json"}
     presign_res = requests.post(
         f"{api_url}/api/upload/presign",
         headers=headers,
@@ -53,7 +58,9 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
 
     for i in range(max_retries):
         time.sleep(5)
-        status_res = requests.get(f"{api_url}/api/jobs/{match_id}?user_id={user_id}")
+        status_res = requests.get(
+            f"{api_url}/api/jobs/{match_id}?user_id={user_id}", headers=headers
+        )
         if not status_res.ok:
             continue
 
@@ -77,7 +84,9 @@ def run_e2e_test(api_url: str, demo_path: str, user_id: str):
     print("\n[4/4] Polling for AI Coaching Notes (Great Khan)...")
     for i in range(12):  # 12 * 5s = 60 seconds for AI
         time.sleep(5)
-        coach_res = requests.get(f"{api_url}/api/coaching/{match_id}?user_id={user_id}")
+        coach_res = requests.get(
+            f"{api_url}/api/coaching/{match_id}?user_id={user_id}", headers=headers
+        )
         if not coach_res.ok:
             continue
 
@@ -104,6 +113,7 @@ if __name__ == "__main__":
     parser.add_argument("--api-url", required=True, help="Base URL of the live API")
     parser.add_argument("--demo", required=True, help="Path to the local .dem file")
     parser.add_argument("--user-id", default="e2e-test-user", help="Mock user ID")
+    parser.add_argument("--auth-token", default=None, help="API shared secret token")
     args = parser.parse_args()
 
-    run_e2e_test(args.api_url, args.demo, args.user_id)
+    run_e2e_test(args.api_url, args.demo, args.user_id, args.auth_token)

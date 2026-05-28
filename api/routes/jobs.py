@@ -67,7 +67,9 @@ async def get_job_status(match_id: str, user_id: str | None = None):
                         detail="Access denied: Team match requires user authentication.",
                     )
                 member_check = db.execute(
-                    text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
+                    text(
+                        "SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"
+                    ),
                     {"team_id": match_team_id, "user_id": user_id},
                 ).fetchone()
                 if not member_check:
@@ -108,13 +110,19 @@ async def get_job_status(match_id: str, user_id: str | None = None):
                 # Update DB to failed to avoid repeated logic
                 try:
                     db.execute(
-                        text("UPDATE matches SET status = 'FAILED', error_message = 'Job timed out after 15 minutes' WHERE match_id = :id"),
-                        {"id": match_id}
+                        text(
+                            "UPDATE matches SET status = 'FAILED', error_message = 'Job timed out after 15 minutes' WHERE match_id = :id"
+                        ),
+                        {"id": match_id},
                     )
                     db.commit()
                 except Exception as e:
                     logger.error(f"Failed to mark stuck job as failed: {e}")
-                return {"status": "failed", "match_id": match_id, "error": "Job timed out after 15 minutes"}
+                return {
+                    "status": "failed",
+                    "match_id": match_id,
+                    "error": "Job timed out after 15 minutes",
+                }
 
             if match_status in ("pending", "queued"):
                 return {

@@ -36,7 +36,10 @@ def run_migrations():
         ),
         ("trajectories_team", "ALTER TABLE trajectories ALTER COLUMN team TYPE VARCHAR(64);"),
         ("teams_logo_url", "ALTER TABLE teams ADD COLUMN logo_url VARCHAR(512);"),
-        ("matches_team_id", "ALTER TABLE matches ADD COLUMN team_id VARCHAR(36) REFERENCES teams(id) ON DELETE SET NULL;"),
+        (
+            "matches_team_id",
+            "ALTER TABLE matches ADD COLUMN team_id VARCHAR(36) REFERENCES teams(id) ON DELETE SET NULL;",
+        ),
     ]
     for col_name, sql in columns:
         with engine.begin() as conn:

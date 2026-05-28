@@ -248,17 +248,21 @@ def _generate_flags(analysis: FcrAnalysis) -> None:
 
     # Flag 1: Low overall FCR match rate (first contact often goes to round loser)
     if analysis.total_rounds >= 10 and analysis.fcr_match_rate < 0.45:
-        flags.append(_flag(
-            "warning",
-            f"FCR impact is low ({analysis.fcr_match_rate:.0%} of rounds) — first contact is not "
-            "a reliable predictor. This often means lots of force-buys or lucky eco wins.",
-        ))
+        flags.append(
+            _flag(
+                "warning",
+                f"FCR impact is low ({analysis.fcr_match_rate:.0%} of rounds) — first contact is not "
+                "a reliable predictor. This often means lots of force-buys or lucky eco wins.",
+            )
+        )
     elif analysis.total_rounds >= 10 and analysis.fcr_match_rate >= 0.65:
-        flags.append(_flag(
-            "positive",
-            f"Strong FCR impact ({analysis.fcr_match_rate:.0%}) — rounds are being won by the "
-            "team that controls early aggression. Keep up the proactive play.",
-        ))
+        flags.append(
+            _flag(
+                "positive",
+                f"Strong FCR impact ({analysis.fcr_match_rate:.0%}) — rounds are being won by the "
+                "team that controls early aggression. Keep up the proactive play.",
+            )
+        )
 
     # Flag 2: Per-player patterns
     for player_name, ps in analysis.player_stats.items():
@@ -268,30 +272,36 @@ def _generate_flags(analysis: FcrAnalysis) -> None:
 
         # Repeatedly dying first
         if ps.first_deaths >= 5 and ps.first_kill_rate < 0.30:
-            flags.append(_flag(
-                "critical",
-                f"{player_name} is dying first in {ps.first_deaths} rounds "
-                f"({ps.first_kill_rate:.0%} first-kill rate). They may be over-peeking, "
-                "playing a weak angle, or taking duels at a timing/info disadvantage.",
-                player=player_name,
-            ))
+            flags.append(
+                _flag(
+                    "critical",
+                    f"{player_name} is dying first in {ps.first_deaths} rounds "
+                    f"({ps.first_kill_rate:.0%} first-kill rate). They may be over-peeking, "
+                    "playing a weak angle, or taking duels at a timing/info disadvantage.",
+                    player=player_name,
+                )
+            )
         elif ps.first_deaths >= 3 and ps.first_kill_rate < 0.40:
-            flags.append(_flag(
-                "warning",
-                f"{player_name} is taking the first contact and losing it frequently "
-                f"({ps.first_kill_rate:.0%} first-kill rate across {total} FCR rounds). "
-                "Consider adjusting default positions or timing.",
-                player=player_name,
-            ))
+            flags.append(
+                _flag(
+                    "warning",
+                    f"{player_name} is taking the first contact and losing it frequently "
+                    f"({ps.first_kill_rate:.0%} first-kill rate across {total} FCR rounds). "
+                    "Consider adjusting default positions or timing.",
+                    player=player_name,
+                )
+            )
 
         # Strong entry fragger
         if ps.first_kills >= 5 and ps.conversion_rate >= 0.65:
-            flags.append(_flag(
-                "positive",
-                f"{player_name} is a reliable entry fragger: {ps.first_kills} first kills with "
-                f"{ps.conversion_rate:.0%} round conversion rate.",
-                player=player_name,
-            ))
+            flags.append(
+                _flag(
+                    "positive",
+                    f"{player_name} is a reliable entry fragger: {ps.first_kills} first kills with "
+                    f"{ps.conversion_rate:.0%} round conversion rate.",
+                    player=player_name,
+                )
+            )
 
     # Flag 3: CT/T imbalance
     ct_total = analysis.ct_fcr_wins
@@ -300,17 +310,21 @@ def _generate_flags(analysis: FcrAnalysis) -> None:
     if total_fc >= 10:
         ct_rate = ct_total / total_fc
         if ct_rate > 0.70:
-            flags.append(_flag(
-                "warning",
-                f"CTs are winning first contact in {ct_rate:.0%} of rounds. T-side may be "
-                "taking poor initial duels or leaking into CT-advantaged angles.",
-            ))
+            flags.append(
+                _flag(
+                    "warning",
+                    f"CTs are winning first contact in {ct_rate:.0%} of rounds. T-side may be "
+                    "taking poor initial duels or leaking into CT-advantaged angles.",
+                )
+            )
         elif ct_rate < 0.30:
-            flags.append(_flag(
-                "warning",
-                f"Ts are winning first contact in {(1-ct_rate):.0%} of rounds. CT setups may "
-                "be too passive or players are getting caught off-angles.",
-            ))
+            flags.append(
+                _flag(
+                    "warning",
+                    f"Ts are winning first contact in {(1 - ct_rate):.0%} of rounds. CT setups may "
+                    "be too passive or players are getting caught off-angles.",
+                )
+            )
 
 
 # ---------------------------------------------------------------------------

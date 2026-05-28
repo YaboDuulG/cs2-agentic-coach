@@ -41,7 +41,9 @@ async def get_coaching(match_id: str, user_id: str | None = None):
                         detail="Access denied: Team match requires user authentication.",
                     )
                 member_check = db.execute(
-                    text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
+                    text(
+                        "SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"
+                    ),
                     {"team_id": match.team_id, "user_id": user_id},
                 ).fetchone()
                 if not member_check:

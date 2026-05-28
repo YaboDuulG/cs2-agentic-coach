@@ -20,7 +20,6 @@ class UpdateTeamRequest(BaseModel):
     user_id: str
 
 
-
 class CreateTeamRequest(BaseModel):
     name: str
     user_id: str
@@ -257,6 +256,7 @@ async def get_team(team_id: str):
 async def update_team(team_id: str, body: UpdateTeamRequest):
     try:
         from db.database import SessionLocal  # noqa: PLC0415
+
         db = SessionLocal()
         try:
             team = db.execute(
@@ -266,7 +266,9 @@ async def update_team(team_id: str, body: UpdateTeamRequest):
             if not team:
                 raise HTTPException(status_code=404, detail="Team not found")
             if team[0] != body.user_id:
-                raise HTTPException(status_code=403, detail="Only the captain can modify team settings")
+                raise HTTPException(
+                    status_code=403, detail="Only the captain can modify team settings"
+                )
 
             if body.name and body.name.strip():
                 db.execute(
@@ -292,6 +294,7 @@ async def upload_team_logo(team_id: str, user_id: str = "", file: UploadFile = F
 
     try:
         from db.database import SessionLocal  # noqa: PLC0415
+
         db = SessionLocal()
         try:
             team = db.execute(
@@ -331,7 +334,9 @@ async def upload_team_logo(team_id: str, user_id: str = "", file: UploadFile = F
 
                 sa_key_json = os.environ.get("GCP_SA_KEY")
                 if sa_key_json:
-                    creds = service_account.Credentials.from_service_account_info(json.loads(sa_key_json))
+                    creds = service_account.Credentials.from_service_account_info(
+                        json.loads(sa_key_json)
+                    )
                     client = storage.Client(credentials=creds)
                 else:
                     client = storage.Client()
@@ -343,7 +348,9 @@ async def upload_team_logo(team_id: str, user_id: str = "", file: UploadFile = F
                     blob.make_public()
                 except Exception:
                     pass
-                logo_url = f"https://storage.googleapis.com/{bucket_name}/teams/logos/{dest_filename}"
+                logo_url = (
+                    f"https://storage.googleapis.com/{bucket_name}/teams/logos/{dest_filename}"
+                )
 
             db.execute(
                 text("UPDATE teams SET logo_url = :logo_url WHERE id = :id"),
@@ -367,6 +374,7 @@ async def delete_team(team_id: str, user_id: str = ""):
 
     try:
         from db.database import SessionLocal  # noqa: PLC0415
+
         db = SessionLocal()
         try:
             team = db.execute(

@@ -124,12 +124,16 @@ def list_sessions(
     """List training sessions for a team with aggregate stats."""
     _verify_team_member(db, user_id, team_id)
 
-    sessions = db.execute(
-        select(TrainingSession)
-        .where(TrainingSession.team_id == team_id)
-        .order_by(TrainingSession.started_at.desc())
-        .limit(limit)
-    ).scalars().all()
+    sessions = (
+        db.execute(
+            select(TrainingSession)
+            .where(TrainingSession.team_id == team_id)
+            .order_by(TrainingSession.started_at.desc())
+            .limit(limit)
+        )
+        .scalars()
+        .all()
+    )
 
     total_seconds = sum(s.duration_seconds or 0 for s in sessions)
 

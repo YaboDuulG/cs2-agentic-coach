@@ -15,6 +15,7 @@ import time
 # Force UTF-8 output on Windows
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     import io
+
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
@@ -93,9 +94,7 @@ for k in kills:
     rn = k.get("round", 0)
     round_kill_counts[rn] = round_kill_counts.get(rn, 0) + 1
 
-zero_kill_rounds = [
-    r["round_num"] for r in rounds if round_kill_counts.get(r["round_num"], 0) == 0
-]
+zero_kill_rounds = [r["round_num"] for r in rounds if round_kill_counts.get(r["round_num"], 0) == 0]
 
 print("-- ANOMALIES " + "-" * 57)
 if zero_kill_rounds:
@@ -115,7 +114,7 @@ players_sorted = sorted(
 
 print("-- TOP-5 PLAYERS BY KILLS " + "-" * 44)
 print(f"  {'Name':<20} {'Team':<12} {'K':>4} {'D':>4} {'KAST%':>6} {'ADR':>6}")
-print(f"  {'-'*20} {'-'*12} {'-'*4} {'-'*4} {'-'*6} {'-'*6}")
+print(f"  {'-' * 20} {'-' * 12} {'-' * 4} {'-' * 4} {'-' * 6} {'-' * 6}")
 for p in players_sorted[:5]:
     name = p.get("name", "?")[:20]
     team = p.get("team", "?")[:12]
@@ -132,14 +131,14 @@ print()
 # -- Round-by-round table -----------------------------------------------------
 print("-- ROUND TABLE (all rounds) " + "-" * 42)
 print(f"  {'Rnd':>4} {'Winner':>6} {'Reason':<30} {'CT$':>7} {'T$':>7} {'Score':>8}")
-print(f"  {'-'*4} {'-'*6} {'-'*30} {'-'*7} {'-'*7} {'-'*8}")
+print(f"  {'-' * 4} {'-' * 6} {'-' * 30} {'-' * 7} {'-' * 7} {'-' * 8}")
 for r in rounds:
-    score = f"{r.get('ct_score',0)}-{r.get('t_score',0)}"
+    score = f"{r.get('ct_score', 0)}-{r.get('t_score', 0)}"
     reason = r.get("reason", "") or ""
     print(
-        f"  {r['round_num']:>4} {r.get('winner_side','?'):>6} "
+        f"  {r['round_num']:>4} {r.get('winner_side', '?'):>6} "
         f"{reason:<30} "
-        f"{r.get('ct_eq_val',0):>7} {r.get('t_eq_val',0):>7} "
+        f"{r.get('ct_eq_val', 0):>7} {r.get('t_eq_val', 0):>7} "
         f"{score:>8}"
     )
 print()
@@ -168,7 +167,7 @@ except AssertionError as e:
 # 3. CT_wins + T_wins == total_rounds
 try:
     assert ct_wins + t_wins == total_rounds, (
-        f"CT_wins({ct_wins}) + T_wins({t_wins}) = {ct_wins+t_wins} != total_rounds({total_rounds})"
+        f"CT_wins({ct_wins}) + T_wins({t_wins}) = {ct_wins + t_wins} != total_rounds({total_rounds})"
     )
     print(f"  [PASS] CT_wins + T_wins == total_rounds  ({ct_wins} + {t_wins} = {total_rounds})")
 except AssertionError as e:

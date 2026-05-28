@@ -126,7 +126,9 @@ def _queue_demo_analysis(
                 logger.warning(f"[FACEIT] Scout not reachable in dev: {e}")
         else:
             # Production: push to Cloud Tasks (GCS upload would happen here)
-            logger.info(f"[FACEIT] Would push Cloud Task for match_id={match_id} demo_url={demo_url}")
+            logger.info(
+                f"[FACEIT] Would push Cloud Task for match_id={match_id} demo_url={demo_url}"
+            )
 
     except Exception as exc:
         logger.error(f"[FACEIT] Error queuing demo analysis: {exc}", exc_info=True)
@@ -178,7 +180,9 @@ async def faceit_webhook(request: Request, background_tasks: BackgroundTasks) ->
             faceit_match_id=faceit_match_id,
             team_id=FACEIT_AUTO_TEAM_ID,
         )
-        logger.info(f"[FACEIT] Queued demo analysis: internal={internal_match_id} faceit={faceit_match_id}")
+        logger.info(
+            f"[FACEIT] Queued demo analysis: internal={internal_match_id} faceit={faceit_match_id}"
+        )
         return Response(content="queued", status_code=200)
 
     elif event == "match.cancelled":

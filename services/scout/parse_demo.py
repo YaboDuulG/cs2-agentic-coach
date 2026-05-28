@@ -191,9 +191,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 warmup_mask = freeze_df["is_warmup_period"].fillna(False).astype(bool)
                 warmup_rnds = freeze_df.loc[warmup_mask, "total_rounds_played"].dropna()
                 warmup_rounds.update(int(r) for r in warmup_rnds)
-                logger.info(
-                    f"Rule 1 (is_warmup_period): excluded rounds {sorted(warmup_rounds)}"
-                )
+                logger.info(f"Rule 1 (is_warmup_period): excluded rounds {sorted(warmup_rounds)}")
 
             ticks = freeze_df["tick"].tolist()
             ticks_df = parser.parse_ticks(["current_equip_value", "team_name"])
@@ -211,7 +209,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
     # Rule 2 — Game Phase Matching (Robust)
     # 1: Warmup, 2: First Half, 3: Second Half, 4: Halftime, 5: Post-Match
     match_start_tick = 0
-    match_end_tick = float('inf')
+    match_end_tick = float("inf")
 
     try:
         phase_ticks_df = parser.parse_ticks(["game_phase"])
@@ -578,18 +576,24 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 if row.get("is_knife_round"):
                     k_round_num = 0
 
-                if k_tick >= match_start_tick and k_tick <= match_end_tick and k_round_num in valid_round_nums:
-                    kills_list.append({
-                        "tick": k_tick,
-                        "round": k_round_num,
-                        "weapon": _safe_str(row.get("weapon")),
-                        "attacker_steamid": _safe_str(row.get("attacker_steamid")),
-                        "attacker_name": _safe_str(row.get("attacker_name")),
-                        "attacker_team": _safe_str(row.get("attacker_team_name")),
-                        "victim_steamid": _safe_str(row.get("user_steamid")),
-                        "victim_name": _safe_str(row.get("user_name")),
-                        "victim_team": _safe_str(row.get("user_team_name")),
-                    })
+                if (
+                    k_tick >= match_start_tick
+                    and k_tick <= match_end_tick
+                    and k_round_num in valid_round_nums
+                ):
+                    kills_list.append(
+                        {
+                            "tick": k_tick,
+                            "round": k_round_num,
+                            "weapon": _safe_str(row.get("weapon")),
+                            "attacker_steamid": _safe_str(row.get("attacker_steamid")),
+                            "attacker_name": _safe_str(row.get("attacker_name")),
+                            "attacker_team": _safe_str(row.get("attacker_team_name")),
+                            "victim_steamid": _safe_str(row.get("user_steamid")),
+                            "victim_name": _safe_str(row.get("user_name")),
+                            "victim_team": _safe_str(row.get("user_team_name")),
+                        }
+                    )
 
             for idx, k in enumerate(kills_list):
                 for jdx in range(idx + 1, len(kills_list)):
@@ -683,7 +687,9 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                         "y": round(float(y), 2),
                         "z": round(float(z), 2),
                     }
-                    for t, x, y, z in zip(grp_clean["tick"], grp_clean["X"], grp_clean["Y"], grp_clean["Z"])
+                    for t, x, y, z in zip(
+                        grp_clean["tick"], grp_clean["X"], grp_clean["Y"], grp_clean["Z"]
+                    )
                 ]
                 if positions:
                     team = _safe_str(grp["team_name"].iloc[0]) if len(grp) > 0 else ""

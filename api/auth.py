@@ -1,11 +1,14 @@
 """
 Authorization dependencies for FastAPI.
 """
+
 import os
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 security = HTTPBearer()
+
 
 def verify_shared_secret(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """
@@ -16,9 +19,9 @@ def verify_shared_secret(credentials: HTTPAuthorizationCredentials = Depends(sec
     if not expected_secret:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="API_SHARED_SECRET is not configured on the server."
+            detail="API_SHARED_SECRET is not configured on the server.",
         )
-        
+
     if credentials.credentials != expected_secret:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

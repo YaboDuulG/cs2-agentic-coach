@@ -91,7 +91,7 @@ def check_cs2_update_active() -> tuple[bool, str]:
             minutes_ago = int(age_seconds / 60)
             remaining = int((UPDATE_BLOCK_DURATION_SECONDS - age_seconds) / 60)
             detail = (
-                f"CS2 update detected {minutes_ago}m ago: \"{item.get('title')}\". "
+                f'CS2 update detected {minutes_ago}m ago: "{item.get("title")}". '
                 f"Provisioning blocked for ~{remaining} more minutes while DatHost applies the update."
             )
             is_active = True
@@ -330,7 +330,7 @@ def provision_practice_server(
         "cs2_settings.rcon": rcon_password,
         "cs2_settings.password": server_password,
         "cs2_settings.start_map": start_map,
-        "cs2_settings.slots": "14",          # 10 players + 4 spectator slots
+        "cs2_settings.slots": "14",  # 10 players + 4 spectator slots
         "cs2_settings.game_mode": cs2_game_mode,
         "cs2_settings.autostart": "true",
     }
@@ -387,7 +387,7 @@ def provision_practice_server(
                     logger.warning(f"Console cmd '{cmd}' failed (non-fatal): {cmd_err}")
 
         return {
-            "vultr_id": dathost_id,       # Kept as vultr_id for DB column compat
+            "vultr_id": dathost_id,  # Kept as vultr_id for DB column compat
             "ip_address": full_address,
             "rcon_password": rcon_password,
             "server_password": server_password,

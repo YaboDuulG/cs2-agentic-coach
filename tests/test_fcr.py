@@ -139,13 +139,16 @@ def test_positive_flag_for_strong_entry_fragger():
     fcs = [_fc(i, "fragger", "CT", "victim") for i in range(1, 7)]
     match = _make_match(rounds, fcs)
     result = analyze_fcr(match)
-    pos_flags = [f for f in result.flags if f["severity"] == "positive" and f.get("player") == "fragger"]
+    pos_flags = [
+        f for f in result.flags if f["severity"] == "positive" and f.get("player") == "fragger"
+    ]
     assert len(pos_flags) >= 1
 
 
 def test_fcr_to_dict_is_json_serialisable():
     """fcr_to_dict output can be serialised to JSON without error."""
     import json
+
     match = _make_match(
         rounds=[_round(1, "CT"), _round(2, "T"), _round(3, "CT")],
         first_contacts=[
@@ -180,5 +183,5 @@ def test_our_players_team_classification():
     fcs = [_fc(1, "us", "CT", "them"), _fc(2, "them", "T", "us")]
     match = _make_match(rounds, fcs)
     result = analyze_fcr(match, our_players={"us"})
-    assert result.rounds[0].our_team_won is True   # us got first kill
-    assert result.rounds[1].our_team_won is False   # them got first kill
+    assert result.rounds[0].our_team_won is True  # us got first kill
+    assert result.rounds[1].our_team_won is False  # them got first kill

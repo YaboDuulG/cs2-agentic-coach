@@ -45,10 +45,13 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
     # Verify team membership if uploading to a team
     if body.team_id:
         if not user_id:
-            raise HTTPException(status_code=403, detail="Upload to a team requires user authentication.")
+            raise HTTPException(
+                status_code=403, detail="Upload to a team requires user authentication."
+            )
         from sqlalchemy import text  # noqa: PLC0415
 
         from db.database import SessionLocal  # noqa: PLC0415
+
         db = SessionLocal()
         try:
             member_check = db.execute(
@@ -66,7 +69,10 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
     if local_mode or not bucket_name:
         # Local dev: return a fake presigned URL(s)
         if body.chunk_count > 1:
-            urls = [f"http://localhost:8000/api/upload/stub/{match_id}/part_{i}" for i in range(body.chunk_count)]
+            urls = [
+                f"http://localhost:8000/api/upload/stub/{match_id}/part_{i}"
+                for i in range(body.chunk_count)
+            ]
             return {
                 "match_id": match_id,
                 "upload_urls": urls,
@@ -110,7 +116,9 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
                 )
                 upload_urls.append(url)
 
-            logger.info(f"Presigned URLs generated for {body.chunk_count} chunks of {body.filename}")
+            logger.info(
+                f"Presigned URLs generated for {body.chunk_count} chunks of {body.filename}"
+            )
             return {
                 "match_id": match_id,
                 "upload_urls": upload_urls,
@@ -160,10 +168,13 @@ async def compose_chunks(body: ComposeRequest, request: Request):
     # Verify team membership if uploading to a team
     if body.team_id:
         if not user_id:
-            raise HTTPException(status_code=403, detail="Composition for a team requires user authentication.")
+            raise HTTPException(
+                status_code=403, detail="Composition for a team requires user authentication."
+            )
         from sqlalchemy import text  # noqa: PLC0415
 
         from db.database import SessionLocal  # noqa: PLC0415
+
         db = SessionLocal()
         try:
             member_check = db.execute(
@@ -202,7 +213,9 @@ async def compose_chunks(body: ComposeRequest, request: Request):
             part_path = f"uploads/temp/{body.match_id}/part_{i}"
             part_blob = bucket.blob(part_path)
             if not part_blob.exists():
-                raise HTTPException(status_code=400, detail=f"Chunk part {i} does not exist in GCS.")
+                raise HTTPException(
+                    status_code=400, detail=f"Chunk part {i} does not exist in GCS."
+                )
             source_blobs.append(part_blob)
 
         # Compose them into the final file
@@ -216,8 +229,10 @@ async def compose_chunks(body: ComposeRequest, request: Request):
             # Batch composition due to GCS 32 object limit
             intermediate_blobs = []
             for i in range(0, len(source_blobs), 32):
-                batch = source_blobs[i:i + 32]
-                intermediate_blob = bucket.blob(f"uploads/temp/{body.match_id}/intermediate_{i//32}")
+                batch = source_blobs[i : i + 32]
+                intermediate_blob = bucket.blob(
+                    f"uploads/temp/{body.match_id}/intermediate_{i // 32}"
+                )
                 intermediate_blob.content_type = "application/octet-stream"
                 intermediate_blob.compose(batch)
                 intermediate_blobs.append(intermediate_blob)
