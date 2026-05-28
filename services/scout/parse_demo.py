@@ -241,15 +241,35 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         )
         if round_df is not None and not round_df.empty:
             ct_score = t_score = 0
-            # Deduplicate: CS2 can fire multiple round_end events for the same
-            # round (e.g. both ct_killed and bomb_exploded for an eco defuse).
-            # Keep the LAST event per total_rounds_played so we get the definitive
-            # winner/reason without creating duplicate round_num entries.
-            round_df = (
-                round_df.sort_values("total_rounds_played")
-                .drop_duplicates(subset=["total_rounds_played"], keep="last")
-            )
-            for _, row in round_df.iterrows():
+            # Sequence tracking for match restarts (Faceit warmup / Knife round)
+            round_df = round_df.sort_values("tick")
+            last_reset_idx = -1
+            prev_r = -1
+            for idx, row in round_df.iterrows():
+                curr_r = _safe_int(row.get("total_rounds_played"))
+                if curr_r <= prev_r:
+                    last_reset_idx = idx
+                prev_r = curr_r
+            
+            # Identify the knife round (Round 0) and live rounds
+            processed_rounds = []
+            for idx, row in round_df.iterrows():
+                winner = row.get("winner")
+                if winner not in (2, 3, "CT", "T", "TERRORIST"):
+                    continue
+                    
+                if idx < last_reset_idx:
+                    # Before final reset: only keep the last valid round before the reset as the Knife Round
+                    # We overwrite it so if there are multiple, we only keep the last one.
+                    row["is_knife_round"] = True
+                    processed_rounds = [r for r in processed_rounds if not r.get("is_knife_round")]
+                    processed_rounds.append(row)
+                else:
+                    # Live round
+                    row["is_knife_round"] = False
+                    processed_rounds.append(row)
+
+            for row in processed_rounds:
                 rnd_num = _safe_int(row.get("total_rounds_played"))
 
                 tick = _safe_int(row.get("tick", 0))
@@ -271,21 +291,18 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 elif winner in (2, "T", "TERRORIST"):
                     winner_side = "T"
 
-                # Additional guard: skip rounds with no valid winner side
-                # (knife rounds, technical rounds, etc.)
-                if not winner_side:
-                    logger.debug(f"Skipping round {rnd_num} with no valid winner side")
-                    continue
-
-                if winner_side == "CT":
+                if winner_side == "CT" and not row.get("is_knife_round"):
                     ct_score += 1
-                elif winner_side == "T":
+                elif winner_side == "T" and not row.get("is_knife_round"):
                     t_score += 1
+                
+                # Knife round gets labeled as 0
+                final_rnd_num = 0 if row.get("is_knife_round") else rnd_num
 
-                eco = eco_lookup.get(rnd_num, {})
+                eco = eco_lookup.get(final_rnd_num, {})
                 output["rounds"].append(
                     {
-                        "round_num": rnd_num,
+                        "round_num": final_rnd_num,
                         "winner_side": winner_side,
                         "reason": _safe_str(row.get("reason")),
                         "ct_eq_val": eco.get("ct", 0),
@@ -315,6 +332,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
     output["metadata"]["total_rounds"] = len(output["rounds"])
 
     # Build a set of valid (non-warmup) round numbers for downstream filtering
+    # This includes Round 0 (Knife Round) so the events show up in the timeline
     valid_round_nums: set[int] = {r["round_num"] for r in output["rounds"]}
 
     # --- Filter kills / grenades / first_contacts to competitive rounds only ---
@@ -411,8 +429,15 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                     continue
                 
                 round_num = _safe_int(row.get("total_rounds_played"))
+                # Note: If it's the knife round, we map it to 0
+                if row.get("is_knife_round"): round_num = 0
+
                 if round_num not in valid_round_nums:
                     continue  # skip warmup kills
+                    
+                # Skip adding kills to totals if it's the knife round (Round 0)
+                if round_num == 0:
+                    continue
 
                 att_id = row.get("attacker_steamid")
                 p_att = get_stat_player(
@@ -545,18 +570,24 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 p_vic["entry_attempts"] += 1
 
         if kills_df is not None and not kills_df.empty:
-            kills_list = [
-                {
-                    "tick": _safe_int(row.get("tick")),
-                    "round": _safe_int(row.get("total_rounds_played")),
-                    "attacker_steamid": _safe_str(row.get("attacker_steamid")),
-                    "attacker_team": _safe_str(row.get("attacker_team_name")),
-                    "victim_steamid": _safe_str(row.get("user_steamid")),
-                    "victim_team": _safe_str(row.get("user_team_name")),
-                }
-                for _, row in kills_df.iterrows()
-                if _safe_int(row.get("tick")) >= match_start_tick and _safe_int(row.get("tick")) <= match_end_tick and _safe_int(row.get("total_rounds_played")) in valid_round_nums
-            ]
+            kills_list = []
+            for _, row in kills_df.iterrows():
+                k_tick = _safe_int(row.get("tick"))
+                k_round_num = _safe_int(row.get("total_rounds_played"))
+                if row.get("is_knife_round"): k_round_num = 0
+                
+                if k_tick >= match_start_tick and k_tick <= match_end_tick and k_round_num in valid_round_nums:
+                    kills_list.append({
+                        "tick": k_tick,
+                        "round": k_round_num,
+                        "weapon": _safe_str(row.get("weapon")),
+                        "attacker_steamid": _safe_str(row.get("attacker_steamid")),
+                        "attacker_name": _safe_str(row.get("attacker_name")),
+                        "attacker_team": _safe_str(row.get("attacker_team_name")),
+                        "victim_steamid": _safe_str(row.get("user_steamid")),
+                        "victim_name": _safe_str(row.get("user_name")),
+                        "victim_team": _safe_str(row.get("user_team_name")),
+                    })
 
             for idx, k in enumerate(kills_list):
                 for jdx in range(idx + 1, len(kills_list)):
