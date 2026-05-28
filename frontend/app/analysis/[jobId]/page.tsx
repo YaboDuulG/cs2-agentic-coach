@@ -941,12 +941,31 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
     };
   });
 
-  const ctPlayers = computedPlayers.filter(p => p.team === "CT");
-  const tPlayers = computedPlayers.filter(p => p.team === "TERRORIST" || p.team === "T");
+  // Dynamically identify team names (support for Faceit)
+  const allTeams = Array.from(new Set(computedPlayers.map(p => p.team).filter(Boolean)));
+  let team1Name = "CT";
+  let team2Name = "TERRORIST";
+
+  if (allTeams.length >= 2) {
+    if (allTeams.includes("CT") || allTeams.includes("TERRORIST") || allTeams.includes("T")) {
+      team1Name = (allTeams.find(t => t === "CT") || allTeams.find(t => t !== "TERRORIST" && t !== "T") || allTeams[0]) as string;
+      team2Name = (allTeams.find(t => t === "TERRORIST" || t === "T") || allTeams.find(t => t !== team1Name) || allTeams[1]) as string;
+    } else {
+      team1Name = allTeams[0] as string;
+      team2Name = allTeams[1] as string;
+    }
+  } else if (allTeams.length === 1) {
+    if (allTeams[0] === "CT") team2Name = "TERRORIST";
+    else if (allTeams[0] === "TERRORIST" || allTeams[0] === "T") { team1Name = "CT"; team2Name = allTeams[0] as string; }
+    else { team1Name = allTeams[0] as string; team2Name = "Unknown"; }
+  }
+
+  const ctPlayers = computedPlayers.filter(p => p.team === team1Name);
+  const tPlayers = computedPlayers.filter(p => p.team === team2Name);
 
   // Calculate team scores from timeline
-  const ctScore = result?.rounds?.filter((r: any) => r.winner === "CT").length ?? 13;
-  const tScore = result?.rounds?.filter((r: any) => r.winner === "T" || r.winner === "TERRORIST").length ?? 6;
+  const ctScore = result?.rounds?.filter((r: any) => r.winner === "CT" || r.winner === team1Name).length ?? 13;
+  const tScore = result?.rounds?.filter((r: any) => r.winner === "T" || r.winner === "TERRORIST" || r.winner === team2Name).length ?? 6;
 
   // Calculate team totals for utility breakdown
   const getUtilTotals = (teamPlayersList: any[]) => {
@@ -989,9 +1008,9 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
   const getSortedPlayers = () => {
     let list = [...computedPlayers];
     if (teamFilter === "ct") {
-      list = list.filter(p => p.team === "CT");
+      list = list.filter(p => p.team === team1Name);
     } else if (teamFilter === "t") {
-      list = list.filter(p => p.team === "TERRORIST" || p.team === "T");
+      list = list.filter(p => p.team === team2Name);
     }
 
     if (sortField) {
@@ -1355,7 +1374,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {playersListForGrid.map((p) => {
           const initials = p.name ? p.name.slice(0, 2).toUpperCase() : "?";
-          const isCT = p.team === "CT";
+          const isCT = p.team === team1Name;
           
           return (
             <div 
@@ -1557,7 +1576,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
               teamFilter === "t" ? "bg-[#eb5e28] text-white" : "text-slate-400 hover:text-white"
             }`}
           >
-            T
+            {team2Name === "TERRORIST" || team2Name === "T" ? "T" : team2Name}
           </button>
           <button
             onClick={() => setTeamFilter("ct")}
@@ -1565,7 +1584,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
               teamFilter === "ct" ? "bg-[#eb5e28] text-white" : "text-slate-400 hover:text-white"
             }`}
           >
-            CT
+            {team1Name === "CT" ? "CT" : team1Name}
           </button>
         </div>
 
@@ -1874,7 +1893,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <span className="px-2.5 py-0.5 rounded-full font-bold text-white text-xs bg-[#2D7DD2] shadow-md">{ctScore}</span>
-                      <span className="font-bold text-sm text-[#2D7DD2] uppercase tracking-wider">Counter-Terrorists</span>
+                      <span className="font-bold text-sm text-[#2D7DD2] uppercase tracking-wider">{team1Name === "CT" ? "Counter-Terrorists" : team1Name}</span>
                     </div>
                     {renderPlayerGrid(getSortedPlayersForTeam(ctPlayers))}
                   </div>
@@ -1883,7 +1902,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <span className="px-2.5 py-0.5 rounded-full font-bold text-white text-xs bg-[#C9A227] shadow-md">{tScore}</span>
-                      <span className="font-bold text-sm text-[#C9A227] uppercase tracking-wider">Terrorists</span>
+                      <span className="font-bold text-sm text-[#C9A227] uppercase tracking-wider">{team2Name === "TERRORIST" || team2Name === "T" ? "Terrorists" : team2Name}</span>
                     </div>
                     {renderPlayerGrid(getSortedPlayersForTeam(tPlayers))}
                   </div>
@@ -1896,9 +1915,9 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
             sortBy === "team" ? (
               <>
                 {(teamFilter === "all" || teamFilter === "ct") &&
-                  renderTable("Counter-Terrorists", "text-[#2D7DD2]", "bg-[#2D7DD2]", ctScore, getSortedPlayersForTeam(ctPlayers))}
+                  renderTable(team1Name === "CT" ? "Counter-Terrorists" : team1Name, "text-[#2D7DD2]", "bg-[#2D7DD2]", ctScore, getSortedPlayersForTeam(ctPlayers))}
                 {(teamFilter === "all" || teamFilter === "t") &&
-                  renderTable("Terrorists", "text-[#C9A227]", "bg-[#C9A227]", tScore, getSortedPlayersForTeam(tPlayers))}
+                  renderTable(team2Name === "TERRORIST" || team2Name === "T" ? "Terrorists" : team2Name, "text-[#C9A227]", "bg-[#C9A227]", tScore, getSortedPlayersForTeam(tPlayers))}
               </>
             ) : (
               renderSingleTable(getSortedPlayers())
