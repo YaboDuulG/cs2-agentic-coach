@@ -62,6 +62,38 @@ class TestPresignEndpoint:
         )
         assert response.status_code == 413
 
+    def test_presign_chunked_local_mode(self):
+        """Presign for a chunked upload in LOCAL_MODE should return list of URLs."""
+        response = client.post(
+            "/api/upload/presign",
+            json={
+                "filename": "match.dem",
+                "size_bytes": 1024 * 1024 * 200,
+                "chunk_count": 5,
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "match_id" in data
+        assert "upload_urls" in data
+        assert len(data["upload_urls"]) == 5
+        assert data["local_mode"] is True
+
+    def test_compose_endpoint_local_mode(self):
+        """Calling compose endpoint in LOCAL_MODE should mock stitch and return 200."""
+        response = client.post(
+            "/api/upload/compose",
+            json={
+                "match_id": "test-match-compose-123",
+                "filename": "match.dem",
+                "chunk_count": 5,
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ok"] is True
+        assert data["local_mode"] is True
+
 
 class TestJobStatusEndpoint:
     def test_job_status_local_mode(self):

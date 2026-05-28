@@ -118,11 +118,13 @@ def spin_up_server(
             )
     except ValueError as e:
         err_str = str(e)
+        logger.exception(f"ValueError spinning up server: {err_str}")
         # Tuesday update window — surface as 503 Service Unavailable
         if "maintenance window" in err_str:
             raise HTTPException(status_code=503, detail=err_str)
         raise HTTPException(status_code=500, detail=err_str)
     except Exception as e:
+        logger.exception(f"Unhandled exception spinning up server: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
     new_server = PracticeServer(

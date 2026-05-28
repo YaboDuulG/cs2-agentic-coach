@@ -217,7 +217,6 @@ export default function TrainingPage() {
   // Load training stats when stats tab is opened
   useEffect(() => {
     if (activeTab !== "stats" || !isLoaded || !user) return;
-    setLoadingStats(true);
     fetch(`/api/teams/${teamId}/training-sessions`)
       .then((r) => r.json())
       .then((d) => setStats(d))
@@ -607,7 +606,12 @@ export default function TrainingPage() {
           {(["modes", "stats"] as const).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                setActiveTab(tab);
+                if (tab === "stats") {
+                  setLoadingStats(true);
+                }
+              }}
               style={{
                 padding: "10px 16px",
                 background: "none",

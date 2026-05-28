@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   // --- Validate request ---
   try {
-    const { filename, size_bytes, team_id } = await req.json();
+    const { filename, size_bytes, team_id, chunk_count = 1 } = await req.json();
 
     if (!filename || (!filename.endsWith(".dem") && !filename.endsWith(".dem.gz"))) {
       return NextResponse.json({ error: "Only .dem or .dem.gz files are accepted." }, { status: 400 });
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/json",
         "x-clerk-user-id": userId,
       },
-      body: JSON.stringify({ filename, size_bytes, team_id }),
+      body: JSON.stringify({ filename, size_bytes, team_id, chunk_count }),
     });
 
     const data = await res.json();

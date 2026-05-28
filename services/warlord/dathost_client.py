@@ -327,21 +327,13 @@ def provision_practice_server(
         "name": server_name,
         "game": "cs2",
         "location": dathost_location,
-        # CS2-specific settings — 128-tick competitive
+        # CS2-specific settings
         "cs2_settings.rcon": rcon_password,
         "cs2_settings.password": server_password,
         "cs2_settings.start_map": start_map,
         "cs2_settings.slots": "14",          # 10 players + 4 spectator slots
-        "cs2_settings.tickrate": "128",       # 128-tick for competitive accuracy
         "cs2_settings.game_mode": cs2_game_mode,
         "cs2_settings.autostart": "true",
-        # Legacy csgo_settings mirrors for schema safety across DatHost versions
-        "csgo_settings.rcon": rcon_password,
-        "csgo_settings.password": server_password,
-        "csgo_settings.start_map": start_map,
-        "csgo_settings.slots": "14",
-        "csgo_settings.tickrate": "128",
-        "csgo_settings.game_mode": csgo_game_mode,
     }
 
     try:

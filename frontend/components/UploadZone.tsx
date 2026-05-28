@@ -23,18 +23,17 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
   const [totalBytes, setTotalBytes] = useState(0);
   const [uploadSpeed, setUploadSpeed] = useState<string | null>(null);
   
-  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const xhrListRef = useRef<XMLHttpRequest[]>([]);
   const startTimeRef = useRef<number>(0);
 
   const cancelUpload = () => {
-    if (xhrRef.current) {
-      xhrRef.current.abort();
-      setUploading(false);
-      setProgress(0);
-      setBytesUploaded(0);
-      setUploadSpeed(null);
-      setError("Upload cancelled by user.");
-    }
+    xhrListRef.current.forEach((xhr) => xhr.abort());
+    xhrListRef.current = [];
+    setUploading(false);
+    setProgress(0);
+    setBytesUploaded(0);
+    setUploadSpeed(null);
+    setError("Upload cancelled by user.");
   };
 
   const onDrop = useCallback(async (accepted: File[]) => {
@@ -75,69 +74,165 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
       setUploadSpeed("Calculating...");
       startTimeRef.current = Date.now();
 
-      // 1. Get presigned URL
-      const presignRes = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filename: uploadName,
-          size_bytes: uploadFile.size,
-          team_id: teamId,
-        }),
-      });
-      
-      if (!presignRes.ok) {
-        const err = await presignRes.json();
-        if (presignRes.status === 429) {
-          throw new Error(`Quota exceeded — ${err.detail ?? "upgrade to continue"}`);
-        }
-        throw new Error(err.detail ?? "Failed to start upload");
-      }
-      
-      const { job_id, upload_url } = await presignRes.json();
+      const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB chunks
+      const chunkCount = Math.ceil(uploadFile.size / CHUNK_SIZE);
 
-      // 2. Perform upload using XMLHttpRequest to track progress
-      const xhr = new XMLHttpRequest();
-      xhrRef.current = xhr;
+      if (chunkCount > 1) {
+        // --- 1. Get presigned URLs for chunks ---
+        const presignRes = await fetch("/api/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: uploadName,
+            size_bytes: uploadFile.size,
+            team_id: teamId,
+            chunk_count: chunkCount,
+          }),
+        });
 
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const pct = Math.round((event.loaded / event.total) * 100);
-          setProgress(pct);
-          setBytesUploaded(event.loaded);
-          
-          // Calculate upload speed
-          const elapsedMs = Date.now() - startTimeRef.current;
-          if (elapsedMs > 500) {
-            const speedBytesPerSec = (event.loaded / elapsedMs) * 1000;
-            const speedMbPerSec = speedBytesPerSec / (1024 * 1024);
-            setUploadSpeed(`${speedMbPerSec.toFixed(1)} MB/s`);
+        if (!presignRes.ok) {
+          const err = await presignRes.json();
+          if (presignRes.status === 429) {
+            throw new Error(`Quota exceeded — ${err.detail ?? "upgrade to continue"}`);
           }
+          throw new Error(err.detail ?? "Failed to start upload");
         }
-      });
 
-      xhr.addEventListener("load", () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          if (onSuccess) onSuccess();
-          router.push(`/analysis/${job_id}`);
-        } else {
-          setError(`Upload failed. Server responded with status ${xhr.status}.`);
+        const { job_id, upload_urls } = await presignRes.json();
+
+        // --- 2. Upload chunks in parallel using XMLHttpRequest ---
+        const chunkProgress = new Array(chunkCount).fill(0);
+        xhrListRef.current = [];
+
+        const uploadPromises = upload_urls.map((url: string, index: number) => {
+          return new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhrListRef.current.push(xhr);
+
+            const start = index * CHUNK_SIZE;
+            const end = Math.min((index + 1) * CHUNK_SIZE, uploadFile.size);
+            const chunkBlob = uploadFile.slice(start, end);
+
+            xhr.upload.addEventListener("progress", (event) => {
+              if (event.lengthComputable) {
+                chunkProgress[index] = event.loaded;
+                const totalLoaded = chunkProgress.reduce((sum, val) => sum + val, 0);
+                // Cap at 99% until backend composition completes successfully
+                const pct = Math.min(99, Math.round((totalLoaded / uploadFile.size) * 100));
+                setProgress(pct);
+                setBytesUploaded(totalLoaded);
+
+                const elapsedMs = Date.now() - startTimeRef.current;
+                if (elapsedMs > 500) {
+                  const speedBytesPerSec = (totalLoaded / elapsedMs) * 1000;
+                  const speedMbPerSec = speedBytesPerSec / (1024 * 1024);
+                  setUploadSpeed(`${speedMbPerSec.toFixed(1)} MB/s`);
+                }
+              }
+            });
+
+            xhr.addEventListener("load", () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+              } else {
+                reject(new Error(`Chunk ${index} failed with status ${xhr.status}`));
+              }
+            });
+
+            xhr.addEventListener("error", () => {
+              reject(new Error(`Network error on chunk ${index}`));
+            });
+
+            xhr.open("PUT", url);
+            xhr.setRequestHeader("Content-Type", "application/octet-stream");
+            xhr.send(chunkBlob);
+          });
+        });
+
+        await Promise.all(uploadPromises);
+
+        // --- 3. Trigger composition ---
+        setUploadSpeed("Processing...");
+        const composeRes = await fetch("/api/upload/compose", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            match_id: job_id,
+            filename: uploadName,
+            chunk_count: chunkCount,
+            team_id: teamId,
+          }),
+        });
+
+        if (!composeRes.ok) {
+          const err = await composeRes.json();
+          throw new Error(err.detail ?? "Failed to finalize chunk composition");
+        }
+
+        setProgress(100);
+        if (onSuccess) onSuccess();
+        router.push(`/analysis/${job_id}`);
+
+      } else {
+        // --- Single chunk upload ---
+        const presignRes = await fetch("/api/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: uploadName,
+            size_bytes: uploadFile.size,
+            team_id: teamId,
+            chunk_count: 1,
+          }),
+        });
+
+        if (!presignRes.ok) {
+          const err = await presignRes.json();
+          if (presignRes.status === 429) {
+            throw new Error(`Quota exceeded — ${err.detail ?? "upgrade to continue"}`);
+          }
+          throw new Error(err.detail ?? "Failed to start upload");
+        }
+
+        const { job_id, upload_url } = await presignRes.json();
+
+        const xhr = new XMLHttpRequest();
+        xhrListRef.current = [xhr];
+
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            const pct = Math.round((event.loaded / event.total) * 100);
+            setProgress(pct);
+            setBytesUploaded(event.loaded);
+
+            const elapsedMs = Date.now() - startTimeRef.current;
+            if (elapsedMs > 500) {
+              const speedBytesPerSec = (event.loaded / elapsedMs) * 1000;
+              const speedMbPerSec = speedBytesPerSec / (1024 * 1024);
+              setUploadSpeed(`${speedMbPerSec.toFixed(1)} MB/s`);
+            }
+          }
+        });
+
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            if (onSuccess) onSuccess();
+            router.push(`/analysis/${job_id}`);
+          } else {
+            setError(`Upload failed. Server responded with status ${xhr.status}.`);
+            setUploading(false);
+          }
+        });
+
+        xhr.addEventListener("error", () => {
+          setError("Network error occurred during upload.");
           setUploading(false);
-        }
-      });
+        });
 
-      xhr.addEventListener("error", () => {
-        setError("Network error occurred during upload.");
-        setUploading(false);
-      });
-
-      xhr.addEventListener("abort", () => {
-        console.log("Upload aborted");
-      });
-
-      xhr.open("PUT", upload_url);
-      xhr.setRequestHeader("Content-Type", "application/octet-stream");
-      xhr.send(uploadFile);
+        xhr.open("PUT", upload_url);
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+        xhr.send(uploadFile);
+      }
 
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed.");

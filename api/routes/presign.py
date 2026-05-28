@@ -21,13 +21,14 @@ class PresignRequest(BaseModel):
     filename: str
     size_bytes: int = 0
     team_id: str | None = None
+    chunk_count: int = 1
 
 
 @router.post("/presign", summary="Get a presigned GCS URL for direct browser upload")
 async def presign_demo_upload(body: PresignRequest, request: Request):
     """
-    Returns a short-lived presigned PUT URL so the browser can upload
-    directly to GCS without proxying through the API server.
+    Returns a short-lived presigned PUT URL (or list of URLs for chunked upload)
+    so the browser can upload directly to GCS.
     """
     if not body.filename.endswith(".dem") and not body.filename.endswith(".dem.gz"):
         raise HTTPException(status_code=400, detail="Only .dem or .dem.gz files are accepted.")
@@ -62,7 +63,15 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
     _create_match_record(match_id, body.filename, user_id, body.team_id)
 
     if local_mode or not bucket_name:
-        # Local dev: return a fake presigned URL
+        # Local dev: return a fake presigned URL(s)
+        if body.chunk_count > 1:
+            urls = [f"http://localhost:8000/api/upload/stub/{match_id}/part_{i}" for i in range(body.chunk_count)]
+            return {
+                "match_id": match_id,
+                "upload_urls": urls,
+                "gcs_path": f"uploads/temp/{match_id}/{body.filename}",
+                "local_mode": True,
+            }
         return {
             "match_id": match_id,
             "upload_url": f"http://localhost:8000/api/upload/stub/{match_id}",
@@ -85,6 +94,29 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
             client = storage.Client()
 
         bucket = client.bucket(bucket_name)
+
+        if body.chunk_count > 1:
+            upload_urls = []
+            for i in range(body.chunk_count):
+                # Save chunk files outside the demos/raw/ path so they don't trigger Pub/Sub prematurely
+                gcs_path = f"uploads/temp/{match_id}/part_{i}"
+                blob = bucket.blob(gcs_path)
+                url = blob.generate_signed_url(
+                    version="v4",
+                    expiration=timedelta(minutes=30),
+                    method="PUT",
+                    content_type="application/octet-stream",
+                )
+                upload_urls.append(url)
+
+            logger.info(f"Presigned URLs generated for {body.chunk_count} chunks of {body.filename}")
+            return {
+                "match_id": match_id,
+                "upload_urls": upload_urls,
+                "gcs_path": f"gs://{bucket_name}/uploads/temp/{match_id}",
+                "local_mode": False,
+            }
+
         gcs_path = f"demos/raw/{match_id}/{body.filename}"
         blob = bucket.blob(gcs_path)
 
@@ -107,10 +139,102 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
         raise HTTPException(status_code=500, detail="Failed to generate upload URL.")
 
 
+class ComposeRequest(BaseModel):
+    match_id: str
+    filename: str
+    chunk_count: int
+    team_id: str | None = None
+
+
+@router.post("/compose", summary="Compose uploaded GCS chunks into a single demo file")
+async def compose_chunks(body: ComposeRequest, request: Request):
+    """
+    Stitches multiple temporary parts of a chunked upload into a single GCS object
+    using GCS compose operation, then deletes the temporary parts.
+    """
+    bucket_name = os.environ.get("GCS_BUCKET", "").strip()
+    local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
+    user_id = request.headers.get("x-clerk-user-id")
+
+    # Verify team membership if uploading to a team
+    if body.team_id:
+        if not user_id:
+            raise HTTPException(status_code=403, detail="Composition for a team requires user authentication.")
+        from sqlalchemy import text  # noqa: PLC0415
+
+        from db.database import SessionLocal  # noqa: PLC0415
+        db = SessionLocal()
+        try:
+            member_check = db.execute(
+                text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
+                {"team_id": body.team_id, "user_id": user_id},
+            ).fetchone()
+            if not member_check:
+                raise HTTPException(status_code=403, detail="You are not a member of this team.")
+        finally:
+            db.close()
+
+    if local_mode or not bucket_name:
+        logger.info(f"LOCAL_MODE mock composition for match_id: {body.match_id}")
+        return {"ok": True, "match_id": body.match_id, "local_mode": True}
+
+    try:
+        import json
+
+        from google.cloud import storage  # noqa: PLC0415
+        from google.oauth2 import service_account
+
+        sa_key_json = os.environ.get("GCP_SA_KEY")
+        if sa_key_json:
+            creds = service_account.Credentials.from_service_account_info(json.loads(sa_key_json))
+            client = storage.Client(credentials=creds)
+        else:
+            client = storage.Client()
+
+        bucket = client.bucket(bucket_name)
+        final_gcs_path = f"demos/raw/{body.match_id}/{body.filename}"
+
+        # Fetch and verify parts
+        source_blobs = []
+        for i in range(body.chunk_count):
+            part_path = f"uploads/temp/{body.match_id}/part_{i}"
+            part_blob = bucket.blob(part_path)
+            if not part_blob.exists():
+                raise HTTPException(status_code=400, detail=f"Chunk part {i} does not exist in GCS.")
+            source_blobs.append(part_blob)
+
+        # Compose them into the final file
+        final_blob = bucket.blob(final_gcs_path)
+        logger.info(f"Composing {body.chunk_count} blobs into {final_gcs_path}...")
+        final_blob.compose(source_blobs, content_type="application/octet-stream")
+
+        # Delete chunk parts
+        logger.info(f"Deleting {body.chunk_count} temporary source chunks...")
+        for part_blob in source_blobs:
+            try:
+                part_blob.delete()
+            except Exception as del_err:
+                logger.warning(f"Failed to delete temporary chunk {part_blob.name}: {del_err}")
+
+        # In case the Pub/Sub trigger doesn't execute (e.g. locally or trigger issue),
+        # return the URI details. The finalized file in demos/raw/ will trigger GCS Eventarc.
+        return {
+            "ok": True,
+            "match_id": body.match_id,
+            "gcs_uri": f"gs://{bucket_name}/{final_gcs_path}",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Composition failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to compose demo file: {e}")
+
+
 @router.put("/stub/{match_id}", include_in_schema=False)
-async def stub_upload(match_id: str):
+@router.put("/stub/{match_id}/{part_name}", include_in_schema=False)
+async def stub_upload(match_id: str, part_name: str | None = None):
     """Local dev stub — accepts the PUT from the browser in LOCAL_MODE."""
-    return {"ok": True, "match_id": match_id}
+    return {"ok": True, "match_id": match_id, "part_name": part_name}
 
 
 def _create_match_record(

@@ -41,14 +41,15 @@ def test_provision_practice_server_competitive(mock_post, mock_update_window):
 
     # In dathost_client, multipart data is structured as {key: (None, str(val))}
     assert files_payload["cs2_settings.game_mode"][1] == "competitive"
-    assert files_payload["csgo_settings.game_mode"][1] == "classic_competitive"
+    assert "cs2_settings.tickrate" not in files_payload
+    assert not any(k.startswith("csgo_settings") for k in files_payload)
     assert res["game_mode"] == "competitive"
 
 
 @patch("services.warlord.dathost_client.is_valve_update_window", return_value=False)
 @patch("requests.post")
 def test_provision_practice_server_deathmatch(mock_post, mock_update_window):
-    """Verify that 'tradefire' (deathmatch) mode maps to ffa_deathmatch / deathmatch."""
+    """Verify that 'tradefire' (deathmatch) mode maps to ffa_deathmatch."""
     mock_resp_create = MagicMock()
     mock_resp_create.json.return_value = {
         "id": "server-456",
@@ -72,5 +73,6 @@ def test_provision_practice_server_deathmatch(mock_post, mock_update_window):
     files_payload = create_call_args.kwargs["files"]
 
     assert files_payload["cs2_settings.game_mode"][1] == "ffa_deathmatch"
-    assert files_payload["csgo_settings.game_mode"][1] == "deathmatch"
+    assert "cs2_settings.tickrate" not in files_payload
+    assert not any(k.startswith("csgo_settings") for k in files_payload)
     assert res["game_mode"] == "deathmatch"
