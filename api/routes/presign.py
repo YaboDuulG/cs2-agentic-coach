@@ -30,7 +30,8 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
     Returns a short-lived presigned PUT URL (or list of URLs for chunked upload)
     so the browser can upload directly to GCS.
     """
-    if not body.filename.endswith(".dem") and not body.filename.endswith(".dem.gz"):
+    secure_filename = os.path.basename(body.filename or "")
+    if not secure_filename.endswith(".dem") and not secure_filename.endswith(".dem.gz"):
         raise HTTPException(status_code=400, detail="Only .dem or .dem.gz files are accepted.")
 
     if body.size_bytes > MAX_DEMO_SIZE_BYTES:
@@ -60,7 +61,7 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
             db.close()
 
     # Create match record in DB immediately so jobs endpoint returns 'queued'
-    _create_match_record(match_id, body.filename, user_id, body.team_id)
+    _create_match_record(match_id, secure_filename, user_id, body.team_id)
 
     if local_mode or not bucket_name:
         # Local dev: return a fake presigned URL(s)
@@ -69,13 +70,13 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
             return {
                 "match_id": match_id,
                 "upload_urls": urls,
-                "gcs_path": f"uploads/temp/{match_id}/{body.filename}",
+                "gcs_path": f"uploads/temp/{match_id}/{secure_filename}",
                 "local_mode": True,
             }
         return {
             "match_id": match_id,
             "upload_url": f"http://localhost:8000/api/upload/stub/{match_id}",
-            "gcs_path": f"demos/raw/{match_id}/{body.filename}",
+            "gcs_path": f"demos/raw/{match_id}/{secure_filename}",
             "local_mode": True,
         }
 
@@ -117,7 +118,7 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
                 "local_mode": False,
             }
 
-        gcs_path = f"demos/raw/{match_id}/{body.filename}"
+        gcs_path = f"demos/raw/{match_id}/{secure_filename}"
         blob = bucket.blob(gcs_path)
 
         upload_url = blob.generate_signed_url(
@@ -192,7 +193,8 @@ async def compose_chunks(body: ComposeRequest, request: Request):
             client = storage.Client()
 
         bucket = client.bucket(bucket_name)
-        final_gcs_path = f"demos/raw/{body.match_id}/{body.filename}"
+        secure_filename = os.path.basename(body.filename or "")
+        final_gcs_path = f"demos/raw/{body.match_id}/{secure_filename}"
 
         # Fetch and verify parts
         source_blobs = []

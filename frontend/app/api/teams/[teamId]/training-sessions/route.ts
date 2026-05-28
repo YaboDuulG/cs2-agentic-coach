@@ -13,7 +13,8 @@ export async function GET(
   const { teamId } = await params;
   try {
     const res = await fetch(`${API_URL}/api/teams/${teamId}/training-sessions`, {
-      headers: { "x-clerk-user-id": userId },
+      headers: {
+        Authorization: `Bearer ${process.env.API_SHARED_SECRET}`, "x-clerk-user-id": userId },
       cache: "no-store",
     });
     const data = await res.json().catch(() => ({ sessions: [], total_sessions: 0, total_seconds: 0, favourite_mode: null, sessions_this_week: 0 }));

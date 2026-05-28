@@ -76,6 +76,16 @@ const STATUS_CONFIG: Record<JobStatus, { label: string; color: string; icon: Rea
   failed:     { label: "Failed",   color: "#FF4D6D", icon: <AlertCircle size={16} /> },
 };
 
+function isTeam1CT(round: number): boolean {
+  if (round <= 24) {
+    return round <= 12;
+  }
+  // Overtime halves are 3 rounds each
+  const otRound = round - 25;
+  const otHalf = Math.floor(otRound / 3);
+  return otHalf % 2 === 0;
+}
+
 const MAP_CONFIGS: Record<string, { pos_x: number; pos_y: number; scale: number }> = {
   de_dust2: { pos_x: -2476, pos_y: 3239, scale: 4.4 },
   de_mirage: { pos_x: -3230, pos_y: 1713, scale: 5.0 },
@@ -164,6 +174,11 @@ function formatWeaponName(weapon: string): string {
     .join(" ");
 }
 
+
+function cleanPlayerName(name: string | undefined | null): string {
+  if (!name) return "";
+  return name.replace(/\s*\(\d+\)$/, "");
+}
 
 // --- Kill Heatmap Component ---
 interface CanvasPoint {
@@ -335,7 +350,9 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
         if (!k.attacker_x || !k.victim_x) continue;
         const a = toCanvas(k.attacker_x, k.attacker_y ?? 0);
         const v = toCanvas(k.victim_x, k.victim_y ?? 0);
-        const isCT = k.killer_team === "CT";
+        const isCT = k.killer_team?.toUpperCase().startsWith("CT");
+        const isVictimCT = k.victim_team?.toUpperCase().startsWith("CT") || (!k.victim_team && !isCT);
+        const victimColor = isVictimCT ? "#2D7DD2" : "#FF4D6D";
 
         newPoints.push({ cx: a.cx, cy: a.cy, kill: k, type: "attacker" });
         newPoints.push({ cx: v.cx, cy: v.cy, kill: k, type: "victim" });
@@ -344,48 +361,52 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
         ctx.beginPath();
         ctx.moveTo(a.cx, a.cy);
         ctx.lineTo(v.cx, v.cy);
-        ctx.strokeStyle = isCT ? "rgba(45,125,210,0.35)" : "rgba(201,162,39,0.35)";
+        ctx.strokeStyle = isCT ? "rgba(45,125,210,0.35)" : "rgba(255,77,109,0.35)";
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
         // Draw attacker dot
         ctx.beginPath();
         ctx.arc(a.cx, a.cy, 5, 0, Math.PI * 2);
-        ctx.fillStyle = isCT ? "#2D7DD2" : "#C9A227";
-        ctx.shadowColor = isCT ? "rgba(45,125,210,0.5)" : "rgba(201,162,39,0.5)";
+        ctx.fillStyle = isCT ? "#2D7DD2" : "#FF4D6D";
+        ctx.shadowColor = isCT ? "rgba(45,125,210,0.5)" : "rgba(255,77,109,0.5)";
         ctx.shadowBlur = 4;
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Draw victim cross
+        // Draw victim cross and chronological badge concentrically at (v.cx, v.cy)
         ctx.beginPath();
-        const size = 4;
-        ctx.moveTo(v.cx - size, v.cy - size);
-        ctx.lineTo(v.cx + size, v.cy + size);
-        ctx.moveTo(v.cx + size, v.cy - size);
-        ctx.lineTo(v.cx - size, v.cy + size);
-        ctx.strokeStyle = "#FF4D6D";
-        ctx.lineWidth = 2;
+        const crossSize = 8;
+        ctx.moveTo(v.cx - crossSize, v.cy - crossSize);
+        ctx.lineTo(v.cx + crossSize, v.cy + crossSize);
+        ctx.moveTo(v.cx + crossSize, v.cy - crossSize);
+        ctx.lineTo(v.cx - crossSize, v.cy + crossSize);
+        ctx.strokeStyle = victimColor;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
 
-        // Draw chronological death numbering badge next to victim cross
         if (k.death_number) {
-          const victimTeam = k.victim_team || (k.killer_team === "CT" ? "T" : "CT");
-          const normTeam = victimTeam.toUpperCase().startsWith("CT") ? "CT" : "T";
-          const isCTDeath = normTeam === "CT";
-          const badgeBg = isCTDeath ? "rgba(45,125,210,0.85)" : "rgba(201,162,39,0.85)";
+          const badgeBg = isVictimCT ? "#2D7DD2" : "#FF4D6D";
           const badgeText = "#FFFFFF";
 
+          // White border circle (radius 6.5)
           ctx.beginPath();
-          ctx.arc(v.cx + 9, v.cy - 7, 7, 0, Math.PI * 2);
+          ctx.arc(v.cx, v.cy, 6.5, 0, Math.PI * 2);
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fill();
+
+          // Team color badge fill (radius 5.0)
+          ctx.beginPath();
+          ctx.arc(v.cx, v.cy, 5.0, 0, Math.PI * 2);
           ctx.fillStyle = badgeBg;
           ctx.fill();
 
-          ctx.font = "bold 9px JetBrains Mono, monospace";
+          // Number text
+          ctx.font = "bold 7px JetBrains Mono, monospace";
           ctx.fillStyle = badgeText;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(k.death_number.toString(), v.cx + 9, v.cy - 7);
+          ctx.fillText(k.death_number.toString(), v.cx, v.cy);
 
           // Reset text alignment for subsequent drawing
           ctx.textAlign = "left";
@@ -399,10 +420,10 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
       ctx.font = "11px JetBrains Mono, monospace";
       ctx.fillStyle = "#2D7DD2"; ctx.beginPath(); ctx.arc(16, H - 20, 5, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#8BA7CC"; ctx.fillText("CT kill", 26, H - 16);
-      ctx.fillStyle = "#C9A227"; ctx.beginPath(); ctx.arc(90, H - 20, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#FF4D6D"; ctx.beginPath(); ctx.arc(90, H - 20, 5, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#8BA7CC"; ctx.fillText("T kill", 100, H - 16);
 
-      ctx.strokeStyle = "#FF4D6D";
+      ctx.strokeStyle = "#8BA7CC";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(152 - 3, H - 20 - 3); ctx.lineTo(152 + 3, H - 20 + 3);
@@ -526,17 +547,11 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
             </div>
             <div>
               <span className="text-slate-400">Killer:</span>{" "}
-              <span className="font-semibold text-emerald-400">{k.killer}</span>{" "}
-              {k.attacker_steamid && (
-                <span className="text-[10px] text-slate-500 font-mono">({k.attacker_steamid.slice(-8)})</span>
-              )}
+              <span className="font-semibold" style={{ color: k.killer_team === "CT" ? "#2D7DD2" : "#FF4D6D" }}>{cleanPlayerName(k.killer)}</span>
             </div>
             <div>
               <span className="text-slate-400">Victim:</span>{" "}
-              <span className="font-semibold text-rose-400">{k.victim}</span>{" "}
-              {k.victim_steamid && (
-                <span className="text-[10px] text-slate-500 font-mono">({k.victim_steamid.slice(-8)})</span>
-              )}
+              <span className="font-semibold" style={{ color: k.victim_team === "CT" ? "#2D7DD2" : "#FF4D6D" }}>{cleanPlayerName(k.victim)}</span>
             </div>
           </div>
         )
@@ -977,8 +992,15 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
   const tPlayers = computedPlayers.filter(p => p.team === team2Name);
 
   // Calculate team scores from timeline
-  const ctScore = result?.rounds?.filter((r: any) => r.winner === "CT" || r.winner === team1Name).length ?? 13;
-  const tScore = result?.rounds?.filter((r: any) => r.winner === "T" || r.winner === "TERRORIST" || r.winner === team2Name).length ?? 6;
+  // Calculate team scores from timeline using dynamic side switches
+  const ctScore = result?.rounds?.filter(
+    (r: any) => (isTeam1CT(r.round) && (r.winner === "CT" || r.winner === "COUNTER_TERRORIST")) || 
+                (!isTeam1CT(r.round) && (r.winner === "T" || r.winner === "TERRORIST"))
+  ).length ?? 0;
+  const tScore = result?.rounds?.filter(
+    (r: any) => (!isTeam1CT(r.round) && (r.winner === "CT" || r.winner === "COUNTER_TERRORIST")) || 
+                (isTeam1CT(r.round) && (r.winner === "T" || r.winner === "TERRORIST"))
+  ).length ?? 0;
 
   // Calculate team totals for utility breakdown
   const getUtilTotals = (teamPlayersList: any[]) => {
@@ -1202,10 +1224,10 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
   };
 
   const renderTableRow = (p: any, isTeamView: boolean) => {
-    const initials = p.name ? p.name.slice(0, 2).toUpperCase() : "?";
-    const isCT = p.team === "CT";
+    const initials = p.name ? cleanPlayerName(p.name).slice(0, 2).toUpperCase() : "?";
+    const isCT = p.team === "CT" || p.team === team1Name;
     const teamDot = !isTeamView ? (
-      <span className={`inline-block w-1.5 h-1.5 rounded-full mr-2 ${isCT ? 'bg-[#2D7DD2]' : 'bg-[#C9A227]'}`} />
+      <span className={`inline-block w-1.5 h-1.5 rounded-full mr-2 ${isCT ? 'bg-[#2D7DD2]' : 'bg-[#FF4D6D]'}`} />
     ) : null;
 
     const playerCell = (
@@ -1217,7 +1239,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
           <div>
             <div className="font-semibold text-slate-200 hover:text-[#eb5e28] transition-colors cursor-pointer flex items-center text-xs">
               {teamDot}
-              {p.name}
+              {cleanPlayerName(p.name)}
             </div>
             <div className="text-[9px] text-slate-500 font-mono">{p.steamid.slice(-8)}</div>
           </div>
@@ -1386,7 +1408,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {playersListForGrid.map((p) => {
-          const initials = p.name ? p.name.slice(0, 2).toUpperCase() : "?";
+          const initials = p.name ? cleanPlayerName(p.name).slice(0, 2).toUpperCase() : "?";
           const isCT = p.team === team1Name;
           
           return (
@@ -1402,8 +1424,8 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
                   </div>
                   <div>
                     <div className="font-bold text-slate-200 text-sm flex items-center gap-1.5">
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${isCT ? 'bg-[#2D7DD2]' : 'bg-[#C9A227]'}`} />
-                      {p.name}
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${isCT ? 'bg-[#2D7DD2]' : 'bg-[#FF4D6D]'}`} />
+                      {cleanPlayerName(p.name)}
                     </div>
                     <div className="text-[10px] text-slate-500 font-mono">{p.steamid.slice(-8)}</div>
                   </div>
@@ -1740,8 +1762,8 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
                       {initials}
                     </div>
 
-                    <span className="text-[9px] text-slate-400 font-mono truncate max-w-[50px]" title={p.name}>
-                      {p.name}
+                    <span className="text-[9px] text-slate-400 font-mono truncate max-w-[50px]" title={cleanPlayerName(p.name)}>
+                      {cleanPlayerName(p.name)}
                     </span>
                   </div>
                 );
@@ -1914,8 +1936,8 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
                 {(teamFilter === "all" || teamFilter === "t") && (
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <span className="px-2.5 py-0.5 rounded-full font-bold text-white text-xs bg-[#C9A227] shadow-md">{tScore}</span>
-                      <span className="font-bold text-sm text-[#C9A227] uppercase tracking-wider">{team2Name === "TERRORIST" || team2Name === "T" ? "Terrorists" : team2Name}</span>
+                      <span className="px-2.5 py-0.5 rounded-full font-bold text-white text-xs bg-[#FF4D6D] shadow-md">{tScore}</span>
+                      <span className="font-bold text-sm text-[#FF4D6D] uppercase tracking-wider">{team2Name === "TERRORIST" || team2Name === "T" ? "Terrorists" : team2Name}</span>
                     </div>
                     {renderPlayerGrid(getSortedPlayersForTeam(tPlayers))}
                   </div>
@@ -1930,7 +1952,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
                 {(teamFilter === "all" || teamFilter === "ct") &&
                   renderTable(team1Name === "CT" ? "Counter-Terrorists" : team1Name, "text-[#2D7DD2]", "bg-[#2D7DD2]", ctScore, getSortedPlayersForTeam(ctPlayers))}
                 {(teamFilter === "all" || teamFilter === "t") &&
-                  renderTable(team2Name === "TERRORIST" || team2Name === "T" ? "Terrorists" : team2Name, "text-[#C9A227]", "bg-[#C9A227]", tScore, getSortedPlayersForTeam(tPlayers))}
+                  renderTable(team2Name === "TERRORIST" || team2Name === "T" ? "Terrorists" : team2Name, "text-[#FF4D6D]", "bg-[#FF4D6D]", tScore, getSortedPlayersForTeam(tPlayers))}
               </>
             ) : (
               renderSingleTable(getSortedPlayers())
@@ -1976,7 +1998,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
             )}
             {renderTeamBreakdownCard(
               "Terrorists",
-              "text-[#C9A227]",
+              "text-[#FF4D6D]",
               tUtil,
               tPlayers
             )}
@@ -2096,8 +2118,8 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
               <stop offset="100%" stopColor="#2D7DD2" stopOpacity="0" />
             </linearGradient>
             <linearGradient id="tGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#C9A227" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="#C9A227" stopOpacity="0" />
+              <stop offset="0%" stopColor="#FF4D6D" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#FF4D6D" stopOpacity="0" />
             </linearGradient>
           </defs>
 
@@ -2150,7 +2172,7 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
           <path d={tAreaPath} fill="url(#tGrad)" />
 
           <path d={ctPath} fill="none" stroke="#2D7DD2" strokeWidth="2.5" strokeLinecap="round" />
-          <path d={tPath} fill="none" stroke="#C9A227" strokeWidth="2.5" strokeLinecap="round" />
+          <path d={tPath} fill="none" stroke="#FF4D6D" strokeWidth="2.5" strokeLinecap="round" />
 
           {rounds.map((r, idx) => {
             const ct = getCoords(idx, r.ct_spend);
@@ -2176,7 +2198,7 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
                 )}
 
                 {(isHovered || isSelected) && (
-                  <circle cx={t.x} cy={t.y} r={4.5} fill="#C9A227" stroke="#080E1A" strokeWidth={1.5} />
+                  <circle cx={t.x} cy={t.y} r={4.5} fill="#FF4D6D" stroke="#080E1A" strokeWidth={1.5} />
                 )}
               </g>
             );
@@ -2232,8 +2254,8 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
               <span
                 className="text-[9px] font-bold px-1.5 py-0.5 rounded"
                 style={{
-                  background: hoveredRound.winner === "CT" ? "rgba(45,125,210,0.15)" : "rgba(201,162,39,0.15)",
-                  color: hoveredRound.winner === "CT" ? "#2D7DD2" : "#C9A227",
+                  background: hoveredRound.winner === "CT" ? "rgba(45,125,210,0.15)" : "rgba(255,77,109,0.15)",
+                  color: hoveredRound.winner === "CT" ? "#2D7DD2" : "#FF4D6D",
                 }}
               >
                 {hoveredRound.winner}
@@ -2246,7 +2268,7 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">T Value:</span>
-                <span className="font-semibold text-[#C9A227]">${hoveredRound.t_spend.toLocaleString()}</span>
+                <span className="font-semibold text-[#FF4D6D]">${hoveredRound.t_spend.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -2291,12 +2313,12 @@ function RoundTimeline({
                 onDoubleClick={() => onSelectRound(null)}
                 style={{
                   background: isSelected
-                    ? (r.winner === "CT" ? "rgba(45,125,210,0.4)" : "rgba(201,162,39,0.4)")
-                    : (r.winner === "CT" ? "rgba(45,125,210,0.2)" : "rgba(201,162,39,0.2)"),
+                    ? (r.winner === "CT" ? "rgba(45,125,210,0.4)" : "rgba(255,77,109,0.4)")
+                    : (r.winner === "CT" ? "rgba(45,125,210,0.2)" : "rgba(255,77,109,0.2)"),
                   border: isSelected
-                    ? `1.5px solid ${r.winner === "CT" ? "#2D7DD2" : "#C9A227"}`
-                    : `1px solid ${r.winner === "CT" ? "rgba(45,125,210,0.4)" : "rgba(201,162,39,0.4)"}`,
-                  color: r.winner === "CT" ? "#2D7DD2" : "#C9A227",
+                    ? `1.5px solid ${r.winner === "CT" ? "#2D7DD2" : "#FF4D6D"}`
+                    : `1px solid ${r.winner === "CT" ? "rgba(45,125,210,0.4)" : "rgba(255,77,109,0.4)"}`,
+                  color: r.winner === "CT" ? "#2D7DD2" : "#FF4D6D",
                   fontSize: "0.6rem",
                 }}
               >
@@ -2313,7 +2335,7 @@ function RoundTimeline({
           <span style={{ color: "#8BA7CC", fontSize: "0.72rem" }}>CT win: {rounds.filter(r => r.winner === "CT").length}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded" style={{ background: "rgba(201,162,39,0.4)", border: "1px solid #C9A227" }} />
+          <div className="w-3 h-3 rounded" style={{ background: "rgba(255,77,109,0.4)", border: "1px solid #FF4D6D" }} />
           <span style={{ color: "#8BA7CC", fontSize: "0.72rem" }}>T win: {rounds.filter(r => r.winner === "T").length}</span>
         </div>
       </div>
@@ -2513,7 +2535,7 @@ export default function AnalysisPage() {
               
               {/* Pulsing Soyombo/Spinner Combo */}
               <div className="relative flex items-center justify-center">
-                <div className="w-24 h-24 rounded-full border-4 border-slate-800 border-t-[#2D7DD2] border-r-[#C9A227] animate-spin" />
+                <div className="w-24 h-24 rounded-full border-4 border-slate-800 border-t-[#2D7DD2] border-r-[#FF4D6D] animate-spin" />
                 <div className="absolute animate-float">
                   <SoyomboIcon size={42} color="#C9A227" className="animate-pulse" />
                 </div>
@@ -2546,7 +2568,7 @@ export default function AnalysisPage() {
                     className="h-full rounded-full transition-all duration-1000 ease-out"
                     style={{
                       width: `${progressPercent}%`,
-                      background: "linear-gradient(90deg, #1B4F8A 0%, #2D7DD2 50%, #C9A227 100%)",
+                      background: "linear-gradient(90deg, #1B4F8A 0%, #2D7DD2 50%, #FF4D6D 100%)",
                       boxShadow: "0 0 10px rgba(45,125,210,0.5)"
                     }}
                   />
@@ -2738,17 +2760,11 @@ export default function AnalysisPage() {
                               <div className="flex items-center gap-3">
                                 <span style={{ color: "#4A6A8A", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>R{k.round}</span>
                                 <span style={{ color: killerColor, fontWeight: 500, fontSize: "0.875rem" }}>
-                                  {k.killer}
-                                  {k.attacker_steamid && (
-                                    <span className="text-[10px] text-slate-500 font-mono ml-1">({k.attacker_steamid.slice(-8)})</span>
-                                  )}
+                                  {cleanPlayerName(k.killer)}
                                 </span>
                                 <span style={{ color: "#4A6A8A", fontSize: "0.75rem" }}>killed</span>
                                 <span style={{ color: victimColor, fontSize: "0.875rem" }}>
-                                  {k.victim}
-                                  {k.victim_steamid && (
-                                    <span className="text-[10px] text-slate-500 font-mono ml-1">({k.victim_steamid.slice(-8)})</span>
-                                  )}
+                                  {cleanPlayerName(k.victim)}
                                 </span>
                               </div>
                               <span style={{ color: "#8BA7CC", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>{formatWeaponName(k.weapon)}</span>

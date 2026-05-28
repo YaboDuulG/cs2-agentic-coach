@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
   const { invite_code } = await req.json();
   const res = await fetch(`${API_URL}/api/teams/join`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+        Authorization: `Bearer ${process.env.API_SHARED_SECRET}`, "Content-Type": "application/json" },
     body: JSON.stringify({ invite_code, user_id: userId }),
   });
   return NextResponse.json(await res.json(), { status: res.status });

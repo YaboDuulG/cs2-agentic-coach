@@ -14,6 +14,7 @@ export async function GET(
   try {
     const res = await fetch(`${API_URL}/api/teams/${teamId}/servers`, {
       headers: {
+        Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
         "x-clerk-user-id": userId,
       },
       cache: "no-store",

@@ -4,7 +4,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export async function GET() {
   try {
-    const res = await fetch(`${API_URL}/api/faceit/status`, { cache: "no-store" });
+    const res = await fetch(`${API_URL}/api/faceit/status`, { cache: "no-store", headers: {
+        Authorization: `Bearer ${process.env.API_SHARED_SECRET}` } });
     const data = await res.json().catch(() => ({}));
     return NextResponse.json(data, { status: res.status });
   } catch {

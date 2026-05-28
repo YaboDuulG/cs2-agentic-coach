@@ -45,7 +45,8 @@ async def upload_demo(file: UploadFile = File(...)):
         - Skips Cloud Tasks enqueue
         - Returns match_id for use with scripts/run_local.py
     """
-    suffix = os.path.splitext(file.filename or "")[-1].lower()
+    secure_filename = os.path.basename(file.filename or "")
+    suffix = os.path.splitext(secure_filename)[-1].lower()
     if suffix not in ALLOWED_DEMO_TYPES:
         raise HTTPException(status_code=400, detail="Only .dem files are accepted.")
 
@@ -56,7 +57,7 @@ async def upload_demo(file: UploadFile = File(...)):
     gcs_uri = None
 
     if not local_mode:
-        gcs_path = f"demos/raw/{match_id}/{file.filename}"
+        gcs_path = f"demos/raw/{match_id}/{secure_filename}"
         try:
             gcs_uri = _upload_to_gcs(file_bytes, gcs_path, "application/octet-stream")
             logger.info(f"Demo uploaded: {gcs_uri}")
@@ -92,7 +93,8 @@ async def upload_audio(file: UploadFile = File(...), match_id: str = ""):
     Accept team audio recording, upload to GCS, and queue Comms Analyst job.
     Requires a match_id to align transcript timestamps to demo round clock.
     """
-    suffix = os.path.splitext(file.filename or "")[-1].lower()
+    secure_filename = os.path.basename(file.filename or "")
+    suffix = os.path.splitext(secure_filename)[-1].lower()
     if suffix not in ALLOWED_AUDIO_TYPES:
         raise HTTPException(
             status_code=400,
@@ -114,7 +116,7 @@ async def upload_audio(file: UploadFile = File(...), match_id: str = ""):
     gcs_uri = None
 
     if not local_mode:
-        gcs_path = f"audio/raw/{match_id}/{file.filename}"
+        gcs_path = f"audio/raw/{match_id}/{secure_filename}"
         try:
             gcs_uri = _upload_to_gcs(file_bytes, gcs_path, "audio/mpeg")
             logger.info(f"Audio uploaded: {gcs_uri}")

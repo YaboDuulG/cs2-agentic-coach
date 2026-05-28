@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
     const res = await fetch(`${API_URL}/api/upload/compose`, {
       method: "POST",
       headers: {
+        Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
         "Content-Type": "application/json",
         "x-clerk-user-id": userId,
       },

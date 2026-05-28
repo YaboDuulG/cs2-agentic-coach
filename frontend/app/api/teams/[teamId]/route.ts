@@ -15,7 +15,8 @@ export async function GET(
     ? `${API_URL}/api/teams/${teamId}/analyses?user_id=${userId}`
     : `${API_URL}/api/teams/${teamId}`;
 
-  const res = await fetch(path, { cache: "no-store" });
+  const res = await fetch(path, { cache: "no-store", headers: {
+        Authorization: `Bearer ${process.env.API_SHARED_SECRET}` } });
   return NextResponse.json(await res.json(), { status: res.status });
 }
 
@@ -62,7 +63,8 @@ export async function DELETE(
 
   const { teamId } = await params;
   const res = await fetch(`${API_URL}/api/teams/${teamId}?user_id=${userId}`, {
-    method: "DELETE",
-  });
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${process.env.API_SHARED_SECRET}` }
+    });
   return NextResponse.json(await res.json(), { status: res.status });
 }

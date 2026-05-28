@@ -77,8 +77,9 @@ export function Viewer3D({ kills, mapName }: { kills: KillEvent[]; mapName?: str
       if (!k.attacker_x || !k.victim_x) return null;
       
       const isCT = k.killer_team === "CT";
-      const color = isCT ? "#2D7DD2" : "#C9A227";
-      const vicColor = "#FF4D6D";
+      const color = isCT ? "#2D7DD2" : "#FF4D6D";
+      const isVictimCT = k.victim_team === "CT" || (!k.victim_team && !isCT);
+      const vicColor = isVictimCT ? "#2D7DD2" : "#FF4D6D";
 
       const start = toVector3(k.attacker_x, k.attacker_y ?? 0, k.attacker_z ?? 0);
       const end = toVector3(k.victim_x, k.victim_y ?? 0, k.victim_z ?? 0);

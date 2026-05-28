@@ -15,6 +15,7 @@ export async function DELETE(
     const res = await fetch(`${API_URL}/api/servers/${serverId}`, {
       method: "DELETE",
       headers: {
+        Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
         "x-clerk-user-id": userId,
       },
     });

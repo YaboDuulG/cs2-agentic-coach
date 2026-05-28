@@ -5,7 +5,8 @@ const BACKEND = process.env.BACKEND_URL || "http://localhost:8000";
 export async function GET() {
   try {
     const res = await fetch(`${BACKEND}/api/servers/modes`, {
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${process.env.API_SHARED_SECRET}`, "Content-Type": "application/json" },
       cache: "no-store",
     });
     const data = await res.json();
