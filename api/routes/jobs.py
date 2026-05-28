@@ -88,14 +88,17 @@ async def get_job_status(match_id: str, user_id: str | None = None):
             created_at = result[5] if len(result) > 5 else None
             parse_duration_seconds = result[6] if len(result) > 6 else None
 
-            from datetime import UTC, datetime
+            from datetime import UTC, datetime, timezone
 
             elapsed_seconds = 0
             if created_at:
                 now_utc = datetime.now(UTC)
-                if created_at.tzinfo is None:
-                    now_utc = now_utc.replace(tzinfo=None)
-                elapsed_seconds = max(0, int((now_utc - created_at).total_seconds()))
+                # Normalise created_at: if the DB returns a naive datetime,
+                # assume it was stored in UTC (Cloud SQL default) and attach tzinfo.
+                ca = created_at
+                if ca.tzinfo is None:
+                    ca = ca.replace(tzinfo=timezone.utc)
+                elapsed_seconds = max(0, int((now_utc - ca).total_seconds()))
 
             if match_status == "failed":
                 return {"status": "failed", "match_id": match_id, "error": error_message}

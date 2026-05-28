@@ -2323,7 +2323,7 @@ export default function AnalysisPage() {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [tipIndex, setTipIndex] = useState(0);
 
-  // Sync timer using local ticks
+  // Sync timer using local ticks — capped at 99:59 display
   useEffect(() => {
     const status = result?.status ?? "queued";
     if (status === "done" || status === "failed") return;
@@ -2335,13 +2335,23 @@ export default function AnalysisPage() {
     return () => clearInterval(interval);
   }, [result?.status]);
 
-  // Sync with backend elapsed_seconds if available
+  // Sync with backend elapsed_seconds — only use it to seed the timer on first
+  // arrival; never let a stale large value override a running local counter.
+  const seededFromBackend = useRef(false);
   useEffect(() => {
-    if (result?.elapsed_seconds !== undefined) {
-      /* eslint-disable-next-line react-hooks/set-state-in-effect */
-      setElapsedSeconds(prev => Math.max(prev, result.elapsed_seconds || 0));
+    if (result?.elapsed_seconds !== undefined && !seededFromBackend.current) {
+      seededFromBackend.current = true;
+      setElapsedSeconds(result.elapsed_seconds || 0);
     }
   }, [result?.elapsed_seconds]);
+
+  // Hard timeout: if we've been polling for >10 min and still not done,
+  // force-reload the page so the user isn't stuck forever.
+  useEffect(() => {
+    if (elapsedSeconds > 600 && result?.status !== "done" && result?.status !== "failed") {
+      // Don't auto-reload — just show the escape hatch (handled in JSX)
+    }
+  }, [elapsedSeconds, result?.status]);
 
   // Coaching tips rotation
   useEffect(() => {
@@ -2354,8 +2364,10 @@ export default function AnalysisPage() {
   }, [result?.status]);
 
   const formatTime = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
+    // Cap display at 99:59 — anything beyond means a backend stall
+    const capped = Math.min(totalSeconds, 5999);
+    const mins = Math.floor(capped / 60);
+    const secs = capped % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
@@ -2501,6 +2513,33 @@ export default function AnalysisPage() {
                   <span>Est: ~2.5 mins total</span>
                 </div>
               </div>
+
+              {/* Escape hatch — shows after 3 min stuck */}
+              {elapsedSeconds > 180 && (
+                <div className="w-full max-w-md p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 flex flex-col items-center gap-3">
+                  <p className="text-xs text-amber-400/90 text-center">
+                    Taking longer than expected? The analysis may already be ready.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      id="force-view-results-btn"
+                      onClick={() => setResult(prev => prev ? { ...prev, status: "done" } : prev)}
+                      className="text-xs px-4 py-2 rounded-lg font-semibold"
+                      style={{ backgroundColor: "rgba(45,125,210,0.15)", border: "1px solid rgba(45,125,210,0.4)", color: "#5BA3E8" }}
+                    >
+                      View Results Now
+                    </button>
+                    <button
+                      id="reload-page-btn"
+                      onClick={() => window.location.reload()}
+                      className="text-xs px-4 py-2 rounded-lg font-semibold"
+                      style={{ backgroundColor: "rgba(255,77,109,0.1)", border: "1px solid rgba(255,77,109,0.3)", color: "#FF4D6D" }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Tips Carousel */}
               <div 
