@@ -103,7 +103,9 @@ async def parse_from_pubsub(request: dict):
     obj_path = gcs_event.get("name", "")  # demos/raw/{match_id}/{filename}
 
     # Only process files in the demos/raw/ prefix
-    if not obj_path.startswith("demos/raw/") or not obj_path.endswith(".dem"):
+    if not obj_path.startswith("demos/raw/") or not (
+        obj_path.endswith(".dem") or obj_path.endswith(".dem.gz")
+    ):
         logger.info(f"[Scout] Skipping non-demo object: {obj_path}")
         return {"status": "skipped", "reason": "not_a_demo"}
 
