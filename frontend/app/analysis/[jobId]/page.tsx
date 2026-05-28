@@ -2647,6 +2647,31 @@ export default function AnalysisPage() {
                 ? (result.kills || []).filter(k => k.round === selectedRound)
                 : (result.kills || []);
               
+              const uniqueTeams = Array.from(new Set(
+                (result.kills || []).map(k => k.killer_team)
+                .concat((result.kills || []).map(k => k.victim_team))
+                .filter(Boolean)
+              ));
+              
+              let team1 = "CT";
+              let team2 = "TERRORIST";
+
+              if (uniqueTeams.length >= 2) {
+                if (uniqueTeams.includes("CT") || uniqueTeams.includes("TERRORIST") || uniqueTeams.includes("T")) {
+                  team1 = (uniqueTeams.find(t => t === "CT") || uniqueTeams.find(t => t !== "TERRORIST" && t !== "T") || uniqueTeams[0]) as string;
+                  team2 = (uniqueTeams.find(t => t === "TERRORIST" || t === "T") || uniqueTeams.find(t => t !== team1) || uniqueTeams[1]) as string;
+                } else {
+                  team1 = uniqueTeams[0] as string;
+                  team2 = uniqueTeams[1] as string;
+                }
+              }
+
+              const getTeamColor = (teamName?: string) => {
+                if (teamName === team1 || teamName === "CT") return "#2D7DD2"; // Blue
+                if (teamName === team2 || teamName === "TERRORIST" || teamName === "T") return "#FF4D6D"; // Red
+                return "#8BA7CC"; // Fallback gray
+              };
+
               return (
                 <>
                   {/* Kill Heatmap */}
@@ -2660,8 +2685,8 @@ export default function AnalysisPage() {
                       <h2 className="heading-display mb-4" style={{ fontSize: "1.1rem" }}>Kill Feed</h2>
                       <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
                         {filteredKills.slice(0, 50).map((k, i) => {
-                          const killerColor = k.killer_team === "CT" ? "#2D7DD2" : k.killer_team === "T" ? "#C9A227" : "#22D3A0";
-                          const victimColor = k.victim_team === "CT" ? "#2D7DD2" : k.victim_team === "T" ? "#C9A227" : "#FF4D6D";
+                          const killerColor = getTeamColor(k.killer_team);
+                          const victimColor = getTeamColor(k.victim_team);
                           
                           return (
                             <div key={i} className="flex items-center justify-between py-2 border-b" style={{ borderColor: "#142135" }}>
