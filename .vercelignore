@@ -1,0 +1,22 @@
+# Ignore backend code and data files
+/api/
+/db/
+/demos/
+/data/
+/infra/
+/plugins/
+/services/
+/tests/
+/scripts/
+*.py
+*.dem
+*.dem.gz
+requirements.txt
+requirements-ci.txt
+pyproject.toml
+TECHNICAL_SPEC.md
+gcp-key.json
+.git
+.github
+node_modules/
+
