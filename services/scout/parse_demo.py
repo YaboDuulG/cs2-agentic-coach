@@ -212,7 +212,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
     # 1: Warmup, 2: First Half, 3: Second Half, 4: Halftime, 5: Post-Match
     match_start_tick = 0
     match_end_tick = float('inf')
-    
+
     try:
         phase_ticks_df = parser.parse_ticks(["game_phase"])
         if "game_phase" in phase_ticks_df.columns:
@@ -221,7 +221,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             if phase_2_mask.any():
                 match_start_tick = int(phase_ticks_df.loc[phase_2_mask, "tick"].iloc[0])
                 logger.info(f"Match start detected (phase 2) at tick: {match_start_tick}")
-            
+
             # Find when phase changes to 5 (Match Over)
             phase_5_mask = phase_ticks_df["game_phase"] == 5
             if phase_5_mask.any():
@@ -250,14 +250,14 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 if curr_r <= prev_r:
                     last_reset_idx = idx
                 prev_r = curr_r
-            
+
             # Identify the knife round (Round 0) and live rounds
             processed_rounds = []
             for idx, row in round_df.iterrows():
                 winner = row.get("winner")
                 if winner not in (2, 3, "CT", "T", "TERRORIST"):
                     continue
-                    
+
                 if idx < last_reset_idx:
                     # Before final reset: only keep the last valid round before the reset as the Knife Round
                     # We overwrite it so if there are multiple, we only keep the last one.
@@ -295,7 +295,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                     ct_score += 1
                 elif winner_side == "T" and not row.get("is_knife_round"):
                     t_score += 1
-                
+
                 # Knife round gets labeled as 0
                 final_rnd_num = 0 if row.get("is_knife_round") else rnd_num
 
@@ -427,14 +427,15 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 tick = int(row.get("tick", 0))
                 if tick < match_start_tick or tick > match_end_tick:
                     continue
-                
+
                 round_num = _safe_int(row.get("total_rounds_played"))
                 # Note: If it's the knife round, we map it to 0
-                if row.get("is_knife_round"): round_num = 0
+                if row.get("is_knife_round"):
+                    round_num = 0
 
                 if round_num not in valid_round_nums:
                     continue  # skip warmup kills
-                    
+
                 # Skip adding kills to totals if it's the knife round (Round 0)
                 if round_num == 0:
                     continue
@@ -574,8 +575,9 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             for _, row in kills_df.iterrows():
                 k_tick = _safe_int(row.get("tick"))
                 k_round_num = _safe_int(row.get("total_rounds_played"))
-                if row.get("is_knife_round"): k_round_num = 0
-                
+                if row.get("is_knife_round"):
+                    k_round_num = 0
+
                 if k_tick >= match_start_tick and k_tick <= match_end_tick and k_round_num in valid_round_nums:
                     kills_list.append({
                         "tick": k_tick,
