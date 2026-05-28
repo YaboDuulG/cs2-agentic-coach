@@ -207,7 +207,24 @@ async def compose_chunks(body: ComposeRequest, request: Request):
         final_blob = bucket.blob(final_gcs_path)
         final_blob.content_type = "application/octet-stream"
         logger.info(f"Composing {body.chunk_count} blobs into {final_gcs_path}...")
-        final_blob.compose(source_blobs)
+
+        if len(source_blobs) <= 32:
+            final_blob.compose(source_blobs)
+        else:
+            # Batch composition due to GCS 32 object limit
+            intermediate_blobs = []
+            for i in range(0, len(source_blobs), 32):
+                batch = source_blobs[i:i + 32]
+                intermediate_blob = bucket.blob(f"uploads/temp/{body.match_id}/intermediate_{i//32}")
+                intermediate_blob.content_type = "application/octet-stream"
+                intermediate_blob.compose(batch)
+                intermediate_blobs.append(intermediate_blob)
+
+            # Compose intermediates to final
+            final_blob.compose(intermediate_blobs)
+
+            # Add intermediate blobs to source_blobs so they get deleted below
+            source_blobs.extend(intermediate_blobs)
 
         # Delete chunk parts
         logger.info(f"Deleting {body.chunk_count} temporary source chunks...")

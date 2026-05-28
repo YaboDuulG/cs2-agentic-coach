@@ -103,6 +103,19 @@ async def get_job_status(match_id: str, user_id: str | None = None):
             if match_status == "failed":
                 return {"status": "failed", "match_id": match_id, "error": error_message}
 
+            # If the job has been stuck in pending/processing for >15 minutes (900s), consider it failed
+            if match_status not in ("done", "complete", "parsed") and elapsed_seconds > 900:
+                # Update DB to failed to avoid repeated logic
+                try:
+                    db.execute(
+                        text("UPDATE matches SET status = 'FAILED', error_message = 'Job timed out after 15 minutes' WHERE match_id = :id"),
+                        {"id": match_id}
+                    )
+                    db.commit()
+                except Exception as e:
+                    logger.error(f"Failed to mark stuck job as failed: {e}")
+                return {"status": "failed", "match_id": match_id, "error": "Job timed out after 15 minutes"}
+
             if match_status in ("pending", "queued"):
                 return {
                     "status": "queued",

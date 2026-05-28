@@ -74,8 +74,13 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
       setUploadSpeed("Calculating...");
       startTimeRef.current = Date.now();
 
-      const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB chunks
-      const chunkCount = Math.ceil(uploadFile.size / CHUNK_SIZE);
+      // Ensure the number of chunks does not exceed 32 (GCS limit for compose)
+      let chunkSize = 5 * 1024 * 1024; // 5 MB default
+      let chunkCount = Math.ceil(uploadFile.size / chunkSize);
+      if (chunkCount > 32) {
+        chunkSize = Math.ceil(uploadFile.size / 32);
+        chunkCount = 32;
+      }
 
       if (chunkCount > 1) {
         // --- 1. Get presigned URLs for chunks ---
@@ -109,8 +114,8 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
             const xhr = new XMLHttpRequest();
             xhrListRef.current.push(xhr);
 
-            const start = index * CHUNK_SIZE;
-            const end = Math.min((index + 1) * CHUNK_SIZE, uploadFile.size);
+            const start = index * chunkSize;
+            const end = Math.min((index + 1) * chunkSize, uploadFile.size);
             const chunkBlob = uploadFile.slice(start, end);
 
             xhr.upload.addEventListener("progress", (event) => {

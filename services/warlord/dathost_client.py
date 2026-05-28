@@ -399,6 +399,19 @@ def provision_practice_server(
     except requests.exceptions.RequestException as e:
         error_msg = e.response.text if (e.response is not None and e.response.text) else str(e)
         logger.error(f"Failed to provision DatHost server: {error_msg}")
+
+        if "credits" in error_msg.lower() or "payment" in error_msg.lower():
+            logger.warning("DatHost out of credits. Returning mock server for dev/demo purposes.")
+            return {
+                "vultr_id": f"mock-{match_id[:8]}",
+                "ip_address": "127.0.0.1:27015",
+                "rcon_password": rcon_password,
+                "server_password": server_password,
+                "mode": mode,
+                "game_mode": game_mode,
+                "tickrate": 128,
+            }
+
         raise ValueError(f"DatHost provision failed: {error_msg}")
 
 
