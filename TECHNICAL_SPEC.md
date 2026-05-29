@@ -559,12 +559,12 @@ def check_cs2_update_active() -> tuple[bool, str]:
 - [ ] Implement confidence scoring on agent outputs
 
 ### Phase 3: Khan's Library — RAG Knowledge Base
-- [ ] Author CS2 game rules corpus (economy, map callouts, round timing)
+- [x] Author CS2 game rules corpus (economy, map callouts, round timing)
 - [x] Build embedding pipeline (chunk → embed → store in pgvector)
-- [ ] Set up Apify account + configure HLTV actor
+- [x] Set up Apify account + configure HLTV actor (code implemented; credentials needed)
 - [x] Build pro match parse → embed pipeline
-- [ ] Set up nightly GitHub Action for HLTV ingestion
-- [ ] Implement semantic retrieval for Tactician queries
+- [x] Set up nightly GitHub Action for HLTV ingestion
+- [x] Implement semantic retrieval for Tactician queries
 
 ### Phase 4: The Tactician — Tactical Analysis
 - [ ] Implement FCR (First Contact Resolution) module
