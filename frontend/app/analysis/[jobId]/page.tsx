@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
@@ -2288,6 +2288,17 @@ function RoundTimeline({
   selectedRound: number | null;
   onSelectRound: (round: number | null) => void;
 }) {
+  // Calculate team scores from timeline using dynamic side switches to match the player tables
+  const team1Score = rounds.filter(
+    (r) => (isTeam1CT(r.round) && (r.winner === "CT" || r.winner === "COUNTER_TERRORIST")) || 
+           (!isTeam1CT(r.round) && (r.winner === "T" || r.winner === "TERRORIST"))
+  ).length;
+
+  const team2Score = rounds.filter(
+    (r) => (!isTeam1CT(r.round) && (r.winner === "CT" || r.winner === "COUNTER_TERRORIST")) || 
+           (isTeam1CT(r.round) && (r.winner === "T" || r.winner === "TERRORIST"))
+  ).length;
+
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between mb-4">
@@ -2296,47 +2307,56 @@ function RoundTimeline({
           Click round to filter | Double click to clear filter
         </span>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {rounds.map((r) => {
+      <div className="flex flex-wrap gap-1.5 items-center">
+        {rounds.map((r, index) => {
           const isSelected = selectedRound === r.round;
+          // Standard CS2 regulation halftime is after round 12
+          const showHalftimeDivider = r.round === 12 && rounds.length > 12;
           return (
-            <div
-              key={r.round}
-              title={`R${r.round} — ${r.winner} wins | CT $${r.ct_spend.toLocaleString()} vs T $${r.t_spend.toLocaleString()}`}
-              className="flex flex-col items-center gap-1"
-            >
+            <Fragment key={r.round}>
               <div
-                className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold cursor-pointer transition-all hover:scale-115 active:scale-95 ${
-                  isSelected ? "ring-2 ring-[#22D3A0] scale-110 shadow-lg shadow-[#22D3A0]/25" : ""
-                }`}
-                onClick={() => onSelectRound(isSelected ? null : r.round)}
-                onDoubleClick={() => onSelectRound(null)}
-                style={{
-                  background: isSelected
-                    ? (r.winner === "CT" ? "rgba(45,125,210,0.4)" : "rgba(255,77,109,0.4)")
-                    : (r.winner === "CT" ? "rgba(45,125,210,0.2)" : "rgba(255,77,109,0.2)"),
-                  border: isSelected
-                    ? `1.5px solid ${r.winner === "CT" ? "#2D7DD2" : "#FF4D6D"}`
-                    : `1px solid ${r.winner === "CT" ? "rgba(45,125,210,0.4)" : "rgba(255,77,109,0.4)"}`,
-                  color: r.winner === "CT" ? "#2D7DD2" : "#FF4D6D",
-                  fontSize: "0.6rem",
-                }}
+                title={`R${r.round} — ${r.winner} wins | CT $${r.ct_spend.toLocaleString()} vs T $${r.t_spend.toLocaleString()}`}
+                className="flex flex-col items-center gap-1"
               >
-                {r.winner === "CT" ? "C" : "T"}
+                <div
+                  className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold cursor-pointer transition-all hover:scale-115 active:scale-95 ${
+                    isSelected ? "ring-2 ring-[#22D3A0] scale-110 shadow-lg shadow-[#22D3A0]/25" : ""
+                  }`}
+                  onClick={() => onSelectRound(isSelected ? null : r.round)}
+                  onDoubleClick={() => onSelectRound(null)}
+                  style={{
+                    background: isSelected
+                      ? (r.winner === "CT" ? "rgba(45,125,210,0.4)" : "rgba(255,77,109,0.4)")
+                      : (r.winner === "CT" ? "rgba(45,125,210,0.2)" : "rgba(255,77,109,0.2)"),
+                    border: isSelected
+                      ? `1.5px solid ${r.winner === "CT" ? "#2D7DD2" : "#FF4D6D"}`
+                      : `1px solid ${r.winner === "CT" ? "rgba(45,125,210,0.4)" : "rgba(255,77,109,0.4)"}`,
+                    color: r.winner === "CT" ? "#2D7DD2" : "#FF4D6D",
+                    fontSize: "0.6rem",
+                  }}
+                >
+                  {r.winner === "CT" ? "C" : "T"}
+                </div>
+                <span style={{ color: isSelected ? "#22D3A0" : "#4A6A8A", fontSize: "0.55rem", fontFamily: "JetBrains Mono", fontWeight: isSelected ? 600 : 400 }}>{r.round}</span>
               </div>
-              <span style={{ color: isSelected ? "#22D3A0" : "#4A6A8A", fontSize: "0.55rem", fontFamily: "JetBrains Mono", fontWeight: isSelected ? 600 : 400 }}>{r.round}</span>
-            </div>
+              {showHalftimeDivider && (
+                <div className="flex flex-col items-center justify-center self-stretch px-2 select-none">
+                  <div className="w-[2px] bg-slate-700 h-6 rounded" title="Halftime" />
+                  <span className="text-[8px] text-slate-500 font-mono mt-1 font-bold">HALF</span>
+                </div>
+              )}
+            </Fragment>
           );
         })}
       </div>
       <div className="flex items-center gap-4 mt-3">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded" style={{ background: "rgba(45,125,210,0.4)", border: "1px solid #2D7DD2" }} />
-          <span style={{ color: "#8BA7CC", fontSize: "0.72rem" }}>CT win: {rounds.filter(r => r.winner === "CT").length}</span>
+          <span style={{ color: "#8BA7CC", fontSize: "0.72rem" }}>Counter-Terrorists win: {team1Score}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded" style={{ background: "rgba(255,77,109,0.4)", border: "1px solid #FF4D6D" }} />
-          <span style={{ color: "#8BA7CC", fontSize: "0.72rem" }}>T win: {rounds.filter(r => r.winner === "T").length}</span>
+          <span style={{ color: "#8BA7CC", fontSize: "0.72rem" }}>Terrorists win: {team2Score}</span>
         </div>
       </div>
     </div>
