@@ -44,5 +44,8 @@ google-generativeai>=0.8.3
 # --- Observability ---
 langsmith==0.1.143
 
+# --- Scraper ---
+playwright==1.49.0
+
 
 

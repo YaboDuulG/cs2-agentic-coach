@@ -160,7 +160,13 @@ def main():
             logger.info(f"Registered new pending match {match_id} | Map: {map_name}")
 
         db.commit()
-        logger.info(f"Completed free ingestion. Registered {new_matches} new match(es).")
+        logger.info(f"Free HLTV scraper completed. Registered {new_matches} new match(es).")
+
+        # Write to GITHUB_OUTPUT for github actions step linking
+        github_output = os.environ.get("GITHUB_OUTPUT")
+        if github_output:
+            with open(github_output, "a") as f:
+                f.write(f"new_matches={new_matches}\n")
     finally:
         db.close()
 
