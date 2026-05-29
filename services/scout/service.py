@@ -137,41 +137,42 @@ async def parse_match(req: ParseRequest):
     start_time = time.perf_counter()
     logger.info(f"[Scout] Starting parse for match {req.match_id}")
 
-    # --- Resolve demo file ---
-    if LOCAL_MODE:
-        if not req.dem_path:
-            raise HTTPException(
-                status_code=400,
-                detail="LOCAL_MODE=true requires dem_path in request body",
-            )
-        dem_file = req.dem_path
-        tmp_file = None
-    else:
-        if not req.gcs_uri:
-            raise HTTPException(
-                status_code=400,
-                detail="gcs_uri is required in cloud mode",
-            )
-        # Download demo from GCS to a temp file
-        tmp_file = _download_from_gcs(req.gcs_uri, req.match_id)
-        dem_file = tmp_file
-
-        if dem_file.endswith(".gz"):
-            import gzip
-            import shutil
-
-            decompressed_path = dem_file.replace(".gz", "")
-            logger.info(f"[Scout] Decompressing {dem_file} → {decompressed_path}")
-            with gzip.open(dem_file, "rb") as f_in:
-                with open(decompressed_path, "wb") as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-            # Remove the compressed temp file
-            if Path(dem_file).exists():
-                Path(dem_file).unlink()
-            dem_file = decompressed_path
-            tmp_file = decompressed_path
-
+    tmp_file = None
+    dem_file = None
     try:
+        # --- Resolve demo file ---
+        if LOCAL_MODE:
+            if not req.dem_path:
+                raise HTTPException(
+                    status_code=400,
+                    detail="LOCAL_MODE=true requires dem_path in request body",
+                )
+            dem_file = req.dem_path
+        else:
+            if not req.gcs_uri:
+                raise HTTPException(
+                    status_code=400,
+                    detail="gcs_uri is required in cloud mode",
+                )
+            # Download demo from GCS to a temp file
+            tmp_file = _download_from_gcs(req.gcs_uri, req.match_id)
+            dem_file = tmp_file
+
+            if dem_file.endswith(".gz"):
+                import gzip
+                import shutil
+
+                decompressed_path = dem_file.replace(".gz", "")
+                logger.info(f"[Scout] Decompressing {dem_file} → {decompressed_path}")
+                with gzip.open(dem_file, "rb") as f_in:
+                    with open(decompressed_path, "wb") as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                # Remove the compressed temp file
+                if Path(dem_file).exists():
+                    Path(dem_file).unlink()
+                dem_file = decompressed_path
+                tmp_file = decompressed_path
+
         # --- Parse ---
         result = parse_demo(dem_file)
 
