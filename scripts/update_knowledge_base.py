@@ -26,7 +26,7 @@ logger = logging.getLogger("update_knowledge_base")
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from db.database import SessionLocal
-from db.models import FirstContact, Kill, KnowledgeEmbedding, Match, Round
+from db.models import FirstContact, Kill, KnowledgeEmbedding, Match, MatchStatus, Round
 
 
 def clean_player_name(name: str | None) -> str:
@@ -45,11 +45,16 @@ def get_embedding(text: str, api_key: str) -> list[float]:
     import google.generativeai as genai
     genai.configure(api_key=api_key)
 
+    model_name = os.environ.get("GEMINI_EMBEDDING_MODEL") or "models/gemini-embedding-001"
+    if not model_name.startswith("models/"):
+        model_name = "models/" + model_name
+
     # Generate embedding
     response = genai.embed_content(
-        model="models/text-embedding-004",
+        model=model_name,
         content=text,
-        task_type="retrieval_document"
+        task_type="retrieval_document",
+        output_dimensionality=768
     )
     return response["embedding"]
 
@@ -185,7 +190,7 @@ def main():
                         pass
 
             # Fetch all completed matches in the matches table
-            all_matches = db.query(Match).filter(Match.status.in_(["complete", "done", "parsed"])).all()
+            all_matches = db.query(Match).filter(Match.status == MatchStatus.COMPLETE).all()
             to_ingest = [m for m in all_matches if m.match_id not in ingested_matches]
 
             if not to_ingest:

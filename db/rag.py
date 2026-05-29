@@ -21,10 +21,15 @@ def get_query_embedding(text: str, api_key: str) -> list[float]:
     import google.generativeai as genai
     genai.configure(api_key=api_key)
 
+    model_name = os.environ.get("GEMINI_EMBEDDING_MODEL") or "models/gemini-embedding-001"
+    if not model_name.startswith("models/"):
+        model_name = "models/" + model_name
+
     response = genai.embed_content(
-        model="models/text-embedding-004",
+        model=model_name,
         content=text,
-        task_type="retrieval_query"  # Use retrieval_query for search queries
+        task_type="retrieval_query",  # Use retrieval_query for search queries
+        output_dimensionality=768
     )
     return response["embedding"]
 
