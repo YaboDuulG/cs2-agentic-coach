@@ -252,7 +252,12 @@ def _trigger_coaching(match_id: str) -> None:
             import httpx  # noqa: PLC0415
 
             api_url = os.getenv("API_INTERNAL_URL", "http://localhost:8000")
-            httpx.post(f"{api_url}/api/coaching/{match_id}", timeout=5)
+            shared_secret = os.getenv("API_SHARED_SECRET", "")
+            headers = {}
+            if shared_secret:
+                headers["Authorization"] = f"Bearer {shared_secret}"
+
+            httpx.post(f"{api_url}/api/coaching/{match_id}", headers=headers, timeout=5)
             logger.info(f"[Scout] Coaching triggered for {match_id}")
         except Exception as e:
             logger.warning(f"[Scout] Coaching trigger failed (non-fatal): {e}")
