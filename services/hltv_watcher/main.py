@@ -10,13 +10,13 @@ Usage:
 """
 
 import argparse
-import json
 import logging
 import os
+from pathlib import Path
 import sys
 import tempfile
 import time
-from pathlib import Path
+
 import requests
 
 # Configure logging
@@ -29,6 +29,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv(REPO_ROOT / ".env")
 
 from db.database import SessionLocal
@@ -53,7 +54,7 @@ def upload_to_gcs(file_path: Path, gcs_path: str) -> str:
     bucket_name = os.environ.get("GCS_BUCKET", "").strip()
     if not bucket_name:
         raise ValueError("GCS_BUCKET environment variable is not set.")
-    
+
     client = _get_gcs_client()
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(gcs_path)
@@ -63,10 +64,10 @@ def upload_to_gcs(file_path: Path, gcs_path: str) -> str:
 def extract_demo_file(archive_path: Path, extract_dir: Path) -> Path | None:
     """Extracts .dem file from .rar, .zip, or .gz archive."""
     suffix = archive_path.suffix.lower()
-    
+
     if suffix == ".dem":
         return archive_path
-        
+
     if suffix == ".zip":
         import zipfile
         with zipfile.ZipFile(archive_path, 'r') as zip_ref:
@@ -74,7 +75,7 @@ def extract_demo_file(archive_path: Path, extract_dir: Path) -> Path | None:
                 if file_info.filename.endswith(".dem"):
                     zip_ref.extract(file_info, extract_dir)
                     return extract_dir / file_info.filename
-                    
+
     elif suffix == ".rar":
         import subprocess
         # Try system 'unrar'
@@ -90,7 +91,7 @@ def extract_demo_file(archive_path: Path, extract_dir: Path) -> Path | None:
                     return p
             except Exception as e:
                 logger.warning(f"Could not extract rar file via unrar or 7z: {e}")
-                
+
     elif suffix == ".gz":
         import gzip
         out_path = extract_dir / archive_path.stem
@@ -100,20 +101,20 @@ def extract_demo_file(archive_path: Path, extract_dir: Path) -> Path | None:
                 shutil.copyfileobj(f_in, f_out)
         if out_path.exists():
             return out_path
-            
+
     return None
 
 def process_match_demo(match_id: str, demo_url: str) -> str | None:
     """Downloads, extracts, and uploads demo to GCS. Returns GCS URI."""
     logger.info(f"Downloading demo from: {demo_url}")
-    
+
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir_path = Path(temp_dir)
-        
+
         # Download archive
         r = requests.get(demo_url, stream=True)
         r.raise_for_status()
-        
+
         # Extract filename from headers or URL
         filename = "match.dem"
         if "content-disposition" in r.headers:
@@ -124,19 +125,19 @@ def process_match_demo(match_id: str, demo_url: str) -> str | None:
                 filename = filenames[0].strip('"')
         else:
             filename = demo_url.split("/")[-1].split("?")[0] or filename
-            
+
         archive_path = temp_dir_path / filename
         with open(archive_path, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
-                
+
         # Extract
         logger.info(f"Extracting demo from: {filename}")
         dem_file_path = extract_demo_file(archive_path, temp_dir_path)
         if not dem_file_path or not dem_file_path.exists():
             logger.error("Failed to extract .dem file from archive.")
             return None
-            
+
         # Upload
         gcs_path = f"demos/raw/{match_id}/{dem_file_path.name}"
         logger.info(f"Uploading {dem_file_path.name} to GCS...")
@@ -146,16 +147,16 @@ def process_match_demo(match_id: str, demo_url: str) -> str | None:
 def fetch_apify_matches(api_token: str, actor_id: str) -> list[dict]:
     """Call Apify API to run HLTV scraper actor and get results."""
     logger.info(f"Triggering Apify HLTV actor: {actor_id}")
-    
+
     run_url = f"https://api.apify.com/v2/acts/{actor_id}/runs?token={api_token}"
     # Standard actor config parameters (e.g. limit to last 5 matches)
     res = requests.post(run_url, json={"maxMatches": 5})
     res.raise_for_status()
     run_data = res.json()["data"]
     run_id = run_data["id"]
-    
+
     logger.info(f"Apify run initiated. Run ID: {run_id}. Polling for completion...")
-    
+
     status_url = f"https://api.apify.com/v2/actor-runs/{run_id}?token={api_token}"
     for attempt in range(30):  # Wait up to 5 minutes
         status_res = requests.get(status_url)
@@ -169,25 +170,26 @@ def fetch_apify_matches(api_token: str, actor_id: str) -> list[dict]:
         time.sleep(10)
     else:
         raise TimeoutError("Apify actor run timed out after 5 minutes.")
-        
+
     dataset_url = f"https://api.apify.com/v2/actor-runs/{run_id}/dataset/items?token={api_token}"
     dataset_res = requests.get(dataset_url)
     dataset_res.raise_for_status()
     items = dataset_res.json()
     return items
 
-def main(args: list[str] | None = None):
+def main(args_list: list[str] | None = None):
     parser = argparse.ArgumentParser(description="DemoSage HLTV Watcher & Crawler")
     parser.add_argument("--mode", choices=["scheduled", "manual"], default="scheduled", help="Ingestion run mode")
-    parsed_args = parser.parse_args(args)
+    args = parser.parse_args(args_list)
+    _ = args.mode  # Mark as read for linting
 
     api_token = os.environ.get("APIFY_API_TOKEN")
     actor_id = os.environ.get("APIFY_HLTV_ACTOR_ID")
     gcs_bucket = os.environ.get("GCS_BUCKET")
-    
+
     db = SessionLocal()
     new_matches_count = 0
-    
+
     try:
         if not api_token or not actor_id:
             logger.warning("APIFY_API_TOKEN or APIFY_HLTV_ACTOR_ID is missing. Falling back to MOCK mode.")
@@ -207,17 +209,17 @@ def main(args: list[str] | None = None):
             match_id = str(m.get("match_id") or m.get("id") or m.get("matchId"))
             map_name = m.get("map_name") or m.get("map") or "de_dust2"
             demo_url = m.get("demo_url") or m.get("demoUrl")
-            
+
             if not match_id or not demo_url:
                 logger.warning(f"Skipping malformed scraped match item: {m}")
                 continue
-                
+
             # Check if match already exists
             existing = db.query(Match).filter(Match.match_id == match_id).first()
             if existing:
                 logger.info(f"Match {match_id} already exists in DB. Skipping.")
                 continue
-                
+
             # Process demo
             if mock_mode or not gcs_bucket:
                 logger.info(f"[MOCK] Registering match {match_id} without actual download/upload.")
@@ -229,7 +231,7 @@ def main(args: list[str] | None = None):
                 except Exception as e:
                     logger.error(f"Failed to download/upload demo for match {match_id}: {e}")
                     continue
-                    
+
             if not gcs_demo_uri:
                 continue
 
@@ -244,16 +246,16 @@ def main(args: list[str] | None = None):
             db.add(match_record)
             new_matches_count += 1
             logger.info(f"Registered new pending match {match_id} | Map: {map_name}")
-            
+
         db.commit()
         logger.info(f"HLTV watcher completed. Registered {new_matches_count} new match(es).")
-        
+
         # Write to GITHUB_OUTPUT for github actions step linking
         github_output = os.environ.get("GITHUB_OUTPUT")
         if github_output:
             with open(github_output, "a") as f:
                 f.write(f"new_matches={new_matches_count}\n")
-                
+
     finally:
         db.close()
 
