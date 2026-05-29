@@ -13,6 +13,7 @@ from api.auth import verify_shared_secret
 from api.routes import (
     analyses,
     coaching,
+    discord,
     faceit,
     fcr,
     health,
@@ -93,6 +94,9 @@ app.include_router(
 )
 app.include_router(
     fcr.router, prefix="/api", tags=["FCR"], dependencies=[Depends(verify_shared_secret)]
+)
+app.include_router(
+    discord.router, prefix="/api/discord", tags=["Discord"]
 )
 
 

@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { 
-  Users, Copy, Check, ArrowLeft, MapPin, Crosshair, Clock,
+  Users, Copy, Check, ArrowLeft, MapPin, Crosshair, Clock, MessageSquare, BookOpen, Search, ChevronDown, ChevronUp, Send,
   Settings, LayoutDashboard, Lock, Shield, Key, CreditCard, AlertTriangle, Trash2, Camera, Upload
 } from "lucide-react";
 import { CloudMotifBg } from "@/components/patterns/mongolian";
@@ -70,6 +70,35 @@ export default function TeamDetailPage() {
   const [showInviteBox, setShowInviteBox] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
 
+  // Tabs
+  const [activeTab, setActiveTab] = useState<"overview" | "tactics" | "settings">("overview");
+  const [settingsTab, setSettingsTab] = useState<"profile" | "password" | "members" | "subscription" | "danger">("profile");
+
+  const [strategies, setStrategies] = useState<any[]>([]);
+  const [strategiesLoading, setStrategiesLoading] = useState(false);
+  const [chatMessage, setChatMessage] = useState("");
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [stratSearch, setStratSearch] = useState("");
+  const [expandedStrats, setExpandedStrats] = useState<Record<string, boolean>>({});
+
+  const fetchStrategies = useCallback(() => {
+    setStrategiesLoading(true);
+    fetch(`/api/teams/${teamId}/strategies`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setStrategies(data);
+        setStrategiesLoading(false);
+      })
+      .catch(() => setStrategiesLoading(false));
+  }, [teamId]);
+
+  useEffect(() => {
+    if (activeTab === "tactics") {
+      fetchStrategies();
+    }
+  }, [activeTab, fetchStrategies]);
+
   const handleInviteClick = () => {
     if (!team) return;
     navigator.clipboard.writeText(team.invite_code);
@@ -77,10 +106,6 @@ export default function TeamDetailPage() {
     setShowInviteBox(true);
     setTimeout(() => setInviteCopied(false), 3000);
   };
-
-  // Tabs
-  const [activeTab, setActiveTab] = useState<"overview" | "settings">("overview");
-  const [settingsTab, setSettingsTab] = useState<"profile" | "password" | "members" | "subscription" | "danger">("profile");
 
   // Profile Edit fields
   const [editName, setEditName] = useState("");
@@ -301,6 +326,16 @@ export default function TeamDetailPage() {
                 <LayoutDashboard size={14} /> Overview
               </button>
               <button
+                onClick={() => setActiveTab("tactics")}
+                className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 select-none ${
+                  activeTab === "tactics"
+                    ? "border-[#2D7DD2] text-white"
+                    : "border-transparent text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <MessageSquare size={14} /> Tactics & AI Chat
+              </button>
+              <button
                 onClick={() => setActiveTab("settings")}
                 className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 select-none ${
                   activeTab === "settings"
@@ -312,7 +347,7 @@ export default function TeamDetailPage() {
               </button>
             </div>
 
-            {activeTab === "overview" ? (
+            {activeTab === "overview" && (
               /* ── OVERVIEW VIEW ── */
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Members panel */}
@@ -507,7 +542,250 @@ export default function TeamDetailPage() {
                   )}
                 </div>
               </div>
-            ) : (
+            )}
+
+            {activeTab === "tactics" && (
+              /* ── TACTICS VIEW ── */
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                {/* Left panel: Strategies List (col-span-2) */}
+                <div className="lg:col-span-2 flex flex-col gap-4">
+                  <div className="card p-5 flex flex-col gap-4" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                    <div className="flex justify-between items-center">
+                      <h2 className="heading-display text-sm font-bold uppercase tracking-wider text-slate-200">
+                        <BookOpen size={14} className="inline mr-2 text-[#2D7DD2]" />
+                        Tactical Playbook
+                      </h2>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {strategies.length} ingested
+                      </span>
+                    </div>
+
+                    {/* Search bar */}
+                    <div className="relative">
+                      <input
+                        value={stratSearch}
+                        onChange={(e) => setStratSearch(e.target.value)}
+                        placeholder="Search strategies, maps, or authors..."
+                        className="w-full rounded-lg pl-9 pr-4 py-2 text-xs outline-none"
+                        style={{ background: "#070D18", border: "1px solid #1E3A5F", color: "#F0F4FF" }}
+                      />
+                      <Search size={12} className="absolute left-3 top-3 text-slate-500" />
+                    </div>
+
+                    {/* Discord Info Box */}
+                    <div className="rounded-lg p-3 border border-[#1E3A5F]/60 bg-[#0D1825]/40 text-[11px] leading-relaxed text-slate-400">
+                      <p className="font-semibold text-slate-300 mb-1">💡 Discord Webhook Ingestion</p>
+                      To sync strategies, add an outgoing webhook in Discord pointing to:
+                      <div className="mt-2 bg-black/40 p-2 rounded text-[10px] font-mono break-all select-all border border-white/5 text-[#8BA7CC]">
+                        {typeof window !== 'undefined' ? `${window.location.origin}/api/discord/webhook?team_id=${teamId}` : `/api/discord/webhook?team_id=${teamId}`}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Strategies List cards */}
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                    {strategiesLoading ? (
+                      <div className="card p-8 text-center text-xs text-slate-500">
+                        <div className="w-4 h-4 rounded-full border border-t-transparent animate-spin mx-auto mb-2" style={{ borderColor: "#2D7DD2", borderTopColor: "transparent" }} />
+                        Loading playbook...
+                      </div>
+                    ) : strategies.length === 0 ? (
+                      <div className="card p-8 text-center text-xs text-slate-500" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                        No strategies synced yet. Post a tactic in Discord or configure the webhook above to begin!
+                      </div>
+                    ) : (
+                      strategies
+                        .filter(s => {
+                          const query = stratSearch.toLowerCase();
+                          return s.title.toLowerCase().includes(query) ||
+                            s.map_name.toLowerCase().includes(query) ||
+                            s.author.toLowerCase().includes(query) ||
+                            s.summary.toLowerCase().includes(query);
+                        })
+                        .map((s, idx) => {
+                          const isCT = s.side === "CT";
+                          const isT = s.side === "T";
+                          const sideColor = isCT ? "#2D7DD2" : isT ? "#FF4D6D" : "#8BA7CC";
+                          const isExpanded = !!expandedStrats[s.id];
+                          
+                          return (
+                            <div 
+                              key={s.id} 
+                              className="card p-4 transition-all"
+                              style={{ background: "rgba(13,24,37,0.7)", border: "1px solid #1E3A5F" }}
+                            >
+                              <div className="flex justify-between items-start gap-2 mb-2">
+                                <div>
+                                  <h4 className="text-xs font-bold text-[#F0F4FF]">{s.title}</h4>
+                                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">By {s.author} · {timeAgo(s.created_at)}</p>
+                                </div>
+                                <div className="flex gap-1.5 shrink-0">
+                                  <span className="rounded px-1.5 py-0.5 text-[9px] font-bold font-mono uppercase bg-slate-900 border border-slate-800 text-slate-400">
+                                    {s.map_name}
+                                  </span>
+                                  <span 
+                                    className="rounded px-1.5 py-0.5 text-[9px] font-bold font-mono uppercase border bg-slate-900"
+                                    style={{ color: sideColor, borderColor: `${sideColor}33` }}
+                                  >
+                                    {s.side}
+                                  </span>
+                                </div>
+                              </div>
+                              <p className="text-xs text-slate-300 mb-3">{s.summary}</p>
+                              
+                              {/* Expand steps */}
+                              {isExpanded ? (
+                                <div className="border-t border-[#1E3A5F]/40 pt-3 mt-3 space-y-2">
+                                  <h5 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tactical Steps:</h5>
+                                  <ul className="list-disc pl-4 space-y-1 text-xs text-slate-300">
+                                    {s.steps && s.steps.map((step: string, i: number) => (
+                                      <li key={i}>{step}</li>
+                                    ))}
+                                  </ul>
+                                  <button
+                                    onClick={() => setExpandedStrats({ ...expandedStrats, [s.id]: false })}
+                                    className="text-[10px] text-[#4A6A8A] hover:text-white font-mono mt-2 block"
+                                  >
+                                    <ChevronUp size={10} className="inline mr-1" /> Hide execution
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setExpandedStrats({ ...expandedStrats, [s.id]: true })}
+                                  className="text-[10px] text-[#2D7DD2] hover:text-[#2D7DD2]/80 font-mono block"
+                                >
+                                  <ChevronDown size={10} className="inline mr-1" /> View execution
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+                </div>
+
+                {/* Right panel: AI Chat Board (col-span-3) */}
+                <div className="lg:col-span-3 flex flex-col h-[650px] card" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                  {/* Chat header */}
+                  <div className="p-4 border-b border-[#1E3A5F] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-[#2D7DD2]/10 border border-[#2D7DD2]/20 flex items-center justify-center text-white">
+                        ⚔️
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">Great Khan Strategy Coach</h3>
+                        <p className="text-[9px] text-slate-500 font-mono mt-0.5">RAG retrieval & strat refinement</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setChatHistory([])}
+                      className="text-[10px] text-slate-500 hover:text-slate-300 font-mono uppercase"
+                    >
+                      Clear Chat
+                    </button>
+                  </div>
+
+                  {/* Chat logs */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3.5 pr-2">
+                    {chatHistory.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                        <MessageSquare size={32} className="text-[#1E3A5F] mb-3" />
+                        <p className="text-xs font-bold text-slate-400 mb-1">Ask the Great Khan</p>
+                        <p className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
+                          &quot;How do we execute our A split on Mirage?&quot; or &quot;Refine our B site hold for Dust II based on our strategies.&quot;
+                        </p>
+                      </div>
+                    ) : (
+                      chatHistory.map((msg, i) => {
+                        const isUser = msg.role === "user";
+                        return (
+                          <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                            <div 
+                              className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed border ${
+                                isUser 
+                                  ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/20 text-white"
+                                  : "bg-slate-900/50 border-slate-800 text-slate-300"
+                              }`}
+                            >
+                              {!isUser && <span className="font-bold text-[10px] block text-amber-500 font-mono mb-1">GREAT KHAN:</span>}
+                              <p className="whitespace-pre-line">{msg.content}</p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                    {chatLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-400 flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Chat input */}
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!chatMessage.trim() || chatLoading) return;
+                      
+                      const userMsg = chatMessage.trim();
+                      setChatMessage("");
+                      
+                      const newHistory = [...chatHistory, { role: "user", content: userMsg }];
+                      setChatHistory(newHistory);
+                      setChatLoading(true);
+                      
+                      try {
+                        const res = await fetch(`/api/teams/${teamId}/strategies/chat`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            message: userMsg,
+                            history: newHistory.map(h => ({
+                              role: h.role === "user" ? "user" : "model",
+                              content: h.content
+                            }))
+                          })
+                        });
+                        
+                        if (res.ok) {
+                          const data = await res.json();
+                          setChatHistory([...newHistory, { role: "assistant", content: data.response || "No reply" }]);
+                        } else {
+                          setChatHistory([...newHistory, { role: "assistant", content: "Failed to connect to AI Coach." }]);
+                        }
+                      } catch (err) {
+                        setChatHistory([...newHistory, { role: "assistant", content: "Error communicating with the coach." }]);
+                      } finally {
+                        setChatLoading(false);
+                      }
+                    }}
+                    className="p-4 border-t border-[#1E3A5F] flex gap-3"
+                  >
+                    <input
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
+                      placeholder="Ask the coach to refine a strategy..."
+                      disabled={chatLoading}
+                      className="flex-1 rounded-lg px-4 py-2.5 text-xs outline-none"
+                      style={{ background: "#070D18", border: "1px solid #1E3A5F", color: "#F0F4FF" }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={chatLoading || !chatMessage.trim()}
+                      className="rounded-lg bg-[#2D7DD2] hover:bg-[#2D7DD2]/85 disabled:opacity-40 px-4 py-2 text-xs font-bold text-white transition-all flex items-center justify-center"
+                    >
+                      <Send size={12} />
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "settings" && (
               /* ── SETTINGS VIEW (SCL SIDEBAR STYLE) ── */
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 {/* Left side sub-tabs */}

@@ -396,3 +396,138 @@ async def delete_team(team_id: str, user_id: str = ""):
     except Exception as e:
         logger.error(f"Failed to delete team {team_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete team")
+
+
+class StrategyChatRequest(BaseModel):
+    message: str
+    history: list[dict[str, str]] = []
+    map_name: str | None = None
+
+
+@router.get("/{team_id}/strategies", summary="Get all strategies for a team")
+async def get_team_strategies(team_id: str):
+    import json  # noqa: PLC0415
+
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import KnowledgeEmbedding  # noqa: PLC0415
+
+    db = SessionLocal()
+    try:
+        team_match = f'%"team_id": "{team_id}"%'
+        rows = (
+            db.query(KnowledgeEmbedding)
+            .filter(
+                KnowledgeEmbedding.source == "team_strategy",
+                KnowledgeEmbedding.metadata_json.like(team_match),
+            )
+            .order_by(KnowledgeEmbedding.created_at.desc())
+            .all()
+        )
+
+        results = []
+        for r in rows:
+            meta = json.loads(r.metadata_json) if r.metadata_json else {}
+            results.append(
+                {
+                    "id": r.id,
+                    "content": r.content,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                    "title": meta.get("title", "Ingested Tactic"),
+                    "map_name": meta.get("map_name", "All Maps"),
+                    "side": meta.get("side", "Both"),
+                    "author": meta.get("author", "Discord User"),
+                    "summary": meta.get("summary", ""),
+                    "steps": meta.get("steps", []),
+                    "raw_content": meta.get("raw_content", ""),
+                }
+            )
+        return results
+    except Exception as e:
+        logger.error(f"Failed to get strategies for team {team_id}: {e}")
+        return []
+    finally:
+        db.close()
+
+
+@router.post("/{team_id}/strategies/chat", summary="Chat to refine team strategies")
+async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
+    import json  # noqa: PLC0415
+
+    from api.routes.discord import call_gemini_text  # noqa: PLC0415
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import KnowledgeEmbedding  # noqa: PLC0415
+    from db.rag import cosine_similarity, get_query_embedding  # noqa: PLC0415
+
+    db = SessionLocal()
+    try:
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            return {"response": "Gemini API key is not configured."}
+
+        # 1. Retrieve similar strategies for this team
+        query_vector = get_query_embedding(body.message, api_key)
+
+        team_match = f'%"team_id": "{team_id}"%'
+        candidates = (
+            db.query(KnowledgeEmbedding)
+            .filter(
+                KnowledgeEmbedding.source == "team_strategy",
+                KnowledgeEmbedding.metadata_json.like(team_match),
+            )
+            .all()
+        )
+
+        scored_candidates = []
+        for cand in candidates:
+            cand_vector = cand.embedding
+            if isinstance(cand_vector, str):
+                try:
+                    cand_vector = json.loads(cand_vector)
+                except Exception:
+                    continue
+            if isinstance(cand_vector, list):
+                score = cosine_similarity(query_vector, cand_vector)
+                scored_candidates.append((cand, score))
+
+        scored_candidates.sort(key=lambda x: x[1], reverse=True)
+        top_strats = scored_candidates[:3]
+
+        strat_context = []
+        for cand, score in top_strats:
+            strat_context.append(f"Strategy: {cand.content}\n(Ingested at {cand.created_at})")
+
+        # 2. Retrieve generic game rules
+        from db.rag import retrieve_similar_chunks  # noqa: PLC0415
+
+        rules_chunks = retrieve_similar_chunks(db, query=body.message, limit=2, source="game_rules")
+
+        # 3. Assemble prompt
+        context_str = "\n\n".join(strat_context)
+        if rules_chunks:
+            context_str += "\n\nOfficial CS2 Guidelines:\n" + "\n".join(
+                [c["content"] for c in rules_chunks]
+            )
+
+        system_prompt = f"""
+        You are the Great Khan, a legendary agentic CS2 tactical coach.
+        You are talking with players from a competitive team to refine and analyze their strategies.
+        You have access to their custom team strategies ingested from Discord, as well as official guidelines.
+
+        Team Custom Strategies Context:
+        \"\"\"{context_str}\"\"\"
+
+        Conversation History:
+        """
+        for msg in body.history:
+            role = "Player" if msg.get("role") == "user" else "Great Khan"
+            system_prompt += f"\n{role}: {msg.get('content')}"
+
+        system_prompt += f"\nPlayer: {body.message}\nGreat Khan:"
+
+        response_text = call_gemini_text(system_prompt, model_name="gemini-2.5-flash")
+        return {"response": response_text}
+    except Exception as e:
+        logger.error(f"Failed strategy chat: {e}")
+        return {"response": f"Sorry, I failed to process your request: {str(e)}"}
+    finally:
+        db.close()

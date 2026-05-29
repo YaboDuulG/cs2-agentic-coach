@@ -172,6 +172,15 @@ Upload .dem + audio
 
 ---
 
+### 💬 Discord Integration & Strategy Playbook
+- **Role:** Allow real-time ingestion of team-written strategies from Discord and interactive refinement on the web application dashboard.
+- **Webhook Receiver:** Public FastAPI route (`POST /api/discord/webhook`) backed by a Next.js proxy route.
+- **LLM parsing:** Converts unstructured Discord messages into a structured strategy card (`title`, `map_name`, `side`, `summary`, `steps`) using `gemini-2.0-flash` with JSON response mode.
+- **RAG Storage:** Generates a 768d vector via `models/text-embedding-004` and stores the strategy under the source `"team_strategy"`.
+- **Strategy Chat:** Interactive web client chat queries this team-specific strategy collection using semantic search and cosine similarity, powered by the Great Khan bot.
+
+---
+
 ### 📜 The Scribe — Report Generator
 - **Role:** Compile all agent outputs into a polished, human-readable coaching report
 - **LLM:** `gemini-2.0-flash` — *Rationale: Report generation is a structured writing task — it assembles pre-analyzed JSON into readable prose using a fixed template. No chain-of-thought reasoning needed. 2.0 Flash produces high-quality prose quickly and cheaply.*
@@ -565,6 +574,8 @@ def check_cs2_update_active() -> tuple[bool, str]:
 - [x] Build pro match parse → embed pipeline
 - [x] Set up nightly GitHub Action for HLTV ingestion
 - [x] Implement semantic retrieval for Tactician queries
+- [x] Implement Discord webhook strategy ingestion (Option 2)
+- [x] Build RAG tactics chatboard on the team detail page
 
 ### Phase 4: The Tactician — Tactical Analysis
 - [ ] Implement FCR (First Contact Resolution) module
