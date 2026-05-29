@@ -496,24 +496,32 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
         for cand, score in top_strats:
             strat_context.append(f"Strategy: {cand.content}\n(Ingested at {cand.created_at})")
 
-        # 2. Retrieve generic game rules
+        # 2. Retrieve generic game rules & professional match data
         from db.rag import retrieve_similar_chunks  # noqa: PLC0415
 
         rules_chunks = retrieve_similar_chunks(db, query=body.message, limit=2, source="game_rules")
+        pro_chunks = retrieve_similar_chunks(db, query=body.message, limit=5, source="hltv_pro_match")
 
-        # 3. Assemble prompt
-        context_str = "\n\n".join(strat_context)
+        # 3. Assemble prompt context
+        context_parts = []
+        if strat_context:
+            context_parts.append("Team Custom Strategies:\n" + "\n".join(strat_context))
         if rules_chunks:
-            context_str += "\n\nOfficial CS2 Guidelines:\n" + "\n".join(
-                [c["content"] for c in rules_chunks]
-            )
+            context_parts.append("Official CS2 Guidelines:\n" + "\n".join([c["content"] for c in rules_chunks]))
+        if pro_chunks:
+            context_parts.append("Professional Matches & Round Summaries (last 6 months):\n" + "\n".join([c["content"] for c in pro_chunks]))
+
+        context_str = "\n\n".join(context_parts)
 
         system_prompt = f"""
         You are the Great Khan, a legendary agentic CS2 tactical coach.
-        You are talking with players from a competitive team to refine and analyze their strategies.
-        You have access to their custom team strategies ingested from Discord, as well as official guidelines.
+        You are talking with players from a competitive team to refine and analyze their strategies, and compare them against professional match data.
+        You have access to:
+        1. Custom team strategies (retrieved from their Discord channel).
+        2. Official CS2 tactical guidelines.
+        3. Professional match data & round-by-round summaries of recent pro matches (last 6 months) for top teams like Vitality, NAVI, Spirit, Falcons, FURIA, and The MongolZ.
 
-        Team Custom Strategies Context:
+        RAG Context:
         \"\"\"{context_str}\"\"\"
 
         Conversation History:

@@ -602,7 +602,7 @@ export default function TeamDetailPage() {
                             s.author.toLowerCase().includes(query) ||
                             s.summary.toLowerCase().includes(query);
                         })
-                        .map((s, idx) => {
+                        .map((s) => {
                           const isCT = s.side === "CT";
                           const isT = s.side === "T";
                           const sideColor = isCT ? "#2D7DD2" : isT ? "#FF4D6D" : "#8BA7CC";
@@ -691,9 +691,25 @@ export default function TeamDetailPage() {
                       <div className="h-full flex flex-col items-center justify-center text-center p-8">
                         <MessageSquare size={32} className="text-[#1E3A5F] mb-3" />
                         <p className="text-xs font-bold text-slate-400 mb-1">Ask the Great Khan</p>
-                        <p className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
-                          &quot;How do we execute our A split on Mirage?&quot; or &quot;Refine our B site hold for Dust II based on our strategies.&quot;
+                        <p className="text-[11px] text-slate-500 max-w-xs leading-relaxed mb-4">
+                          {"Ask about your team's playbook or compare your rounds against professional matches in the last 6 months."}
                         </p>
+                        <div className="flex flex-col gap-2 w-full max-w-xs">
+                          <button
+                            type="button"
+                            onClick={() => setChatMessage("How does Vitality play pistol rounds on Nuke?")}
+                            className="text-[10px] text-slate-400 hover:text-white bg-slate-900/60 border border-[#1E3A5F]/40 rounded-lg p-2 text-left transition-all hover:bg-[#1E3A5F]/20 font-mono"
+                          >
+                            {"💡 \"How does Vitality play pistol rounds on Nuke?\""}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setChatMessage("Compare our Round 1 buy value vs Team Spirit on Nuke.")}
+                            className="text-[10px] text-slate-400 hover:text-white bg-slate-900/60 border border-[#1E3A5F]/40 rounded-lg p-2 text-left transition-all hover:bg-[#1E3A5F]/20 font-mono"
+                          >
+                            {"💡 \"Compare our Round 1 buy value vs Team Spirit on Nuke.\""}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       chatHistory.map((msg, i) => {

@@ -68,6 +68,7 @@ class Match(Base):
     __tablename__ = "matches"
 
     match_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    match_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Clerk user ID — nullable so old anonymous rows are unaffected
     user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     team_id: Mapped[str | None] = mapped_column(

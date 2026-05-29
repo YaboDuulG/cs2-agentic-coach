@@ -179,32 +179,6 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
     eco_lookup: dict[int, dict] = {}
     # warmup_rounds: set of round numbers (total_rounds_played) to exclude
     warmup_rounds: set[int] = set()
-    freeze_df = None
-    try:
-        # Rule 1 — is_warmup_period flag (most reliable when available)
-        freeze_df = parser.parse_event(
-            "round_freeze_end",
-            other=["total_rounds_played", "is_warmup_period"],
-        )
-        if freeze_df is not None and not freeze_df.empty:
-            if "is_warmup_period" in freeze_df.columns:
-                warmup_mask = freeze_df["is_warmup_period"].fillna(False).astype(bool)
-                warmup_rnds = freeze_df.loc[warmup_mask, "total_rounds_played"].dropna()
-                warmup_rounds.update(int(r) for r in warmup_rnds)
-                logger.info(f"Rule 1 (is_warmup_period): excluded rounds {sorted(warmup_rounds)}")
-
-            ticks = freeze_df["tick"].tolist()
-            ticks_df = parser.parse_ticks(["current_equip_value", "team_name"])
-            filtered_ticks_df = ticks_df[ticks_df["tick"].isin(ticks)]
-            merged = filtered_ticks_df.merge(
-                freeze_df[["tick", "total_rounds_played"]], on="tick", how="left"
-            )
-            for rnd_num, grp in merged.groupby("total_rounds_played"):
-                ct_val = grp[grp["team_name"] == "CT"]["current_equip_value"].sum()
-                t_val = grp[grp["team_name"] == "TERRORIST"]["current_equip_value"].sum()
-                eco_lookup[int(rnd_num)] = {"ct": int(ct_val), "t": int(t_val)}
-    except Exception as e:
-        logger.debug(f"Economy data unavailable: {e}")
 
     # Rule 2 — Game Phase Matching (Robust)
     # 1: Warmup, 2: First Half, 3: Second Half, 4: Halftime, 5: Post-Match
@@ -227,6 +201,44 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 logger.info(f"Match end detected (phase 5) at tick: {match_end_tick}")
     except Exception as e:
         logger.warning(f"Failed to extract game_phase: {e}")
+
+    freeze_df = None
+    try:
+        # Rule 1 — is_warmup_period flag (most reliable when available)
+        freeze_df = parser.parse_event(
+            "round_freeze_end",
+            other=["total_rounds_played", "is_warmup_period"],
+        )
+        if freeze_df is not None and not freeze_df.empty:
+            if "is_warmup_period" in freeze_df.columns:
+                warmup_mask = freeze_df["is_warmup_period"].fillna(False).astype(bool)
+                warmup_rnds = freeze_df.loc[warmup_mask, "total_rounds_played"].dropna()
+                warmup_rounds.update(int(r) for r in warmup_rnds)
+                logger.info(f"Rule 1 (is_warmup_period): excluded rounds {sorted(warmup_rounds)}")
+
+            # Filter freeze_df to include only ticks in the live match window
+            freeze_df = freeze_df[(freeze_df["tick"] >= match_start_tick) & (freeze_df["tick"] <= match_end_tick)]
+
+            # Filter out warmup rounds
+            if warmup_rounds:
+                freeze_df = freeze_df[~freeze_df["total_rounds_played"].isin(warmup_rounds)]
+
+            # Keep only the latest tick for each total_rounds_played to handle restarts / restores
+            freeze_df = freeze_df.sort_values("tick")
+            freeze_df = freeze_df.drop_duplicates(subset=["total_rounds_played"], keep="last")
+
+            ticks = freeze_df["tick"].tolist()
+            ticks_df = parser.parse_ticks(["current_equip_value", "team_name"])
+            filtered_ticks_df = ticks_df[ticks_df["tick"].isin(ticks)]
+            merged = filtered_ticks_df.merge(
+                freeze_df[["tick", "total_rounds_played"]], on="tick", how="left"
+            )
+            for rnd_num, grp in merged.groupby("total_rounds_played"):
+                ct_val = grp[grp["team_name"] == "CT"]["current_equip_value"].sum()
+                t_val = grp[grp["team_name"] == "TERRORIST"]["current_equip_value"].sum()
+                eco_lookup[int(rnd_num)] = {"ct": int(ct_val), "t": int(t_val)}
+    except Exception as e:
+        logger.debug(f"Economy data unavailable: {e}")
 
     if warmup_rounds:
         logger.info(f"Total warmup/invalid rounds excluded: {sorted(warmup_rounds)}")
@@ -297,7 +309,10 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 # Knife round gets labeled as 0
                 final_rnd_num = 0 if row.get("is_knife_round") else rnd_num
 
-                eco = eco_lookup.get(final_rnd_num, {})
+                if row.get("is_knife_round"):
+                    eco = {}
+                else:
+                    eco = eco_lookup.get(final_rnd_num - 1, {})
                 output["rounds"].append(
                     {
                         "round_num": final_rnd_num,
@@ -740,7 +755,7 @@ def upload_to_gcs(data: dict, match_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def write_to_db(data: dict, match_id: str, parse_duration: float | None = None) -> None:
+def write_to_db(data: dict, match_id: str, parse_duration: float | None = None, match_name: str | None = None) -> None:
     """Write parsed Scout output to PostgreSQL (or SQLite in local/test mode)."""
     from pathlib import Path as _Path
     import sys
@@ -796,6 +811,8 @@ def write_to_db(data: dict, match_id: str, parse_duration: float | None = None) 
         match.player_stats_json = json.dumps(sanitize_nan(data.get("player_stats", {})))
         if parse_duration is not None:
             match.parse_duration_seconds = parse_duration
+        if match_name is not None:
+            match.match_name = match_name
 
         db.query(Kill).filter(Kill.match_id == match_id).delete()
         db.query(Grenade).filter(Grenade.match_id == match_id).delete()
@@ -903,6 +920,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="DemoSage Scout — CS2 demo parser")
     ap.add_argument("--demo", required=True, help="Absolute path to .dem file")
     ap.add_argument("--match-id", required=True, help="Unique match identifier")
+    ap.add_argument("--match-name", default=None, help="Descriptive match name format 'Team 1 vs Team 2 (Event - Year)'")
     ap.add_argument("--upload", action="store_true", help="Upload result to GCS")
     ap.add_argument("--write-db", action="store_true", help="Write parsed data to DB")
     args = ap.parse_args()
@@ -917,4 +935,4 @@ if __name__ == "__main__":
         upload_to_gcs(result, args.match_id)
 
     if args.write_db:
-        write_to_db(result, args.match_id)
+        write_to_db(result, args.match_id, match_name=args.match_name)

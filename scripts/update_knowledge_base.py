@@ -22,6 +22,11 @@ import sys
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("update_knowledge_base")
 
+# Load environment variables
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv()
+
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -91,8 +96,9 @@ def ingest_match(db, match_id: str, api_key: str):
     chunks_created = 0
 
     # 2. Match Summary Chunk (Macro)
+    match_display = f"'{match.match_name}'" if match.match_name else f"ID {match_id}"
     macro_text = (
-        f"Match Summary (ID: {match_id}) played on map {match.map_name}. "
+        f"Match Summary for {match_display} played on map {match.map_name}. "
         f"Total rounds: {match.total_rounds}. "
         f"Overall outcome and coaching advice: {summary} "
         f"Top weapons utilized throughout the match included: "
@@ -103,6 +109,8 @@ def ingest_match(db, match_id: str, api_key: str):
         macro_vector = get_embedding(macro_text, api_key)
         macro_meta = {
             "match_id": match_id,
+            "match_name": match.match_name,
+            "team_id": match.team_id,
             "map_name": match.map_name,
             "type": "summary"
         }
@@ -130,7 +138,7 @@ def ingest_match(db, match_id: str, api_key: str):
             fc_text = f"{clean_player_name(fc.attacker)} ({fc.attacker_team}) opened with a kill on {clean_player_name(fc.victim)} ({vic_team}) using {format_weapon_name(fc.weapon)}"
 
         round_text = (
-            f"Round {r.round_num} on map {match.map_name} (Match ID: {match_id}). "
+            f"Round {r.round_num} of match {match_display} on map {match.map_name}. "
             f"Round winner: Team {r.winner_side}. "
             f"CT equipment value: ${r.ct_eq_val:,} | T equipment value: ${r.t_eq_val:,}. "
             f"Opening duel details: {fc_text}. "
@@ -142,6 +150,8 @@ def ingest_match(db, match_id: str, api_key: str):
             r_vector = get_embedding(round_text, api_key)
             r_meta = {
                 "match_id": match_id,
+                "match_name": match.match_name,
+                "team_id": match.team_id,
                 "map_name": match.map_name,
                 "round_num": r.round_num,
                 "type": "round_details",
