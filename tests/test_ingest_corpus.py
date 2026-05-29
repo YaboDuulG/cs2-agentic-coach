@@ -4,17 +4,19 @@ Tests for Corpus Ingestion Script.
 
 import json
 import os
+from unittest.mock import patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 # Force SQLite for all tests
 os.environ["DATABASE_URL_TEST"] = "sqlite:///:memory:"
 
-from db.models import Base, KnowledgeEmbedding
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from scripts.ingest_corpus import parse_markdown_chunks, main
+
+from db.models import Base, KnowledgeEmbedding
+from scripts.ingest_corpus import main, parse_markdown_chunks
+
 
 @pytest.fixture(scope="module")
 def db_session():
@@ -41,15 +43,15 @@ def test_parse_markdown_chunks(tmp_path):
     )
     test_file = tmp_path / "test_rules.md"
     test_file.write_text(mock_md, encoding="utf-8")
-    
+
     chunks = parse_markdown_chunks(test_file)
-    
+
     # We should have 3 chunks:
     # 1. Heading 'Section One' content up to Subsection One A
     # 2. Heading 'Subsection One A' content up to Section Two
     # 3. Heading 'Section Two' content
     assert len(chunks) == 3
-    
+
     c1 = chunks[0]
     assert c1["metadata"]["h2"] == "Section One"
     assert c1["metadata"]["h3"] == ""
@@ -82,10 +84,10 @@ def test_ingest_corpus_main(mock_parse, mock_session, mock_get_embedding, db_ses
         }
     ]
     mock_get_embedding.return_value = [0.123] * 768
-    
+
     with patch.dict(os.environ, {"GEMINI_API_KEY": "fake-api-key"}):
         main()
-        
+
     # Check that knowledge_embeddings has been populated
     embeddings = db_session.query(KnowledgeEmbedding).filter_by(source="game_rules").all()
     assert len(embeddings) == 1

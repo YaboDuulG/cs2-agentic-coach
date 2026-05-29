@@ -190,7 +190,7 @@ def analyse_match(match_id: str) -> dict[str, Any] | None:
     # Perform RAG retrieval
     from db.database import SessionLocal  # noqa: PLC0415
     from db.rag import retrieve_similar_chunks  # noqa: PLC0415
-    
+
     rag_context = []
     db = SessionLocal()
     try:
@@ -198,11 +198,11 @@ def analyse_match(match_id: str) -> dict[str, Any] | None:
         # Query 1: Map tactics
         map_chunks = retrieve_similar_chunks(db, query=f"CS2 tactical guidelines map {map_name}", limit=3, source="game_rules")
         rag_context.extend(map_chunks)
-        
+
         # Query 2: Economy rules
         econ_chunks = retrieve_similar_chunks(db, query="CS2 economy buy thresholds and save rules", limit=2, source="game_rules")
         rag_context.extend(econ_chunks)
-        
+
         # Query 3: Pro match references
         pro_chunks = retrieve_similar_chunks(db, query=f"pro match de_{map_name} tactics", limit=2, source="hltv_pro_match")
         rag_context.extend(pro_chunks)

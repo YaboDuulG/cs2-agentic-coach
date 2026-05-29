@@ -7,20 +7,20 @@ using vector search (pgvector in Postgres, Python-based fallback in SQLite).
 
 import json
 import logging
-import os
 import math
-from pathlib import Path
+import os
 
 # Configure logging
 logger = logging.getLogger("rag")
 
 from db.models import KnowledgeEmbedding
 
+
 def get_query_embedding(text: str, api_key: str) -> list[float]:
     """Call Gemini's embedding API to generate a 768-dimensional vector."""
     import google.generativeai as genai
     genai.configure(api_key=api_key)
-    
+
     response = genai.embed_content(
         model="models/text-embedding-004",
         content=text,
@@ -64,7 +64,7 @@ def retrieve_similar_chunks(db_session, query: str, limit: int = 5, source: str 
         if source:
             candidate_query = candidate_query.filter(KnowledgeEmbedding.source == source)
         candidates = candidate_query.all()
-        
+
         scored_candidates = []
         for cand in candidates:
             # Deserialized list from SQLiteVectorType
@@ -74,17 +74,17 @@ def retrieve_similar_chunks(db_session, query: str, limit: int = 5, source: str 
                     cand_vector = json.loads(cand_vector)
                 except Exception:
                     continue
-            
+
             if not isinstance(cand_vector, list):
                 continue
-                
+
             similarity = cosine_similarity(query_vector, cand_vector)
             scored_candidates.append((cand, similarity))
-            
+
         # Sort by similarity descending
         scored_candidates.sort(key=lambda x: x[1], reverse=True)
         top_candidates = scored_candidates[:limit]
-        
+
         results = []
         for cand, score in top_candidates:
             results.append({
@@ -100,13 +100,13 @@ def retrieve_similar_chunks(db_session, query: str, limit: int = 5, source: str 
         postgres_query = db_session.query(KnowledgeEmbedding)
         if source:
             postgres_query = postgres_query.filter(KnowledgeEmbedding.source == source)
-            
+
         # Cosine distance ranges from 0 (perfect match) to 2.
         # Order by distance ascending to get closest matches first.
         db_results = postgres_query.order_by(
             KnowledgeEmbedding.embedding.cosine_distance(query_vector)
         ).limit(limit).all()
-        
+
         results = []
         for cand in db_results:
             # pgvector distance is 1 - cosine_similarity. We can approximate a score for matching output format.

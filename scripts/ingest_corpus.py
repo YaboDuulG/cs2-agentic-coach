@@ -11,8 +11,8 @@ Usage:
 import json
 import logging
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -26,11 +26,12 @@ if str(REPO_ROOT) not in sys.path:
 from db.database import SessionLocal
 from db.models import KnowledgeEmbedding
 
+
 def get_embedding(text: str, api_key: str) -> list[float]:
     """Call Gemini's embedding API to generate a 768-dimensional vector."""
     import google.generativeai as genai
     genai.configure(api_key=api_key)
-    
+
     response = genai.embed_content(
         model="models/text-embedding-004",
         content=text,
@@ -55,9 +56,9 @@ def parse_markdown_chunks(filepath: Path) -> list[dict]:
     current_h1 = "CS2 Knowledge Base"
     current_h2 = ""
     current_h3 = ""
-    
+
     current_chunk_lines = []
-    
+
     def save_current_chunk():
         nonlocal current_chunk_lines, current_h2, current_h3
         chunk_text = "\n".join(current_chunk_lines).strip()
@@ -68,7 +69,7 @@ def parse_markdown_chunks(filepath: Path) -> list[dict]:
                 hierarchy += f" > {current_h2}"
             if current_h3:
                 hierarchy += f" > {current_h3}"
-                
+
             full_content = f"{hierarchy}\n\n{chunk_text}"
             chunks.append({
                 "content": full_content,
@@ -97,7 +98,7 @@ def parse_markdown_chunks(filepath: Path) -> list[dict]:
             current_h3 = stripped[4:].strip()
         else:
             current_chunk_lines.append(line)
-            
+
     save_current_chunk()
     return chunks
 
@@ -109,11 +110,11 @@ def main():
 
     corpus_path = REPO_ROOT / "data" / "corpus" / "game_rules.md"
     chunks = parse_markdown_chunks(corpus_path)
-    
+
     if not chunks:
         logger.error("No chunks found in corpus file.")
         sys.exit(1)
-        
+
     logger.info(f"Parsed {len(chunks)} chunks from {corpus_path.name}")
 
     from db.database import engine
@@ -133,10 +134,10 @@ def main():
             try:
                 content = chunk["content"]
                 meta = chunk["metadata"]
-                
+
                 # Generate embedding
                 vector = get_embedding(content, api_key)
-                
+
                 # Save to DB
                 db.add(KnowledgeEmbedding(
                     content=content,
@@ -148,10 +149,10 @@ def main():
                 logger.info(f"Ingested chunk: {meta.get('h2') or ''} -> {meta.get('h3') or ''}")
             except Exception as e:
                 logger.error(f"Failed to ingest chunk: {e}")
-                
+
         db.commit()
         logger.info(f"Successfully completed corpus ingestion: created {chunks_created} embeddings.")
-        
+
     finally:
         db.close()
 

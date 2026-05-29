@@ -4,16 +4,19 @@ Tests for RAG Semantic Search Module.
 
 import json
 import os
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 # Force SQLite for all tests
 os.environ["DATABASE_URL_TEST"] = "sqlite:///:memory:"
 
-from db.models import Base, KnowledgeEmbedding
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from db.rag import retrieve_similar_chunks, cosine_similarity
+
+from db.models import Base, KnowledgeEmbedding
+from db.rag import cosine_similarity, retrieve_similar_chunks
+
 
 @pytest.fixture(scope="module")
 def db_session():
@@ -30,7 +33,7 @@ def db_session():
 def seed_embeddings(db_session):
     """Seed test embeddings with known vectors."""
     db_session.query(KnowledgeEmbedding).delete()
-    
+
     # Let's seed 3 chunks:
     # 1. Exact match for a query [1.0, 0.0]
     # 2. Part match for a query [0.707, 0.707]
@@ -60,7 +63,7 @@ def seed_embeddings(db_session):
         source="hltv_pro_match",
         metadata_json=json.dumps({"match_id": "pro-123"})
     )
-    
+
     db_session.add_all([c1, c2, c3])
     db_session.commit()
     yield
@@ -72,10 +75,10 @@ def test_cosine_similarity():
     v1 = [1.0, 0.0, 0.0]
     v2 = [1.0, 0.0, 0.0]
     assert pytest.approx(cosine_similarity(v1, v2), 0.001) == 1.0
-    
+
     v3 = [0.0, 1.0, 0.0]
     assert pytest.approx(cosine_similarity(v1, v3), 0.001) == 0.0
-    
+
     v4 = [0.707, 0.707, 0.0]
     assert pytest.approx(cosine_similarity(v1, v4), 0.001) == 0.707
 
@@ -87,7 +90,7 @@ def test_retrieve_similar_chunks_sqlite(mock_get_embedding, db_session):
     query_vector[0] = 0.95
     query_vector[1] = 0.05
     mock_get_embedding.return_value = query_vector
-    
+
     with patch.dict(os.environ, {"GEMINI_API_KEY": "fake-api-key"}):
         # 1. Retrieve without source filter (should return top 2: c1, then c2)
         results = retrieve_similar_chunks(db_session, "some query", limit=2)
@@ -96,13 +99,13 @@ def test_retrieve_similar_chunks_sqlite(mock_get_embedding, db_session):
         assert results[0]["score"] > 0.9
         assert "Dust II B Site" in results[1]["content"]
         assert results[1]["score"] > 0.6
-        
+
         # 2. Retrieve with source filter 'hltv_pro_match' (should only return c3)
         results_pro = retrieve_similar_chunks(db_session, "some query", limit=5, source="hltv_pro_match")
         assert len(results_pro) == 1
         assert "Pro Match: Astralis vs NaVi" in results_pro[0]["content"]
         assert results_pro[0]["metadata"]["match_id"] == "pro-123"
-        
+
         # 3. Limit works
         results_limit = retrieve_similar_chunks(db_session, "some query", limit=1)
         assert len(results_limit) == 1

@@ -370,9 +370,11 @@ class TrainingSession(Base):
 # RAG Knowledge Embeddings — Phase 3
 # ---------------------------------------------------------------------------
 
-import os
 import json
+import os
+
 from sqlalchemy.types import TypeDecorator
+
 
 class SQLiteVectorType(TypeDecorator):
     impl = Text

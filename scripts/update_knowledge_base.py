@@ -26,7 +26,8 @@ logger = logging.getLogger("update_knowledge_base")
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from db.database import SessionLocal
-from db.models import Match, Round, Kill, FirstContact, KnowledgeEmbedding
+from db.models import FirstContact, Kill, KnowledgeEmbedding, Match, Round
+
 
 def clean_player_name(name: str | None) -> str:
     if not name:
@@ -43,7 +44,7 @@ def get_embedding(text: str, api_key: str) -> list[float]:
     """Call Gemini's embedding API to generate a 768-dimensional vector."""
     import google.generativeai as genai
     genai.configure(api_key=api_key)
-    
+
     # Generate embedding
     response = genai.embed_content(
         model="models/text-embedding-004",
@@ -55,17 +56,17 @@ def get_embedding(text: str, api_key: str) -> list[float]:
 def ingest_match(db, match_id: str, api_key: str):
     """Generate and store embeddings for a specific match's macro and micro stats."""
     logger.info(f"Ingesting match {match_id} into RAG database...")
-    
+
     # 1. Fetch match and children
     match = db.query(Match).filter(Match.match_id == match_id).first()
     if not match:
         logger.error(f"Match {match_id} not found in database.")
         return
-        
+
     rounds = db.query(Round).filter(Round.match_id == match_id).all()
     kills = db.query(Kill).filter(Kill.match_id == match_id).all()
     first_contacts = db.query(FirstContact).filter(FirstContact.match_id == match_id).all()
-    
+
     # Parse coaching notes if available
     summary = "No summary available."
     if match.coaching_notes:
@@ -92,7 +93,7 @@ def ingest_match(db, match_id: str, api_key: str):
         f"Top weapons utilized throughout the match included: "
         f"{', '.join(set(format_weapon_name(k.weapon) for k in kills[:10]))}."
     )
-    
+
     try:
         macro_vector = get_embedding(macro_text, api_key)
         macro_meta = {
@@ -100,7 +101,7 @@ def ingest_match(db, match_id: str, api_key: str):
             "map_name": match.map_name,
             "type": "summary"
         }
-        
+
         db.add(KnowledgeEmbedding(
             content=macro_text,
             embedding=macro_vector,
@@ -116,13 +117,13 @@ def ingest_match(db, match_id: str, api_key: str):
     for r in rounds:
         r_kills = [k for k in kills if k.round_num == r.round_num]
         r_fc = [fc for fc in first_contacts if fc.round_num == r.round_num]
-        
+
         fc_text = "No opening duel recorded."
         if r_fc:
             fc = r_fc[0]
             vic_team = "T" if fc.attacker_team == "CT" else "CT"
             fc_text = f"{clean_player_name(fc.attacker)} ({fc.attacker_team}) opened with a kill on {clean_player_name(fc.victim)} ({vic_team}) using {format_weapon_name(fc.weapon)}"
-            
+
         round_text = (
             f"Round {r.round_num} on map {match.map_name} (Match ID: {match_id}). "
             f"Round winner: Team {r.winner_side}. "
@@ -131,7 +132,7 @@ def ingest_match(db, match_id: str, api_key: str):
             f"Total kills in round: {len(r_kills)}. "
             f"Weapons logged in kills: {', '.join(set(format_weapon_name(k.weapon) for k in r_kills))}."
         )
-        
+
         try:
             r_vector = get_embedding(round_text, api_key)
             r_meta = {
@@ -151,7 +152,7 @@ def ingest_match(db, match_id: str, api_key: str):
         except Exception as e:
             logger.error(f"Failed to generate embedding for round {r.round_num}: {e}")
             continue
-            
+
     db.commit()
     logger.info(f"Successfully ingested match {match_id}: created {chunks_created} chunks/embeddings.")
 
@@ -182,19 +183,19 @@ def main():
                             ingested_matches.add(meta["match_id"])
                     except Exception:
                         pass
-            
+
             # Fetch all completed matches in the matches table
             all_matches = db.query(Match).filter(Match.status.in_(["complete", "done", "parsed"])).all()
             to_ingest = [m for m in all_matches if m.match_id not in ingested_matches]
-            
+
             if not to_ingest:
                 logger.info("RAG Knowledge Base is up to date. No new matches to ingest.")
                 return
-                
+
             logger.info(f"Found {len(to_ingest)} new match(es) to ingest.")
             for match in to_ingest:
                 ingest_match(db, match.match_id, api_key)
-                
+
     finally:
         db.close()
 

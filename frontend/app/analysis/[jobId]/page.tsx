@@ -2014,15 +2014,20 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
 
 
 // --- Economy Chart Component ---
-function EconomyChart({ rounds, selectedRound, onSelectRound }: {
+function EconomyChart({ rounds, selectedRound, onSelectRound, team1Name, team2Name }: {
   rounds: RoundResult[];
   selectedRound: number | null;
   onSelectRound: (round: number | null) => void;
+  team1Name: string;
+  team2Name: string;
 }) {
   const [hoveredRound, setHoveredRound] = useState<RoundResult | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   if (!rounds || rounds.length === 0) return null;
+
+  const displayTeam1Name = (!team1Name || team1Name === "CT" || team1Name === "COUNTER_TERRORIST" || team1Name === "Counter-Terrorists") ? "Team A" : team1Name;
+  const displayTeam2Name = (!team2Name || team2Name === "TERRORIST" || team2Name === "T" || team2Name === "Terrorists") ? "Team B" : team2Name;
 
   const width = 800;
   const height = 240;
@@ -2038,30 +2043,34 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
     return { x, y };
   };
 
-  let ctPath = "";
-  let tPath = "";
-  let ctAreaPath = "";
-  let tAreaPath = "";
+  let team1Path = "";
+  let team2Path = "";
+  let team1AreaPath = "";
+  let team2AreaPath = "";
 
   rounds.forEach((r, idx) => {
-    const ct = getCoords(idx, r.ct_spend);
-    const t = getCoords(idx, r.t_spend);
+    const isT1CT = isTeam1CT(r.round);
+    const t1Spend = isT1CT ? r.ct_spend : r.t_spend;
+    const t2Spend = isT1CT ? r.t_spend : r.ct_spend;
+
+    const pt1 = getCoords(idx, t1Spend);
+    const pt2 = getCoords(idx, t2Spend);
 
     if (idx === 0) {
-      ctPath = `M ${ct.x} ${ct.y}`;
-      tPath = `M ${t.x} ${t.y}`;
-      ctAreaPath = `M ${ct.x} ${height - paddingY} L ${ct.x} ${ct.y}`;
-      tAreaPath = `M ${t.x} ${height - paddingY} L ${t.x} ${t.y}`;
+      team1Path = `M ${pt1.x} ${pt1.y}`;
+      team2Path = `M ${pt2.x} ${pt2.y}`;
+      team1AreaPath = `M ${pt1.x} ${height - paddingY} L ${pt1.x} ${pt1.y}`;
+      team2AreaPath = `M ${pt2.x} ${height - paddingY} L ${pt2.x} ${pt2.y}`;
     } else {
-      ctPath += ` L ${ct.x} ${ct.y}`;
-      tPath += ` L ${t.x} ${t.y}`;
-      ctAreaPath += ` L ${ct.x} ${ct.y}`;
-      tAreaPath += ` L ${t.x} ${t.y}`;
+      team1Path += ` L ${pt1.x} ${pt1.y}`;
+      team2Path += ` L ${pt2.x} ${pt2.y}`;
+      team1AreaPath += ` L ${pt1.x} ${pt1.y}`;
+      team2AreaPath += ` L ${pt2.x} ${pt2.y}`;
     }
 
     if (idx === totalRounds - 1) {
-      ctAreaPath += ` L ${ct.x} ${height - paddingY} Z`;
-      tAreaPath += ` L ${t.x} ${height - paddingY} Z`;
+      team1AreaPath += ` L ${pt1.x} ${height - paddingY} Z`;
+      team2AreaPath += ` L ${pt2.x} ${height - paddingY} Z`;
     }
   });
 
@@ -2099,14 +2108,37 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
 
   const yTicks = [0, 0.25, 0.5, 0.75, 1];
 
+  // Find side switches (halftime / overtime switches)
+  const sideSwitches: number[] = [];
+  for (let idx = 0; idx < totalRounds - 1; idx++) {
+    if (isTeam1CT(rounds[idx].round) !== isTeam1CT(rounds[idx + 1].round)) {
+      sideSwitches.push(idx);
+    }
+  }
+
   return (
     <div className="card p-6 relative">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="heading-display" style={{ fontSize: "1.1rem" }}>Economy Trend</h2>
-        <span className="text-[10px] text-[#4A6A8A] font-mono">
-          Hover to inspect | Click to filter round
-        </span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <div>
+          <h2 className="heading-display" style={{ fontSize: "1.1rem" }}>Economy Trend</h2>
+          <p className="text-[10px] text-[#4A6A8A] font-mono mt-0.5">
+            Hover to inspect | Click to filter round
+          </p>
+        </div>
+        
+        {/* Color Legend */}
+        <div className="flex items-center gap-4 text-xs font-mono">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#2D7DD2" }} />
+            <span className="text-slate-300">{displayTeam1Name} <span className="text-[9px] text-slate-500">(Starts CT)</span></span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#FF4D6D" }} />
+            <span className="text-slate-300">{displayTeam2Name} <span className="text-[9px] text-slate-500">(Starts T)</span></span>
+          </div>
+        </div>
       </div>
+
       <div className="relative">
         <svg
           viewBox={`0 0 ${width} ${height}`}
@@ -2152,6 +2184,50 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
             );
           })}
 
+          {/* Halftime & Side Switch Lines */}
+          {sideSwitches.map((idx) => {
+            const x1 = getCoords(idx, 0).x;
+            const x2 = getCoords(idx + 1, 0).x;
+            const halfX = (x1 + x2) / 2;
+            const isOT = rounds[idx].round > 24;
+            const label = isOT ? "OT SWITCH" : "HALFTIME";
+            
+            return (
+              <g key={`switch-${idx}`}>
+                <line
+                  x1={halfX}
+                  y1={paddingY}
+                  x2={halfX}
+                  y2={height - paddingY}
+                  stroke="rgba(255,255,255,0.2)"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                />
+                <rect
+                  x={halfX - 28}
+                  y={paddingY - 8}
+                  width={56}
+                  height={14}
+                  rx={3}
+                  fill="#142135"
+                  stroke="rgba(255,255,255,0.1)"
+                  strokeWidth={1}
+                />
+                <text
+                  x={halfX}
+                  y={paddingY + 2}
+                  fill="#8BA7CC"
+                  fontSize="8px"
+                  fontFamily="JetBrains Mono, monospace"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                >
+                  {label}
+                </text>
+              </g>
+            );
+          })}
+
           {selectedRound !== null && (() => {
             const idx = rounds.findIndex(r => r.round === selectedRound);
             if (idx === -1) return null;
@@ -2170,22 +2246,26 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
             );
           })()}
 
-          <path d={ctAreaPath} fill="url(#ctGrad)" />
-          <path d={tAreaPath} fill="url(#tGrad)" />
+          <path d={team1AreaPath} fill="url(#ctGrad)" />
+          <path d={team2AreaPath} fill="url(#tGrad)" />
 
-          <path d={ctPath} fill="none" stroke="#2D7DD2" strokeWidth="2.5" strokeLinecap="round" />
-          <path d={tPath} fill="none" stroke="#FF4D6D" strokeWidth="2.5" strokeLinecap="round" />
+          <path d={team1Path} fill="none" stroke="#2D7DD2" strokeWidth="2.5" strokeLinecap="round" />
+          <path d={team2Path} fill="none" stroke="#FF4D6D" strokeWidth="2.5" strokeLinecap="round" />
 
           {rounds.map((r, idx) => {
-            const ct = getCoords(idx, r.ct_spend);
-            const t = getCoords(idx, r.t_spend);
+            const isT1CT = isTeam1CT(r.round);
+            const t1Spend = isT1CT ? r.ct_spend : r.t_spend;
+            const t2Spend = isT1CT ? r.t_spend : r.ct_spend;
+
+            const pt1 = getCoords(idx, t1Spend);
+            const pt2 = getCoords(idx, t2Spend);
             const isHovered = hoveredRound?.round === r.round;
             const isSelected = selectedRound === r.round;
 
             return (
               <g key={r.round}>
                 <rect
-                  x={ct.x - 12}
+                  x={pt1.x - 12}
                   y={paddingY}
                   width={24}
                   height={height - 2 * paddingY}
@@ -2196,11 +2276,11 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
                 />
                 
                 {(isHovered || isSelected) && (
-                  <circle cx={ct.x} cy={ct.y} r={4.5} fill="#2D7DD2" stroke="#080E1A" strokeWidth={1.5} />
+                  <circle cx={pt1.x} cy={pt1.y} r={4.5} fill="#2D7DD2" stroke="#080E1A" strokeWidth={1.5} />
                 )}
 
                 {(isHovered || isSelected) && (
-                  <circle cx={t.x} cy={t.y} r={4.5} fill="#FF4D6D" stroke="#080E1A" strokeWidth={1.5} />
+                  <circle cx={pt2.x} cy={pt2.y} r={4.5} fill="#FF4D6D" stroke="#080E1A" strokeWidth={1.5} />
                 )}
               </g>
             );
@@ -2243,38 +2323,49 @@ function EconomyChart({ rounds, selectedRound, onSelectRound }: {
           })}
         </svg>
 
-        {hoveredRound && (
-          <div
-            className="absolute z-20 pointer-events-none bg-slate-950/95 border border-slate-800 rounded-lg p-3 shadow-2xl backdrop-blur-md min-w-[140px]"
-            style={{
-              left: Math.min(mousePos.x, width - 160),
-              top: Math.max(mousePos.y - 120, 10),
-            }}
-          >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1.5">
-              <span className="font-bold text-slate-200">Round {hoveredRound.round}</span>
-              <span
-                className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                style={{
-                  background: hoveredRound.winner === "CT" ? "rgba(45,125,210,0.15)" : "rgba(255,77,109,0.15)",
-                  color: hoveredRound.winner === "CT" ? "#2D7DD2" : "#FF4D6D",
-                }}
-              >
-                {hoveredRound.winner}
-              </span>
-            </div>
-            <div className="space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">CT Value:</span>
-                <span className="font-semibold text-[#2D7DD2]">${hoveredRound.ct_spend.toLocaleString()}</span>
+        {hoveredRound && (() => {
+          const isT1CT = isTeam1CT(hoveredRound.round);
+          const t1Spend = isT1CT ? hoveredRound.ct_spend : hoveredRound.t_spend;
+          const t2Spend = isT1CT ? hoveredRound.t_spend : hoveredRound.ct_spend;
+          const winnerTeamName = hoveredRound.winner === "CT" 
+            ? (isT1CT ? displayTeam1Name : displayTeam2Name) 
+            : (isT1CT ? displayTeam2Name : displayTeam1Name);
+          const isWinnerT1 = (hoveredRound.winner === "CT" && isT1CT) || (hoveredRound.winner === "T" && !isT1CT);
+
+          return (
+            <div
+              className="absolute z-20 pointer-events-none bg-slate-950/95 border border-slate-800 rounded-lg p-3 shadow-2xl backdrop-blur-md min-w-[160px]"
+              style={{
+                left: Math.min(mousePos.x, width - 180),
+                top: Math.max(mousePos.y - 120, 10),
+              }}
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1.5">
+                <span className="font-bold text-slate-200">Round {hoveredRound.round}</span>
+                <span
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded truncate max-w-[80px]"
+                  style={{
+                    background: isWinnerT1 ? "rgba(45,125,210,0.15)" : "rgba(255,77,109,0.15)",
+                    color: isWinnerT1 ? "#2D7DD2" : "#FF4D6D",
+                  }}
+                  title={winnerTeamName}
+                >
+                  {winnerTeamName}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">T Value:</span>
-                <span className="font-semibold text-[#FF4D6D]">${hoveredRound.t_spend.toLocaleString()}</span>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between gap-4">
+                  <span className="text-slate-500 truncate max-w-[90px]">{displayTeam1Name} ({isT1CT ? "CT" : "T"}):</span>
+                  <span className="font-semibold text-[#2D7DD2]">${t1Spend.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-slate-500 truncate max-w-[90px]">{displayTeam2Name} ({isT1CT ? "T" : "CT"}):</span>
+                  <span className="font-semibold text-[#FF4D6D]">${t2Spend.toLocaleString()}</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
@@ -2841,6 +2932,8 @@ export default function AnalysisPage() {
                 rounds={result.rounds}
                 selectedRound={selectedRound}
                 onSelectRound={setSelectedRound}
+                team1Name={team1Name}
+                team2Name={team2Name}
               />
             )}
           </div>

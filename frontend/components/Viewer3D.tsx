@@ -144,11 +144,12 @@ export function Viewer3D({
   const hasConfig = mapKey in MAP_CONFIGS;
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [hoveredKill, setHoveredKill] = useState<KillEvent | null>(null);
 
-  // Prevent default scroll behavior on mouse wheel inside the 3D viewer
+  // Prevent default scroll behavior on mouse wheel inside the 3D viewer (canvas only)
   useEffect(() => {
-    const container = containerRef.current;
+    const container = canvasContainerRef.current;
     if (!container) return;
 
     const preventDefaultScroll = (e: WheelEvent) => {
@@ -280,7 +281,7 @@ export function Viewer3D({
       style={{ borderColor: "#142135" }}
     >
       {/* 3D Canvas Area */}
-      <div className="flex-1 h-full relative">
+      <div ref={canvasContainerRef} className="flex-1 h-full relative">
         <Canvas camera={{ position: [0, 800, 600], fov: 60 }}>
           <OrbitControls 
             makeDefault

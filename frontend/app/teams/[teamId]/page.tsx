@@ -67,6 +67,17 @@ export default function TeamDetailPage() {
   const [copied, setCopied] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
+  const [showInviteBox, setShowInviteBox] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+
+  const handleInviteClick = () => {
+    if (!team) return;
+    navigator.clipboard.writeText(team.invite_code);
+    setInviteCopied(true);
+    setShowInviteBox(true);
+    setTimeout(() => setInviteCopied(false), 3000);
+  };
+
   // Tabs
   const [activeTab, setActiveTab] = useState<"overview" | "settings">("overview");
   const [settingsTab, setSettingsTab] = useState<"profile" | "password" | "members" | "subscription" | "danger">("profile");
@@ -275,19 +286,6 @@ export default function TeamDetailPage() {
                   </p>
                 </div>
               </div>
-
-              {/* Invite Code */}
-              <button
-                onClick={copyInvite}
-                className="card flex items-center gap-3 px-4 py-3 hover:border-[#2D7DD2]/40 transition-colors group self-start sm:self-center"
-                style={{ background: "rgba(13,24,37,0.7)", border: "1px solid #1E3A5F" }}
-              >
-                <div>
-                  <p style={{ color: "#4A6A8A", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>Invite Code</p>
-                  <p style={{ color: "#F0F4FF", fontFamily: "JetBrains Mono", fontWeight: 700, fontSize: "1rem", letterSpacing: "0.15em" }}>{team.invite_code}</p>
-                </div>
-                {copied ? <Check size={16} color="#22D3A0" /> : <Copy size={16} color="#4A6A8A" className="group-hover:text-white" />}
-              </button>
             </div>
 
             {/* Tab switchers */}
@@ -340,6 +338,33 @@ export default function TeamDetailPage() {
                         }}>{m.role === "owner" ? "captain" : m.role}</span>
                       </div>
                     ))}
+
+                    <div className="border-t border-[#1E3A5F]/40 mt-4 pt-3 flex flex-col">
+                      <button
+                        onClick={handleInviteClick}
+                        className="text-[11px] text-[#2D7DD2] hover:text-[#2D7DD2]/80 font-bold uppercase tracking-wider text-left flex items-center gap-1.5 transition-colors"
+                      >
+                        + Invite a team member
+                      </button>
+                      
+                      {showInviteBox && (
+                        <div className="mt-2.5 p-3 rounded-lg border border-[#1E3A5F] bg-[#090F1B]/90 text-[11px] flex flex-col gap-1.5 animate-fadeIn relative">
+                          <button 
+                            onClick={() => setShowInviteBox(false)}
+                            className="absolute top-2 right-2 text-slate-500 hover:text-slate-300 text-[10px]"
+                          >
+                            ✕
+                          </button>
+                          <div className="flex justify-between items-center pr-4">
+                            <span className="text-slate-500 font-medium">Invite Code:</span>
+                            <span className="font-mono font-bold text-[#F0F4FF] tracking-widest select-all">{team.invite_code}</span>
+                          </div>
+                          {inviteCopied && (
+                            <p className="text-[10px] text-[#22D3A0] font-semibold">✓ Copied to clipboard!</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
