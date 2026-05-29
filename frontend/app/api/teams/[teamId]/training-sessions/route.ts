@@ -38,7 +38,11 @@ export async function POST(
   try {
     const res = await fetch(`${API_URL}/api/teams/${teamId}/training-sessions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-clerk-user-id": userId },
+      headers: {
+        "Content-Type": "application/json",
+        "x-clerk-user-id": userId,
+        Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
+      },
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));

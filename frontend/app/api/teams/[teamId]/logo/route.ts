@@ -15,6 +15,9 @@ export async function POST(
   
   const res = await fetch(`${API_URL}/api/teams/${teamId}/logo?user_id=${userId}`, {
     method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
+    },
     body: formData,
   });
   

@@ -17,7 +17,13 @@ logger = logging.getLogger("great_khan")
 COACHING_MODEL = "gemini-2.0-flash"
 
 
-def _build_prompt(match_id: str, stats: dict[str, Any]) -> str:
+def _build_prompt(match_id: str, stats: dict[str, Any], rag_context: list[dict[str, Any]] | None = None) -> str:
+    rag_text = ""
+    if rag_context:
+        rag_text = "\n\nCRITICAL CONTEXT & GAME RULES FOR THE COACH (RAG):\n"
+        for i, chunk in enumerate(rag_context, 1):
+            rag_text += f"[{i}] {chunk.get('content')}\n"
+
     return f"""You are DemoSage — an elite CS2 tactical coach. Analyse this match data and return ONLY valid JSON with no markdown.
 
 Match: {stats.get("map_name", "unknown")} | {stats.get("total_rounds", 0)} rounds
@@ -50,7 +56,7 @@ Return this exact JSON structure:
   ],
   "strongest_area": "one sentence on what the team did well",
   "weakest_area": "one sentence on the biggest weakness to fix"
-}}"""
+}}{rag_text}"""
 
 
 def _compute_stats(match_id: str) -> dict[str, Any] | None:
@@ -181,7 +187,31 @@ def analyse_match(match_id: str) -> dict[str, Any] | None:
         logger.warning(f"[Great Khan] No stats for {match_id} — skipping")
         return None
 
-    prompt = _build_prompt(match_id, stats)
+    # Perform RAG retrieval
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.rag import retrieve_similar_chunks  # noqa: PLC0415
+    
+    rag_context = []
+    db = SessionLocal()
+    try:
+        map_name = stats.get("map_name", "unknown")
+        # Query 1: Map tactics
+        map_chunks = retrieve_similar_chunks(db, query=f"CS2 tactical guidelines map {map_name}", limit=3, source="game_rules")
+        rag_context.extend(map_chunks)
+        
+        # Query 2: Economy rules
+        econ_chunks = retrieve_similar_chunks(db, query="CS2 economy buy thresholds and save rules", limit=2, source="game_rules")
+        rag_context.extend(econ_chunks)
+        
+        # Query 3: Pro match references
+        pro_chunks = retrieve_similar_chunks(db, query=f"pro match de_{map_name} tactics", limit=2, source="hltv_pro_match")
+        rag_context.extend(pro_chunks)
+    except Exception as e:
+        logger.error(f"RAG retrieval failed: {e}")
+    finally:
+        db.close()
+
+    prompt = _build_prompt(match_id, stats, rag_context)
     coaching = _call_gemini(prompt)
     if not coaching:
         coaching = _stub_coaching()

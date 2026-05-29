@@ -55,6 +55,7 @@ export async function POST(
       headers: {
         "Content-Type": "application/json",
         "x-clerk-user-id": userId,
+        Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
       },
       body: JSON.stringify(body),
     });

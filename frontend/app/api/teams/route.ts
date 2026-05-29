@@ -19,7 +19,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const res = await fetch(`${API_URL}/api/teams`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
+    },
     body: JSON.stringify({ ...body, user_id: userId }),
   });
   return NextResponse.json(await res.json(), { status: res.status });

@@ -31,7 +31,10 @@ export async function POST(
   const body = await req.json();
   const res = await fetch(`${API_URL}/api/teams/join`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
+    },
     body: JSON.stringify({ ...body, user_id: userId }),
   });
   return NextResponse.json(await res.json(), { status: res.status });
@@ -48,7 +51,10 @@ export async function PATCH(
   const body = await req.json();
   const res = await fetch(`${API_URL}/api/teams/${teamId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
+    },
     body: JSON.stringify({ ...body, user_id: userId }),
   });
   return NextResponse.json(await res.json(), { status: res.status });
