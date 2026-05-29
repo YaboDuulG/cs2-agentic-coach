@@ -37,7 +37,7 @@ const MAP_CONFIGS: Record<string, { pos_x: number; pos_y: number; scale: number 
 
 function MapPlane({ mapKey }: { mapKey: string }) {
   // Load texture
-  const textureUrl = `/images/maps/${mapKey}_radar.png`;
+  const textureUrl = `https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/radars/${mapKey}_radar_psd.png`;
   const texture = useLoader(THREE.TextureLoader, textureUrl);
   
   return (

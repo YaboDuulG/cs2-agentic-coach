@@ -985,8 +985,10 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
   } else if (allTeams.length === 1) {
     if (allTeams[0] === "CT") team2Name = "TERRORIST";
     else if (allTeams[0] === "TERRORIST" || allTeams[0] === "T") { team1Name = "CT"; team2Name = allTeams[0] as string; }
-    else { team1Name = allTeams[0] as string; team2Name = "Unknown"; }
   }
+
+  const displayTeam1Name = (!team1Name || team1Name === "CT" || team1Name === "COUNTER_TERRORIST" || team1Name === "Counter-Terrorists") ? "Team A" : team1Name;
+  const displayTeam2Name = (!team2Name || team2Name === "TERRORIST" || team2Name === "T" || team2Name === "Terrorists" || team2Name === "Unknown") ? "Team B" : team2Name;
 
   const ctPlayers = computedPlayers.filter(p => p.team === team1Name);
   const tPlayers = computedPlayers.filter(p => p.team === team2Name);
@@ -1606,20 +1608,20 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
             All
           </button>
           <button
-            onClick={() => setTeamFilter("t")}
-            className={`px-2.5 py-1 rounded-md transition-colors ${
-              teamFilter === "t" ? "bg-[#eb5e28] text-white" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            {team2Name === "TERRORIST" || team2Name === "T" ? "T" : team2Name}
-          </button>
-          <button
             onClick={() => setTeamFilter("ct")}
             className={`px-2.5 py-1 rounded-md transition-colors ${
               teamFilter === "ct" ? "bg-[#eb5e28] text-white" : "text-slate-400 hover:text-white"
             }`}
           >
-            {team1Name === "CT" ? "CT" : team1Name}
+            {displayTeam1Name}
+          </button>
+          <button
+            onClick={() => setTeamFilter("t")}
+            className={`px-2.5 py-1 rounded-md transition-colors ${
+              teamFilter === "t" ? "bg-[#eb5e28] text-white" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            {displayTeam2Name}
           </button>
         </div>
 
@@ -1928,7 +1930,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <span className="px-2.5 py-0.5 rounded-full font-bold text-white text-xs bg-[#2D7DD2] shadow-md">{ctScore}</span>
-                      <span className="font-bold text-sm text-[#2D7DD2] uppercase tracking-wider">{team1Name === "CT" ? "Counter-Terrorists" : team1Name}</span>
+                      <span className="font-bold text-sm text-[#2D7DD2] uppercase tracking-wider">{displayTeam1Name}</span>
                     </div>
                     {renderPlayerGrid(getSortedPlayersForTeam(ctPlayers))}
                   </div>
@@ -1937,7 +1939,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <span className="px-2.5 py-0.5 rounded-full font-bold text-white text-xs bg-[#FF4D6D] shadow-md">{tScore}</span>
-                      <span className="font-bold text-sm text-[#FF4D6D] uppercase tracking-wider">{team2Name === "TERRORIST" || team2Name === "T" ? "Terrorists" : team2Name}</span>
+                      <span className="font-bold text-sm text-[#FF4D6D] uppercase tracking-wider">{displayTeam2Name}</span>
                     </div>
                     {renderPlayerGrid(getSortedPlayersForTeam(tPlayers))}
                   </div>
@@ -1950,9 +1952,9 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
             sortBy === "team" ? (
               <>
                 {(teamFilter === "all" || teamFilter === "ct") &&
-                  renderTable(team1Name === "CT" ? "Counter-Terrorists" : team1Name, "text-[#2D7DD2]", "bg-[#2D7DD2]", ctScore, getSortedPlayersForTeam(ctPlayers))}
+                  renderTable(displayTeam1Name, "text-[#2D7DD2]", "bg-[#2D7DD2]", ctScore, getSortedPlayersForTeam(ctPlayers))}
                 {(teamFilter === "all" || teamFilter === "t") &&
-                  renderTable(team2Name === "TERRORIST" || team2Name === "T" ? "Terrorists" : team2Name, "text-[#FF4D6D]", "bg-[#FF4D6D]", tScore, getSortedPlayersForTeam(tPlayers))}
+                  renderTable(displayTeam2Name, "text-[#FF4D6D]", "bg-[#FF4D6D]", tScore, getSortedPlayersForTeam(tPlayers))}
               </>
             ) : (
               renderSingleTable(getSortedPlayers())
@@ -1991,13 +1993,13 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {renderTeamBreakdownCard(
-              "Counter-Terrorists",
+              displayTeam1Name,
               "text-[#2D7DD2]",
               ctUtil,
               ctPlayers
             )}
             {renderTeamBreakdownCard(
-              "Terrorists",
+              displayTeam2Name,
               "text-[#FF4D6D]",
               tUtil,
               tPlayers
@@ -2283,10 +2285,14 @@ function RoundTimeline({
   rounds,
   selectedRound,
   onSelectRound,
+  team1Name,
+  team2Name,
 }: {
   rounds: RoundResult[];
   selectedRound: number | null;
   onSelectRound: (round: number | null) => void;
+  team1Name: string;
+  team2Name: string;
 }) {
   // Calculate team scores from timeline using dynamic side switches to match the player tables
   const team1Score = rounds.filter(
@@ -2298,6 +2304,9 @@ function RoundTimeline({
     (r) => (!isTeam1CT(r.round) && (r.winner === "CT" || r.winner === "COUNTER_TERRORIST")) || 
            (isTeam1CT(r.round) && (r.winner === "T" || r.winner === "TERRORIST"))
   ).length;
+
+  const displayTeam1Name = (team1Name === "CT" || team1Name === "COUNTER_TERRORIST" || team1Name === "Counter-Terrorists") ? "Team A" : team1Name;
+  const displayTeam2Name = (team2Name === "TERRORIST" || team2Name === "T" || team2Name === "Terrorists") ? "Team B" : team2Name;
 
   return (
     <div className="card p-6">
@@ -2352,11 +2361,11 @@ function RoundTimeline({
       <div className="flex items-center gap-4 mt-3">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded" style={{ background: "rgba(45,125,210,0.4)", border: "1px solid #2D7DD2" }} />
-          <span style={{ color: "#8BA7CC", fontSize: "0.72rem" }}>Counter-Terrorists win: {team1Score}</span>
+          <span style={{ color: "#8BA7CC", fontSize: "0.72rem" }}>{displayTeam1Name} win: {team1Score}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded" style={{ background: "rgba(255,77,109,0.4)", border: "1px solid #FF4D6D" }} />
-          <span style={{ color: "#8BA7CC", fontSize: "0.72rem" }}>Terrorists win: {team2Score}</span>
+          <span style={{ color: "#8BA7CC", fontSize: "0.72rem" }}>{displayTeam2Name} win: {team2Score}</span>
         </div>
       </div>
     </div>
@@ -2509,6 +2518,32 @@ export default function AnalysisPage() {
     poll();
     return () => { stopped = true; };
   }, [jobId]);
+
+  // Dynamic team name identification at the page level
+  const { team1Name, team2Name } = useMemo(() => {
+    if (!result?.player_stats) return { team1Name: "CT", team2Name: "TERRORIST" };
+    const playersList = Object.values(result.player_stats || {}).filter(
+      (p: any) => p && p.name && p.name !== "nan" && p.steamid && p.steamid !== "nan"
+    );
+    const allTeams = Array.from(new Set(playersList.map((p: any) => p.team).filter(Boolean)));
+    let team1 = "CT";
+    let team2 = "TERRORIST";
+
+    if (allTeams.length >= 2) {
+      if (allTeams.includes("CT") || allTeams.includes("TERRORIST") || allTeams.includes("T")) {
+        team1 = (allTeams.find(t => t === "CT") || allTeams.find(t => t !== "TERRORIST" && t !== "T") || allTeams[0]) as string;
+        team2 = (allTeams.find(t => t === "TERRORIST" || t === "T") || allTeams.find(t => t !== team1) || allTeams[1]) as string;
+      } else {
+        team1 = allTeams[0] as string;
+        team2 = allTeams[1] as string;
+      }
+    } else if (allTeams.length === 1) {
+      if (allTeams[0] === "CT") team2 = "TERRORIST";
+      else if (allTeams[0] === "TERRORIST" || allTeams[0] === "T") { team1 = "CT"; team2 = allTeams[0] as string; }
+      else { team1 = allTeams[0] as string; team2 = "Unknown"; }
+    }
+    return { team1Name: team1, team2Name: team2 };
+  }, [result?.player_stats]);
 
   const cfg = STATUS_CONFIG[status];
 
@@ -2688,6 +2723,8 @@ export default function AnalysisPage() {
                 rounds={result.rounds}
                 selectedRound={selectedRound}
                 onSelectRound={setSelectedRound}
+                team1Name={team1Name}
+                team2Name={team2Name}
               />
             )}
 
