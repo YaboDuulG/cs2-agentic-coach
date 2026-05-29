@@ -59,10 +59,23 @@ async def get_coaching(match_id: str, user_id: str | None = None):
                     )
             if not match.coaching_notes:
                 return {"status": "pending", "match_id": match_id}
+
+            try:
+                coaching_data = json.loads(match.coaching_notes)
+            except (json.JSONDecodeError, TypeError):
+                coaching_data = {
+                    "summary": match.coaching_notes,
+                    "key_findings": [],
+                    "economy_analysis": "",
+                    "tactical_recommendations": [],
+                    "strongest_area": "",
+                    "weakest_area": ""
+                }
+
             return {
                 "status": "ready",
                 "match_id": match_id,
-                "coaching": json.loads(match.coaching_notes),
+                "coaching": coaching_data,
             }
         finally:
             db.close()
