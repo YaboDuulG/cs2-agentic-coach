@@ -25,6 +25,9 @@ REPO_ROOT = Path(__file__).parent.parent.resolve()
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from dotenv import load_dotenv
+load_dotenv(REPO_ROOT / ".env")
+
 from db.database import SessionLocal
 from db.models import Match, Round, Kill
 
