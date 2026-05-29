@@ -364,3 +364,65 @@ class TrainingSession(Base):
 
     def __repr__(self) -> str:
         return f"<TrainingSession {self.id} mode={self.mode} user={self.user_id}>"
+
+
+# ---------------------------------------------------------------------------
+# RAG Knowledge Embeddings — Phase 3
+# ---------------------------------------------------------------------------
+
+import os
+import json
+from sqlalchemy.types import TypeDecorator
+
+class SQLiteVectorType(TypeDecorator):
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            if isinstance(value, str):
+                return value
+            return json.dumps(value)
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            try:
+                return json.loads(value)
+            except Exception:
+                return value
+        return value
+
+_db_url = (
+    os.getenv("DATABASE_URL_TEST")
+    or os.getenv("DATABASE_URL_LOCAL")
+    or os.getenv("DATABASE_URL")
+    or "sqlite:///:memory:"
+)
+
+if _db_url.startswith("sqlite"):
+    # Fallback for SQLite in CI/unit testing environments
+    VectorType = SQLiteVectorType()
+else:
+    from pgvector.sqlalchemy import Vector
+    VectorType = Vector(768)
+
+
+class KnowledgeEmbedding(Base):
+    """
+    RAG Knowledge Embeddings for Khan's Library.
+    Stores chunked texts and their high-dimensional vector representations.
+    """
+    __tablename__ = "knowledge_embeddings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(VectorType, nullable=False)
+    source: Mapped[str] = mapped_column(String(100), nullable=True, index=True)  # e.g., "game_rules", "hltv_pro_match", "tactical_playbook"
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # Stored JSON string metadata
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    def __repr__(self) -> str:
+        return f"<KnowledgeEmbedding {self.id} source={self.source}>"

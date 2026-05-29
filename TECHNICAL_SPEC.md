@@ -522,7 +522,7 @@ def check_cs2_update_active() -> tuple[bool, str]:
 - [x] Initialize monorepo structure (`/agents`, `/services`, `/plugins`, `/frontend`, `/infra`)
 - [x] Create GCP project + enable billing
 - [x] Enable APIs: Cloud SQL, Cloud Storage, Cloud Tasks, Cloud Run, Vertex AI, Artifact Registry, Secret Manager
-- [x] Provision Cloud SQL instance (PostgreSQL 15, db-f1-micro shared-core) + pgvector pending
+- [x] Provision Cloud SQL instance (PostgreSQL 15, db-f1-micro shared-core) + pgvector enabled
 - [x] Create GCS bucket (`cs2-demosage`) for demo and audio file storage
 - [x] Set up Cloud Tasks queue for async job dispatch
 - [x] Configure local `.env` with GCP credentials
@@ -560,9 +560,9 @@ def check_cs2_update_active() -> tuple[bool, str]:
 
 ### Phase 3: Khan's Library — RAG Knowledge Base
 - [ ] Author CS2 game rules corpus (economy, map callouts, round timing)
-- [ ] Build embedding pipeline (chunk → embed → store in pgvector)
+- [x] Build embedding pipeline (chunk → embed → store in pgvector)
 - [ ] Set up Apify account + configure HLTV actor
-- [ ] Build pro match parse → embed pipeline
+- [x] Build pro match parse → embed pipeline
 - [ ] Set up nightly GitHub Action for HLTV ingestion
 - [ ] Implement semantic retrieval for Tactician queries
 

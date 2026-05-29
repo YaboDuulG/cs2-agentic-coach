@@ -2797,7 +2797,7 @@ export default function AnalysisPage() {
                         {viewerMode === "2d" ? (
                           <KillHeatmap kills={filteredKills} mapName={result.map} />
                         ) : (
-                          <Viewer3D kills={filteredKills} mapName={result.map} />
+                          <Viewer3D kills={filteredKills} mapName={result.map} selectedRound={selectedRound} />
                         )}
                       </div>
                     </div>
