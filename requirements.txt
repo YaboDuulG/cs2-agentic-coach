@@ -34,15 +34,15 @@ pyannote.audio==3.3.2
 
 # --- Utilities ---
 python-dotenv==1.0.1
-pydantic==2.9.2
-pydantic-settings==2.6.0
-httpx==0.27.2
-requests==2.32.3
-tenacity==9.0.0
+pydantic>=2.9.2
+pydantic-settings>=2.6.0
+httpx>=0.27.2
+requests>=2.32.3
+tenacity>=9.0.0
 google-generativeai>=0.8.3
 
 # --- Observability ---
-langsmith==0.1.143
+langsmith>=0.3.0
 
 # --- Scraper ---
 playwright==1.49.0
