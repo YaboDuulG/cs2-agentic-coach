@@ -68,12 +68,9 @@ async def get_coaching(match_id: str, user_id: str | None = None):
                 coaching_data = json.loads(match.coaching_notes)
             except (json.JSONDecodeError, TypeError):
                 coaching_data = {
-                    "summary": match.coaching_notes,
-                    "key_findings": [],
-                    "economy_analysis": "",
-                    "tactical_recommendations": [],
-                    "strongest_area": "",
-                    "weakest_area": ""
+                    "strat_card": match.coaching_notes,
+                    "player_reports": {},
+                    "coach_report": match.coaching_notes
                 }
 
             return {
@@ -88,6 +85,49 @@ async def get_coaching(match_id: str, user_id: str | None = None):
     except Exception as e:
         logger.error(f"Failed to fetch coaching for {match_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch coaching notes")
+
+
+@router.get("/{match_id}/player/{player_name}", summary="Get coaching notes for a specific player")
+async def get_player_coaching(match_id: str, player_name: str, user_id: str | None = None):
+    """Return only the Player Report section for a specific player."""
+    try:
+        from db.database import SessionLocal  # noqa: PLC0415
+        from db.models import Match  # noqa: PLC0415
+
+        db = SessionLocal()
+        try:
+            match = db.query(Match).filter(Match.match_id == match_id).first()
+            if not match:
+                raise HTTPException(status_code=404, detail="Match not found")
+
+            if not match.coaching_notes:
+                return JSONResponse(
+                    status_code=202,
+                    content={"status": "pending", "match_id": match_id},
+                )
+
+            try:
+                coaching_data = json.loads(match.coaching_notes)
+            except (json.JSONDecodeError, TypeError):
+                raise HTTPException(status_code=500, detail="Failed to parse coaching data")
+
+            player_reports = coaching_data.get("player_reports", {})
+            if player_name not in player_reports:
+                raise HTTPException(status_code=404, detail=f"No report found for player {player_name}")
+
+            return {
+                "status": "ready",
+                "match_id": match_id,
+                "player": player_name,
+                "report": player_reports[player_name]
+            }
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch player report for {match_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch player report")
 
 
 def _run_coaching(match_id: str) -> None:
