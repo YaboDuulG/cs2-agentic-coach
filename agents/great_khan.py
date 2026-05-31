@@ -1,8 +1,8 @@
 """
-The Great Khan — AI Coaching Engine
-=====================================
-Pulls parsed match data from the DB and calls Gemini to generate
-structured tactical coaching feedback. Output cached in matches.coaching_notes.
+The Great Khan — Stateful AI Coaching Engine (LangGraph-based)
+==============================================================
+Pulls parsed match data, retrieves RAG context, performs tactical analysis,
+and generates structured coaching feedback using a stateful multi-agent topology.
 """
 
 from __future__ import annotations
@@ -10,11 +10,20 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
+
+from agents.state import MatchState
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, StateGraph
 
 logger = logging.getLogger("great_khan")
 
 COACHING_MODEL = "gemini-2.0-flash"
+
+
+# ---------------------------------------------------------------------------
+# Core Gemini Callers & Prompt Builders
+# ---------------------------------------------------------------------------
 
 
 def _build_prompt(match_id: str, stats: dict[str, Any], rag_context: list[dict[str, Any]] | None = None) -> str:
@@ -83,21 +92,23 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
             killer_counts: dict[str, int] = {}
             weapon_counts: dict[str, int] = {}
             for k in kills:
-                killer_counts[k.attacker] = killer_counts.get(k.attacker, 0) + 1
-                weapon_counts[k.weapon] = weapon_counts.get(k.weapon, 0) + 1
+                if k.attacker:
+                    killer_counts[k.attacker] = killer_counts.get(k.attacker, 0) + 1
+                if k.weapon:
+                    weapon_counts[k.weapon] = weapon_counts.get(k.weapon, 0) + 1
 
             top_killers = sorted(killer_counts.items(), key=lambda x: x[1], reverse=True)[:5]
             top_weapons = sorted(weapon_counts.items(), key=lambda x: x[1], reverse=True)[:5]
 
             # Economy
-            ct_spends = [r.ct_eq_val for r in rounds if r.ct_eq_val > 0]
-            t_spends = [r.t_eq_val for r in rounds if r.t_eq_val > 0]
+            ct_spends = [r.ct_eq_val for r in rounds if r.ct_eq_val and r.ct_eq_val > 0]
+            t_spends = [r.t_eq_val for r in rounds if r.t_eq_val and r.t_eq_val > 0]
 
             # Worst rounds (lost despite high spend)
             worst_rounds = []
             for r in rounds:
                 spend = r.ct_eq_val if r.winner_side == "T" else r.t_eq_val
-                if spend > 10000:
+                if spend and spend > 10000:
                     worst_rounds.append(
                         {
                             "round": r.round_num,
@@ -175,62 +186,403 @@ def _stub_coaching() -> dict[str, Any]:
     }
 
 
-def analyse_match(match_id: str) -> dict[str, Any] | None:
-    """
-    Main entry point. Compute stats → call Gemini → cache result in DB.
-    Returns the coaching dict or None on failure.
-    """
-    logger.info(f"[Great Khan] Starting coaching analysis for {match_id}")
+# ---------------------------------------------------------------------------
+# LangGraph Node Definitions
+# ---------------------------------------------------------------------------
 
+
+def supervisor_node(state: MatchState) -> dict[str, Any]:
+    """Classifies the user query and routes to the correct node."""
+    logger.info("[Supervisor] Evaluating user query...")
+    query = state.get("user_query", "").strip()
+
+    if not query:
+        # If no user query, default to tactical analysis on the uploaded match
+        return {"intent": "tactical_analysis"}
+
+    query_lower = query.lower()
+
+    # Route based on key terms
+    if any(k in query_lower for k in ("server", "warlord", "connect", "rcon", "dathost", "spin up")):
+        intent = "server_request"
+    elif any(k in query_lower for k in ("history", "past", "meta", "trend", "overall", "last game", "hltv")):
+        intent = "general"
+    else:
+        intent = "tactical_analysis"
+
+    logger.info(f"[Supervisor] Classed intent: {intent}")
+    return {"intent": intent}
+
+
+def scout_node(state: MatchState) -> dict[str, Any]:
+    """Fetches parsed stats from the database for the given match."""
+    match_id = state.get("match_id")
+    logger.info(f"[Scout Node] Fetching match stats for {match_id}...")
     stats = _compute_stats(match_id)
     if not stats:
-        logger.warning(f"[Great Khan] No stats for {match_id} — skipping")
-        return None
+        return {"errors": ["Scout stats could not be computed for this match."]}
+    return {"scout_output": stats}
 
-    # Perform RAG retrieval
+
+def rag_node(state: MatchState) -> dict[str, Any]:
+    """Retrieves context from the RAG database based on the map name."""
+    scout_out = state.get("scout_output", {})
+    map_name = scout_out.get("map_name", "unknown")
+    logger.info(f"[Library RAG Node] Querying rules and pro tactics for de_{map_name}...")
+
     from db.database import SessionLocal  # noqa: PLC0415
     from db.rag import retrieve_similar_chunks  # noqa: PLC0415
 
     rag_context = []
     db = SessionLocal()
     try:
-        map_name = stats.get("map_name", "unknown")
-        # Query 1: Map tactics
-        map_chunks = retrieve_similar_chunks(db, query=f"CS2 tactical guidelines map {map_name}", limit=3, source="game_rules")
+        # Query CS2 map rules and guidelines
+        map_chunks = retrieve_similar_chunks(
+            db, query=f"CS2 tactical guidelines map {map_name}", limit=3, source="game_rules"
+        )
         rag_context.extend(map_chunks)
 
-        # Query 2: Economy rules
-        econ_chunks = retrieve_similar_chunks(db, query="CS2 economy buy thresholds and save rules", limit=2, source="game_rules")
+        # Query economy save/buy rules
+        econ_chunks = retrieve_similar_chunks(
+            db, query="CS2 economy buy thresholds and save rules", limit=2, source="game_rules"
+        )
         rag_context.extend(econ_chunks)
 
-        # Query 3: Pro match references
-        pro_chunks = retrieve_similar_chunks(db, query=f"pro match de_{map_name} tactics", limit=2, source="hltv_pro_match")
+        # Query pro matches
+        pro_chunks = retrieve_similar_chunks(
+            db, query=f"pro match de_{map_name} tactics", limit=2, source="hltv_pro_match"
+        )
         rag_context.extend(pro_chunks)
     except Exception as e:
         logger.error(f"RAG retrieval failed: {e}")
     finally:
         db.close()
 
-    prompt = _build_prompt(match_id, stats, rag_context)
-    coaching = _call_gemini(prompt)
-    if not coaching:
-        coaching = _stub_coaching()
+    return {"rag_context": rag_context}
 
-    # Cache in DB
+
+def tactician_node(state: MatchState) -> dict[str, Any]:
+    """Evaluates duels and entry efficiency via the Tactician FCR module."""
+    match_id = state.get("match_id")
+    logger.info(f"[Tactician Node] Running FCR analysis for match {match_id}...")
+
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import FirstContact, Round  # noqa: PLC0415
+    from services.tactician.fcr import analyze_fcr, fcr_to_dict  # noqa: PLC0415
+
+    db = SessionLocal()
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
-        from db.models import Match  # noqa: PLC0415
+        first_contacts = db.query(FirstContact).filter(FirstContact.match_id == match_id).all()
+        rounds = db.query(Round).filter(Round.match_id == match_id).all()
 
-        db = SessionLocal()
-        try:
-            match = db.query(Match).filter(Match.match_id == match_id).first()
-            if match:
-                match.coaching_notes = json.dumps(coaching)
-                db.commit()
-                logger.info(f"[Great Khan] Coaching notes saved for {match_id}")
-        finally:
-            db.close()
+        fc_list = []
+        for fc in first_contacts:
+            fc_list.append(
+                {
+                    "round_num": fc.round_num,
+                    "attacker": fc.attacker,
+                    "attacker_team": fc.attacker_team,
+                    "victim": fc.victim,
+                    "weapon": fc.weapon,
+                    "headshot": fc.headshot,
+                    "tick": fc.tick,
+                }
+            )
+
+        r_list = []
+        for r in rounds:
+            r_list.append(
+                {
+                    "round_num": r.round_num,
+                    "winner_side": r.winner_side,
+                    "ct_eq_val": r.ct_eq_val,
+                    "t_eq_val": r.t_eq_val,
+                }
+            )
+
+        match_data = {
+            "metadata": {"match_id": match_id, "total_rounds": len(rounds)},
+            "first_contacts": fc_list,
+            "rounds": r_list,
+        }
+
+        analysis = analyze_fcr(match_data)
+        fcr_data = fcr_to_dict(analysis)
+        return {"tactical_analysis": {"fcr": fcr_data}}
     except Exception as e:
-        logger.error(f"Failed to save coaching notes: {e}")
+        logger.error(f"Tactician FCR analysis failed: {e}")
+        return {"errors": ["Tactician FCR analysis failed."]}
+    finally:
+        db.close()
 
-    return coaching
+
+def scribe_node(state: MatchState) -> dict[str, Any]:
+    """Compiles the report by incorporating RAG and Tactician flags into Gemini."""
+    match_id = state.get("match_id")
+    scout_out = state.get("scout_output", {})
+    rag_context = state.get("rag_context", [])
+    tactical_analysis = state.get("tactical_analysis", {})
+
+    logger.info("[Scribe Node] Generating final report...")
+
+    fcr_text = ""
+    fcr_data = tactical_analysis.get("fcr") if tactical_analysis else None
+    if fcr_data:
+        fcr_text = "\n\nFirst Contact Resolution (FCR) Details:\n"
+        fcr_text += f"FCR Match Rate (how often first kill wins the round): {fcr_data.get('fcr_match_rate'):.1%}\n"
+        flags = fcr_data.get("flags", [])
+        if flags:
+            fcr_text += "FCR Flags:\n"
+            for f in flags:
+                fcr_text += f"- [{f.get('severity', 'warning').upper()}] {f.get('message')}\n"
+
+    prompt = _build_prompt(match_id, scout_out, rag_context)
+    if fcr_text:
+        prompt += fcr_text
+
+    report = _call_gemini(prompt)
+    if not report:
+        report = _stub_coaching()
+
+    score = 1.0
+    grounded = True
+    if not scout_out:
+        score = 0.5
+        grounded = False
+
+    return {
+        "final_report": report,
+        "confidence": {"score": score, "grounded": grounded, "flagged": score < 0.6},
+    }
+
+
+def general_node(state: MatchState) -> dict[str, Any]:
+    """Handles informational queries concerning history, meta trends, and rules."""
+    query = state.get("user_query", "")
+    match_id = state.get("match_id")
+    logger.info(f"[General Node] Querying meta and historical games context for query: {query}")
+
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.rag import retrieve_similar_chunks  # noqa: PLC0415
+
+    rag_context = []
+    db = SessionLocal()
+    try:
+        # Retrieve guideline and pro match meta snapshots
+        meta_chunks = retrieve_similar_chunks(db, query=query, limit=4, source="game_rules")
+        rag_context.extend(meta_chunks)
+
+        pro_chunks = retrieve_similar_chunks(db, query=query, limit=4, source="hltv_pro_match")
+        rag_context.extend(pro_chunks)
+    except Exception as e:
+        logger.error(f"RAG retrieval failed in general_node: {e}")
+
+    # Build historical trend profile
+    past_matches_summary = ""
+    try:
+        from sqlalchemy import text  # noqa: PLC0415
+
+        match_row = db.execute(
+            text("SELECT team_id, user_id FROM matches WHERE match_id = :match_id"),
+            {"match_id": match_id},
+        ).fetchone()
+
+        if match_row:
+            team_id, user_id = match_row[0], match_row[1]
+            if team_id:
+                history_rows = db.execute(
+                    text(
+                        "SELECT match_id, map_name, total_rounds, coaching_notes, created_at FROM matches WHERE team_id = :team_id AND status = 'complete' ORDER BY created_at DESC LIMIT 5"
+                    ),
+                    {"team_id": team_id},
+                ).fetchall()
+            else:
+                history_rows = db.execute(
+                    text(
+                        "SELECT match_id, map_name, total_rounds, coaching_notes, created_at FROM matches WHERE user_id = :user_id AND status = 'complete' ORDER BY created_at DESC LIMIT 5"
+                    ),
+                    {"user_id": user_id},
+                ).fetchall()
+
+            if history_rows:
+                past_matches_summary += "\n\nPAST TEAM MATCHES HISTORICAL TRENDS:\n"
+                for h in history_rows:
+                    past_matches_summary += f"- Match on {h[1]} ({h[2]} rounds, created {h[4]}): "
+                    notes = h[3]
+                    if notes:
+                        try:
+                            notes_dict = json.loads(notes)
+                            past_matches_summary += f"{notes_dict.get('summary', '')}\n"
+                        except Exception:
+                            past_matches_summary += f"{notes[:100]}...\n"
+                    else:
+                        past_matches_summary += "No coaching notes available.\n"
+    except Exception as e:
+        logger.error(f"Failed to fetch team history in general_node: {e}")
+    finally:
+        db.close()
+
+    rag_text = "\n".join([f"- {c.get('content')}" for c in rag_context])
+
+    prompt = f"""You are DemoSage (The Great Khan) — an elite CS2 tactical coach.
+The user is asking a general or historical question: "{query}"
+
+Here is some retrieved game rules, meta, and pro guidelines context (RAG):
+{rag_text}
+{past_matches_summary}
+
+Based on this, answer the user's question with historical insights, past trends, and strategic advice.
+Return ONLY valid JSON matching this exact structure:
+{{
+  "summary": "Direct answer to the user's query in 2-3 sentences.",
+  "key_findings": ["historical context point 1", "meta trend point 2", "game review point 3"],
+  "economy_analysis": "Historical economy patterns or N/A",
+  "tactical_recommendations": [
+    {{"title": "Meta/Strategic recommendation", "detail": "actionable advice based on historical context"}}
+  ],
+  "strongest_area": "Summary of historical strength",
+  "weakest_area": "Summary of historical weakness"
+}}"""
+
+    report = _call_gemini(prompt)
+    if not report:
+        report = _stub_coaching()
+
+    return {"final_report": report}
+
+
+def warlord_node(state: MatchState) -> dict[str, Any]:
+    """Stub server request handler node."""
+    logger.info("[Warlord Node] Routing server config query...")
+    report = {
+        "summary": "Server command parsed.",
+        "key_findings": ["Warlord server node executed."],
+        "economy_analysis": "N/A for server requests",
+        "tactical_recommendations": [
+            {
+                "title": "Server Request",
+                "detail": f"Processed request: {state.get('user_query')}",
+            }
+        ],
+        "strongest_area": "N/A",
+        "weakest_area": "N/A",
+    }
+    return {"final_report": report}
+
+
+def cache_node(state: MatchState) -> dict[str, Any]:
+    """Caches the generated report to the matches table in the database."""
+    match_id = state.get("match_id")
+    report = state.get("final_report")
+
+    if not report:
+        return {}
+
+    logger.info(f"[Cache Node] Caching coaching notes for match {match_id}...")
+
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import Match  # noqa: PLC0415
+
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.match_id == match_id).first()
+        if match:
+            match.coaching_notes = json.dumps(report)
+            db.commit()
+            logger.info(f"[Cache Node] Cached notes saved successfully for {match_id}.")
+    except Exception as e:
+        logger.error(f"Failed to cache coaching notes: {e}")
+    finally:
+        db.close()
+
+    return {}
+
+
+# ---------------------------------------------------------------------------
+# Graph Compilation
+# ---------------------------------------------------------------------------
+
+
+def route_after_supervisor(state: MatchState) -> Literal["scout", "general_node", "warlord"]:
+    intent = state.get("intent", "tactical_analysis")
+    if intent == "server_request":
+        return "warlord"
+    elif intent == "general":
+        return "general_node"
+    return "scout"
+
+
+def build_graph() -> Any:
+    workflow = StateGraph(MatchState)
+
+    # Add nodes
+    workflow.add_node("supervisor", supervisor_node)
+    workflow.add_node("scout", scout_node)
+    workflow.add_node("rag", rag_node)
+    workflow.add_node("tactician", tactician_node)
+    workflow.add_node("scribe", scribe_node)
+    workflow.add_node("general_node", general_node)
+    workflow.add_node("warlord", warlord_node)
+    workflow.add_node("cache", cache_node)
+
+    # Set up routing
+    workflow.add_conditional_edges(
+        "supervisor",
+        route_after_supervisor,
+        {"scout": "scout", "general_node": "general_node", "warlord": "warlord"},
+    )
+
+    workflow.add_edge("scout", "rag")
+    workflow.add_edge("rag", "tactician")
+    workflow.add_edge("tactician", "scribe")
+    workflow.add_edge("scribe", "cache")
+    workflow.add_edge("general_node", "cache")
+    workflow.add_edge("warlord", "cache")
+    workflow.add_edge("cache", END)
+
+    workflow.set_entry_point("supervisor")
+
+    # Use in-memory checkpointer for sessions
+    memory = MemorySaver()
+    return workflow.compile(checkpointer=memory)
+
+
+# ---------------------------------------------------------------------------
+# Main Entry Point API
+# ---------------------------------------------------------------------------
+
+
+def analyse_match(
+    match_id: str, user_query: str = "", session_id: str = ""
+) -> dict[str, Any] | None:
+    """
+    Main entry point. Runs the compiled LangGraph workflow.
+    """
+    logger.info(f"[Great Khan] Invoking LangGraph pipeline for match {match_id}...")
+
+    # Initialize State
+    initial_state: MatchState = {
+        "match_id": match_id,
+        "user_query": user_query,
+        "session_id": session_id or f"session_{match_id}",
+        "intent": "general" if user_query else "tactical_analysis",
+        "errors": [],
+        "hallucination_flags": [],
+        "active_agents": [],
+    }
+
+    app = build_graph()
+    config = {"configurable": {"thread_id": match_id}}
+
+    try:
+        final_state = app.invoke(initial_state, config=config)
+
+        if final_state.get("errors"):
+            logger.warning(
+                f"[Great Khan Graph] Workflow reported errors: {final_state['errors']}"
+            )
+
+        return final_state.get("final_report")
+    except Exception as e:
+        logger.error(f"[Great Khan Graph] Workflow execution failed: {e}")
+        return None

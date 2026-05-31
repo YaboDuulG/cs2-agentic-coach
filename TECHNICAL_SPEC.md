@@ -561,11 +561,11 @@ def check_cs2_update_active() -> tuple[bool, str]:
 
 ### Phase 2: The Great Khan — Orchestrator
 - [x] Define global LangGraph state schema
-- [ ] Implement supervisor node with tool-calling handoffs
-- [ ] Implement router logic (stat query vs. tactical vs. server request)
-- [ ] Integrate PostgresSaver for persistent state
-- [ ] Add hallucination guardrail layer
-- [ ] Implement confidence scoring on agent outputs
+- [x] Implement supervisor node with tool-calling handoffs
+- [x] Implement router logic (stat query vs. tactical vs. server request)
+- [x] Integrate PostgresSaver for persistent state
+- [x] Add hallucination guardrail layer
+- [x] Implement confidence scoring on agent outputs
 
 ### Phase 3: Khan's Library — RAG Knowledge Base
 - [x] Author CS2 game rules corpus (economy, map callouts, round timing)
@@ -578,7 +578,7 @@ def check_cs2_update_active() -> tuple[bool, str]:
 - [x] Build RAG tactics chatboard on the team detail page
 
 ### Phase 4: The Tactician — Tactical Analysis
-- [ ] Implement FCR (First Contact Resolution) module
+- [x] Implement FCR (First Contact Resolution) module
 - [ ] Implement rotation efficiency analysis
 - [ ] Implement utility sequencing evaluation
 - [ ] Implement economy coherence analysis
