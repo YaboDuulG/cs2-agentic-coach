@@ -1,5 +1,6 @@
-import logging
 import asyncio
+import logging
+
 from rcon.source import Client
 
 logger = logging.getLogger("warlord.rcon")
@@ -35,6 +36,6 @@ async def execute_batch_commands(host: str, port: int, password: str, commands: 
         except Exception as e:
             logger.error(f"RCON Batch Error to {host}:{port}: {e}")
             raise
-    
+
     await asyncio.to_thread(_run_batch)
     return results
