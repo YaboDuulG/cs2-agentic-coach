@@ -17,15 +17,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Sanitize env vars (strip hidden \r from secrets)
         run: |
@@ -48,7 +48,7 @@ jobs:
 
       - name: Deploy API to Cloud Run (staging)
         run: |
-          gcloud run deploy demosage-api-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} --platform managed --region ${{ env.REGION }} --allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=staging,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,API_SECRET_KEY=API_SECRET_KEY:latest,VULTR_API_KEY=VULTR_API_KEY:latest,GCP_SA_KEY=GCP_SA_KEY:latest,DATHOST_EMAIL=DATHOST_EMAIL:latest,DATHOST_PASSWORD=DATHOST_PASSWORD:latest,API_SHARED_SECRET=API_SHARED_SECRET:latest --quiet
+          gcloud run deploy demosage-api-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} --platform managed --region ${{ env.REGION }} --allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=staging,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,API_SECRET_KEY=API_SECRET_KEY:latest,VULTR_API_KEY=VULTR_API_KEY:latest,GCP_SA_KEY=GCP_SA_KEY:latest,DATHOST_EMAIL=DATHOST_EMAIL:latest,DATHOST_PASSWORD=DATHOST_PASSWORD:latest,API_SHARED_SECRET=API_SHARED_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest --quiet
 
 
       - name: Run DB migrations (create tables)
@@ -69,4 +69,4 @@ jobs:
 
       - name: Deploy Scout to Cloud Run (staging)
         run: |
-          gcloud run deploy demosage-scout-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} --platform managed --region ${{ env.REGION }} --no-allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=staging,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL:latest --set-secrets GCS_BUCKET=GCS_BUCKET:latest --memory 4Gi --cpu 2 --quiet
+          gcloud run deploy demosage-scout-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} --platform managed --region ${{ env.REGION }} --no-allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=staging,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest --memory 4Gi --cpu 2 --quiet
