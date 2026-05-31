@@ -10,10 +10,10 @@ python-multipart==0.0.9
 
 # --- LangGraph / LangChain ---
 langgraph==1.2.2
-langchain==1.3.2
-langchain-google-vertexai>=3.0.0
+langchain==0.3.7
+langchain-google-vertexai==2.0.5
 langchain-google-genai==2.0.1
-langchain-community>=0.3.31
+langchain-community==0.3.7
 
 # --- Google Cloud ---
 google-cloud-storage>=2.18.2
@@ -26,6 +26,9 @@ psycopg2-binary==2.9.9
 sqlalchemy==2.0.35
 pgvector==0.3.5
 langgraph-checkpoint-postgres>=2.0.0
+
+# --- RCON ---
+rcon==2.4.9
 
 # --- Task Processing ---
 celery==5.4.0       # Kept as fallback; Cloud Tasks is primary
