@@ -13,7 +13,7 @@ import os
 from typing import Any, Literal
 
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, START, StateGraph
 
 from agents.state import MatchState
 
@@ -476,8 +476,10 @@ def cache_node(state: MatchState) -> dict[str, Any]:
     match_id = state.get("match_id")
     report = state.get("final_report")
 
+    # LangGraph 1.x requires every node to return at least one state key.
+    # We echo back final_report unchanged so the state update is valid.
     if not report:
-        return {}
+        return {"final_report": state.get("final_report")}
 
     logger.info(f"[Cache Node] Caching coaching notes for match {match_id}...")
 
@@ -496,7 +498,7 @@ def cache_node(state: MatchState) -> dict[str, Any]:
     finally:
         db.close()
 
-    return {}
+    return {"final_report": report}
 
 
 # ---------------------------------------------------------------------------
@@ -541,7 +543,7 @@ def build_graph() -> Any:
     workflow.add_edge("warlord", "cache")
     workflow.add_edge("cache", END)
 
-    workflow.set_entry_point("supervisor")
+    workflow.add_edge(START, "supervisor")
 
     # Use in-memory checkpointer for sessions
     memory = MemorySaver()
