@@ -5,7 +5,22 @@ Verifies workflow structure, node execution, and query intent routing.
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+import agents.great_khan as great_khan_module
 from agents.great_khan import analyse_match, build_graph
+
+
+@pytest.fixture(autouse=True)
+def reset_graph_singleton():
+    """Reset the _APP singleton before each test to prevent cross-test contamination.
+    Each test compiles a fresh graph under its own set of mocked functions.
+    """
+    great_khan_module._APP = None
+    great_khan_module._MEMORY = great_khan_module.MemorySaver()
+    yield
+    great_khan_module._APP = None
+    great_khan_module._MEMORY = great_khan_module.MemorySaver()
 
 
 def test_graph_compilation():
@@ -15,10 +30,12 @@ def test_graph_compilation():
     assert hasattr(app, "invoke")
 
 
-@patch("agents.great_khan._compute_stats")
-@patch("agents.great_khan._call_gemini")
-@patch("db.database.SessionLocal")
-@patch("db.rag.retrieve_similar_chunks")
+# NOTE: @patch decorators are applied bottom-up: the BOTTOM-MOST decorator
+# injects the FIRST argument, the top-most injects the LAST argument.
+@patch("agents.great_khan._compute_stats") # → mock_stats    (last arg  — top)
+@patch("agents.great_khan._call_gemini")   # → mock_gemini   (3rd arg)
+@patch("db.database.SessionLocal")         # → mock_session  (2nd arg)
+@patch("db.rag.retrieve_similar_chunks")   # → mock_retrieve (1st arg  — bottom)
 def test_tactical_analysis_pipeline(mock_retrieve, mock_session, mock_gemini, mock_stats):
     """Test that the full tactical analysis pipeline runs and invokes nodes in sequence."""
     mock_stats.return_value = {
@@ -46,14 +63,13 @@ def test_tactical_analysis_pipeline(mock_retrieve, mock_session, mock_gemini, mo
 
     mock_retrieve.return_value = [{"content": "CS2 Mirage guidelines", "source": "game_rules"}]
 
-    # Mock the database transaction inside tactician_node and cache_node
+    # Mock the database session used by tactician_node and cache_node
     mock_db = MagicMock()
     mock_session.return_value = mock_db
-    # Mock query filters
     mock_query = mock_db.query.return_value
     mock_filter = mock_query.filter.return_value
-    mock_filter.all.return_value = []  # No first contacts or rounds for empty FCR mock
-    mock_filter.first.return_value = MagicMock()  # Mock Match object for caching
+    mock_filter.all.return_value = []
+    mock_filter.first.return_value = MagicMock()
 
     # Invoke
     report = analyse_match("match-123", user_query="")
@@ -68,9 +84,9 @@ def test_tactical_analysis_pipeline(mock_retrieve, mock_session, mock_gemini, mo
     assert mock_retrieve.call_count >= 1
 
 
-@patch("agents.great_khan._call_gemini")
-@patch("db.database.SessionLocal")
-@patch("db.rag.retrieve_similar_chunks")
+@patch("agents.great_khan._call_gemini")   # → mock_gemini   (last arg  — top)
+@patch("db.database.SessionLocal")         # → mock_session  (2nd arg)
+@patch("db.rag.retrieve_similar_chunks")   # → mock_retrieve (1st arg  — bottom)
 def test_general_informational_route(mock_retrieve, mock_session, mock_gemini):
     """Verify that general/informational queries route to the general node."""
     mock_gemini.return_value = {
@@ -85,8 +101,7 @@ def test_general_informational_route(mock_retrieve, mock_session, mock_gemini):
 
     mock_db = MagicMock()
     mock_session.return_value = mock_db
-    # Mock text execute for fetching team history
-    mock_db.execute.return_value.fetchone.return_value = None  # No team history found
+    mock_db.execute.return_value.fetchone.return_value = None
 
     # Query with general/history intent keywords
     report = analyse_match("match-123", user_query="What has been our meta strategy in past games?")
@@ -94,8 +109,10 @@ def test_general_informational_route(mock_retrieve, mock_session, mock_gemini):
     assert report is not None
     assert report["summary"] == "Mock history summary."
 
-    # Verify that the scout stats were NOT computed since we routed to general_node directly
-    with patch("agents.great_khan._compute_stats") as mock_stats:
+    # Verify _compute_stats is NOT called when routing to general_node
+    with patch("agents.great_khan._compute_stats") as mock_stats, \
+         patch("agents.great_khan._call_gemini"), \
+         patch("db.database.SessionLocal"):
         analyse_match("match-123", user_query="Show HLTV meta history")
         mock_stats.assert_not_called()
 

@@ -47,7 +47,7 @@ async def create_team(body: CreateTeamRequest):
             db.execute(
                 text("""
                     INSERT INTO teams (id, name, owner_user_id, invite_code, created_at)
-                    VALUES (:id, :name, :owner, :code, NOW())
+                    VALUES (:id, :name, :owner, :code, CURRENT_TIMESTAMP)
                 """),
                 {
                     "id": team_id,
@@ -59,7 +59,7 @@ async def create_team(body: CreateTeamRequest):
             db.execute(
                 text("""
                     INSERT INTO team_members (team_id, user_id, role, joined_at)
-                    VALUES (:team_id, :user_id, 'owner', NOW())
+                    VALUES (:team_id, :user_id, 'owner', CURRENT_TIMESTAMP)
                 """),
                 {"team_id": team_id, "user_id": body.user_id},
             )
@@ -101,7 +101,7 @@ async def join_team(body: JoinTeamRequest):
                 db.execute(
                     text("""
                         INSERT INTO team_members (team_id, user_id, role, joined_at)
-                        VALUES (:team_id, :user_id, 'member', NOW())
+                        VALUES (:team_id, :user_id, 'member', CURRENT_TIMESTAMP)
                     """),
                     {"team_id": team_id, "user_id": body.user_id},
                 )
@@ -270,10 +270,19 @@ async def update_team(team_id: str, body: UpdateTeamRequest):
                     status_code=403, detail="Only the captain can modify team settings"
                 )
 
+            updates = {}
+            sql_parts = []
             if body.name and body.name.strip():
+                sql_parts.append("name = :name")
+                updates["name"] = body.name.strip()
+            if body.logo_url is not None:
+                sql_parts.append("logo_url = :logo_url")
+                updates["logo_url"] = body.logo_url
+            if sql_parts:
+                updates["id"] = team_id
                 db.execute(
-                    text("UPDATE teams SET name = :name WHERE id = :id"),
-                    {"name": body.name.strip(), "id": team_id},
+                    text(f"UPDATE teams SET {', '.join(sql_parts)} WHERE id = :id"),
+                    updates,
                 )
                 db.commit()
 

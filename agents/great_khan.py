@@ -102,8 +102,8 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
             top_weapons = sorted(weapon_counts.items(), key=lambda x: x[1], reverse=True)[:5]
 
             # Economy
-            ct_spends = [r.ct_eq_val for r in rounds if r.ct_eq_val and r.ct_eq_val > 0]
-            t_spends = [r.t_eq_val for r in rounds if r.t_eq_val and r.t_eq_val > 0]
+            ct_spends = [r.ct_eq_val for r in rounds if r.ct_eq_val is not None and r.ct_eq_val > 0]
+            t_spends = [r.t_eq_val for r in rounds if r.t_eq_val is not None and r.t_eq_val > 0]
 
             # Worst rounds (lost despite high spend)
             worst_rounds = []
@@ -515,6 +515,45 @@ def route_after_supervisor(state: MatchState) -> Literal["scout", "general_node"
     return "scout"
 
 
+# ---------------------------------------------------------------------------
+# Module-level graph singleton — compiled once, reused across all requests
+# ---------------------------------------------------------------------------
+
+_MEMORY = MemorySaver()
+_APP: Any = None
+
+
+def _get_app() -> Any:
+    """Return the compiled LangGraph app, building it once on first call."""
+    global _APP
+    if _APP is None:
+        workflow = StateGraph(MatchState)
+        workflow.add_node("supervisor", supervisor_node)
+        workflow.add_node("scout", scout_node)
+        workflow.add_node("rag", rag_node)
+        workflow.add_node("tactician", tactician_node)
+        workflow.add_node("scribe", scribe_node)
+        workflow.add_node("general_node", general_node)
+        workflow.add_node("warlord", warlord_node)
+        workflow.add_node("cache", cache_node)
+        workflow.add_conditional_edges(
+            "supervisor",
+            route_after_supervisor,
+            {"scout": "scout", "general_node": "general_node", "warlord": "warlord"},
+        )
+        workflow.add_edge("scout", "rag")
+        workflow.add_edge("rag", "tactician")
+        workflow.add_edge("tactician", "scribe")
+        workflow.add_edge("scribe", "cache")
+        workflow.add_edge("general_node", "cache")
+        workflow.add_edge("warlord", "cache")
+        workflow.add_edge("cache", END)
+        workflow.add_edge(START, "supervisor")
+        _APP = workflow.compile(checkpointer=_MEMORY)
+    return _APP
+
+
+# Keep build_graph() for tests that need a fresh isolated graph instance
 def build_graph() -> Any:
     workflow = StateGraph(MatchState)
 
@@ -563,7 +602,6 @@ def analyse_match(
     """
     logger.info(f"[Great Khan] Invoking LangGraph pipeline for match {match_id}...")
 
-    # Initialize State
     initial_state: MatchState = {
         "match_id": match_id,
         "user_query": user_query,
@@ -574,11 +612,23 @@ def analyse_match(
         "active_agents": [],
     }
 
-    app = build_graph()
-    config = {"configurable": {"thread_id": match_id}}
+    # Use the module-level singleton (not build_graph) to avoid recompilation
+    app = _get_app()
+    # Use a unique thread_id per invocation so MemorySaver never replays a prior
+    # checkpoint from the same match — each analyse_match call is a fresh run.
+    import uuid  # noqa: PLC0415
+    run_thread_id = f"{match_id}_{uuid.uuid4().hex[:8]}"
+    config = {"configurable": {"thread_id": run_thread_id}}
 
     try:
         final_state = app.invoke(initial_state, config=config)
+
+        # LangGraph 1.x returns an AddableValuesDict; guard against unexpected types
+        if not hasattr(final_state, "get"):
+            logger.error(
+                f"[Great Khan Graph] Unexpected final_state type: {type(final_state)}"
+            )
+            return None
 
         if final_state.get("errors"):
             logger.warning(

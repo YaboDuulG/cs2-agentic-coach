@@ -6,6 +6,7 @@ import json
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -58,7 +59,10 @@ async def get_coaching(match_id: str, user_id: str | None = None):
                         detail="Access denied: This match belongs to another user.",
                     )
             if not match.coaching_notes:
-                return {"status": "pending", "match_id": match_id}
+                return JSONResponse(
+                    status_code=202,
+                    content={"status": "pending", "match_id": match_id},
+                )
 
             try:
                 coaching_data = json.loads(match.coaching_notes)

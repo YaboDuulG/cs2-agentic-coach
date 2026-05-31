@@ -26,13 +26,29 @@ _DATABASE_URL = (
     or "sqlite:///:memory:"  # Last resort — no config needed
 )
 
+_is_sqlite = _DATABASE_URL.startswith("sqlite")
+
 # SQLite needs check_same_thread=False for FastAPI; PostgreSQL ignores connect_args
-_connect_args = {"check_same_thread": False} if _DATABASE_URL.startswith("sqlite") else {}
+_connect_args = {"check_same_thread": False} if _is_sqlite else {}
+
+# PostgreSQL pool settings — prevent stale connections on Cloud Run cold starts
+# SQLite doesn't support pool_size/max_overflow so we skip them
+_pool_kwargs = (
+    {}
+    if _is_sqlite
+    else {
+        "pool_size": 5,
+        "max_overflow": 10,
+        "pool_pre_ping": True,  # Verifies connections are alive before use
+        "pool_recycle": 300,   # Recycle connections every 5 min (Cloud SQL drops idle)
+    }
+)
 
 engine = create_engine(
     _DATABASE_URL,
     connect_args=_connect_args,
     echo=os.getenv("APP_ENV") == "development",
+    **_pool_kwargs,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -15,10 +15,10 @@ langchain-google-vertexai>=3.0.0
 langchain-community>=0.3.31
 
 # --- Google Cloud ---
-google-cloud-storage==2.18.2
-google-cloud-tasks==2.16.3
-google-cloud-aiplatform==1.70.0
-google-auth==2.35.0
+google-cloud-storage>=2.18.2
+google-cloud-tasks>=2.16.3
+google-cloud-aiplatform>=1.97.0
+google-auth>=2.35.0
 
 # --- Database ---
 psycopg2-binary==2.9.9
