@@ -215,8 +215,7 @@ def cron_cleanup(request: Request, db: Session = Depends(get_session)):
     """Vercel cron endpoint to destroy expired servers."""
     auth_header = request.headers.get("Authorization")
     if auth_header != f"Bearer {os.environ.get('CRON_SECRET')}":
-        if auth_header != f"Bearer {os.environ.get('CRON_SECRET')}":
-            raise HTTPException(status_code=401, detail="Unauthorized")
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
     expired = (
         db.execute(

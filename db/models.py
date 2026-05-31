@@ -421,7 +421,7 @@ class KnowledgeEmbedding(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(VectorType, nullable=False)
-    source: Mapped[str] = mapped_column(String(100), nullable=True, index=True)  # e.g., "game_rules", "hltv_pro_match", "tactical_playbook"
+    source: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)  # e.g., "game_rules", "hltv_pro_match", "tactical_playbook"
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # Stored JSON string metadata
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(UTC)

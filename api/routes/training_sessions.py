@@ -9,7 +9,7 @@ Routes:
     POST /api/training-sessions/{session_id}/end  - Close session (set ended_at + duration)
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import logging
 import uuid
 
@@ -143,10 +143,11 @@ def list_sessions(
         mode_counts[s.mode] = mode_counts.get(s.mode, 0) + 1
     favourite_mode = max(mode_counts, key=lambda m: mode_counts[m]) if mode_counts else None
 
-    # Sessions this week (Mon 00:00 UTC)
+    # Sessions this week (Mon 00:00 UTC) — use timedelta to avoid ValueError on days 1-6 of month
     now = datetime.now(UTC)
-    week_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = week_start.replace(day=now.day - now.weekday())
+    week_start = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
     sessions_this_week = sum(1 for s in sessions if s.started_at >= week_start)
 
     return SessionListResponse(

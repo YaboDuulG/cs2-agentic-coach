@@ -10,7 +10,7 @@ import logging
 import os
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 
 from db.models import KnowledgeEmbedding
 from db.rag import get_query_embedding
@@ -85,7 +85,10 @@ def parse_strategy_with_gemini(raw_text: str) -> dict:
 
 
 @router.post("/webhook", summary="Receive a Discord message webhook")
-async def discord_webhook(team_id: str = Query(...), payload: Dict[str, Any] = None):
+async def discord_webhook(
+    team_id: str = Query(...),
+    payload: Dict[str, Any] = Body(...),
+):
     if not payload:
         raise HTTPException(status_code=400, detail="Empty payload")
 
