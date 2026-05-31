@@ -26,8 +26,14 @@ def generate_reports(match_id: str, scout_out: dict, rag_context: list, tactical
         return _stub_reports()
 
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-3.1-pro",
+            temperature=0.4,
+            google_api_key=api_key,
+            model_kwargs={"response_mime_type": "application/json"}
+        )
 
         # Compile data payload
         payload = {
@@ -57,14 +63,9 @@ Match Data:
 {json.dumps(payload, indent=2)}
 """
 
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json"
-            )
-        )
+        response = llm.invoke(prompt)
 
-        return json.loads(response.text)
+        return json.loads(response.content)
 
     except Exception as e:
         logger.error(f"Failed to generate reports with Gemini: {e}")

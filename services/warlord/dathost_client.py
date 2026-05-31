@@ -7,6 +7,8 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+DATHOST_API_URL = os.getenv("DATHOST_API_URL", "https://dathost.net/api/0.1")
+
 # ---------------------------------------------------------------------------
 # Valve Update Detection — Steam News API
 # ---------------------------------------------------------------------------
@@ -343,7 +345,7 @@ def provision_practice_server(
         )
         multipart_data = {k: (None, str(v)) for k, v in payload.items()}
         response = requests.post(
-            "https://dathost.net/api/0.1/game-servers", auth=auth, files=multipart_data
+            f"{DATHOST_API_URL}/game-servers", auth=auth, files=multipart_data
         )
         response.raise_for_status()
         server_data = response.json()
@@ -356,7 +358,7 @@ def provision_practice_server(
         if not ip_address or not port:
             logger.info("IP/port not in creation response; querying server details...")
             details_r = requests.get(
-                f"https://dathost.net/api/0.1/game-servers/{dathost_id}", auth=auth
+                f"{DATHOST_API_URL}/game-servers/{dathost_id}", auth=auth
             )
             details_r.raise_for_status()
             details = details_r.json()
@@ -368,7 +370,7 @@ def provision_practice_server(
         # 3. Start the server
         logger.info(f"Starting DatHost server {dathost_id}...")
         start_r = requests.post(
-            f"https://dathost.net/api/0.1/game-servers/{dathost_id}/start", auth=auth
+            f"{DATHOST_API_URL}/game-servers/{dathost_id}/start", auth=auth
         )
         start_r.raise_for_status()
 
@@ -379,7 +381,7 @@ def provision_practice_server(
             for cmd in extra_cmds:
                 try:
                     requests.post(
-                        f"https://dathost.net/api/0.1/game-servers/{dathost_id}/console",
+                        f"{DATHOST_API_URL}/game-servers/{dathost_id}/console",
                         auth=auth,
                         data={"line": cmd},
                     )
@@ -420,11 +422,11 @@ def destroy_practice_server(dathost_id: str):
     auth = get_dathost_auth()
     try:
         logger.info(f"Stopping DatHost server {dathost_id}...")
-        requests.post(f"https://dathost.net/api/0.1/game-servers/{dathost_id}/stop", auth=auth)
+        requests.post(f"{DATHOST_API_URL}/game-servers/{dathost_id}/stop", auth=auth)
 
         logger.info(f"Deleting DatHost server {dathost_id}...")
         response = requests.delete(
-            f"https://dathost.net/api/0.1/game-servers/{dathost_id}", auth=auth
+            f"{DATHOST_API_URL}/game-servers/{dathost_id}", auth=auth
         )
         response.raise_for_status()
         logger.info(f"Successfully destroyed DatHost server {dathost_id}")

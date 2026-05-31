@@ -14,11 +14,15 @@ from typing import Any
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
+from langchain.globals import set_llm_cache
+from langchain_community.cache import SQLiteCache
+set_llm_cache(SQLiteCache(database_path=".langchain.db"))
+
 from agents.state import MatchState
 
 logger = logging.getLogger("great_khan")
 
-COACHING_MODEL = "gemini-2.0-flash"
+COACHING_MODEL = "gemini-3.5-flash"
 
 
 # ---------------------------------------------------------------------------
@@ -165,25 +169,24 @@ def _call_gemini(prompt: str) -> dict[str, Any] | None:
     """Call Gemini and parse the JSON response."""
     try:
         import os  # noqa: PLC0415
-
-        import google.generativeai as genai  # noqa: PLC0415
+        import json  # noqa: PLC0415
+        from langchain_google_genai import ChatGoogleGenerativeAI
 
         api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             logger.warning("No Gemini API key — returning stub notes")
             return _stub_coaching()
 
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.4,
-                response_mime_type="application/json",
-            ),
+        llm = ChatGoogleGenerativeAI(
+            model=COACHING_MODEL,
+            temperature=0.4,
+            google_api_key=api_key,
+            model_kwargs={"response_mime_type": "application/json"}
         )
-        import json  # noqa: PLC0415
-        return json.loads(response.text)
+        
+        # Invoke via LangChain to hit the SQLiteCache
+        response = llm.invoke(prompt)
+        return json.loads(response.content)
     except Exception as e:
         logger.error(f"Gemini call failed: {e}")
         return None
@@ -510,22 +513,116 @@ Return ONLY valid JSON matching this exact structure:
 
 
 def warlord_node(state: MatchState) -> dict[str, Any]:
-    """Stub server request handler node."""
+    """Executes RCON commands on the team's active server based on user query."""
     logger.info("[Warlord Node] Routing server config query...")
-    report = {
-        "summary": "Server command parsed.",
-        "key_findings": ["Warlord server node executed."],
-        "economy_analysis": "N/A for server requests",
-        "tactical_recommendations": [
-            {
-                "title": "Server Request",
-                "detail": f"Processed request: {state.get('user_query')}",
+    
+    match_id = state.get("match_id")
+    query = state.get("user_query", "")
+
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import Match, PracticeServer  # noqa: PLC0415
+
+    db = SessionLocal()
+    try:
+        # 1. Get the team_id from the match
+        match = db.query(Match).filter(Match.match_id == match_id).first()
+        if not match or not match.team_id:
+            return {"final_report": _stub_server_report("This match is not associated with a Team. You must be in a Team to manage servers.")}
+        
+        # 2. Get the active practice server for the team
+        server = db.query(PracticeServer).filter(
+            PracticeServer.team_id == match.team_id,
+            PracticeServer.status.in_(["booting", "active"])
+        ).first()
+
+        if not server:
+            return {"final_report": _stub_server_report("There is no active server running for your team. Please spin one up in the Training Server tab.")}
+        
+        if server.status == "booting":
+            return {"final_report": _stub_server_report("Your server is still booting. Please wait a moment before sending commands.")}
+        
+        if not server.ip_address or not server.rcon_password:
+            return {"final_report": _stub_server_report("Server IP or RCON password missing.")}
+
+        # 3. Use Gemini to parse the user's intent into RCON commands
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        import os
+        import json
+
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            return {"final_report": _stub_server_report("GEMINI_API_KEY not configured.")}
+            
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-1.5-flash",
+            temperature=0.0,
+            google_api_key=api_key,
+            model_kwargs={"response_mime_type": "application/json"}
+        )
+        
+        prompt = f"""
+You are the Warlord CS2 RCON translator.
+Convert this user request into an array of raw CS2 RCON commands to execute.
+User Request: "{query}"
+
+Common commands:
+- warmup/practice: ['sv_cheats 1', 'mp_warmup_pausetimer 1', 'sv_infinite_ammo 1', 'mp_restartgame 1']
+- kick bots: ['bot_kick']
+- pause: ['mp_pause_match']
+
+Return ONLY valid JSON: {{"commands": ["cmd1", "cmd2"]}}
+"""
+        response = llm.invoke(prompt)
+        try:
+            parsed = json.loads(response.content)
+            cmds = parsed.get("commands", [])
+        except Exception:
+            cmds = []
+
+        if not cmds:
+            return {"final_report": _stub_server_report("I couldn't figure out which server commands you wanted to run.")}
+
+        # 4. Execute via RCON
+        from services.warlord.rcon_client import execute_batch_commands
+        
+        host, port = server.ip_address.split(":")
+        
+        # We need to run this async within a sync node... LangGraph runs nodes in threads if they are sync.
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            results = loop.run_until_complete(execute_batch_commands(host, int(port), server.rcon_password, cmds))
+        finally:
+            loop.close()
+
+        # 5. Return success
+        return {
+            "final_report": {
+                "summary": f"Executed {len(cmds)} server commands successfully.",
+                "key_findings": [f"Executed: {cmd}" for cmd in cmds],
+                "economy_analysis": "Server management",
+                "tactical_recommendations": [],
+                "strongest_area": "Server Online",
+                "weakest_area": "N/A"
             }
-        ],
+        }
+
+    except Exception as e:
+        logger.error(f"Warlord node failed: {e}")
+        return {"final_report": _stub_server_report(f"Failed to execute commands: {e}")}
+    finally:
+        db.close()
+
+def _stub_server_report(msg: str) -> dict:
+    return {
+        "summary": msg,
+        "key_findings": ["Warlord node aborted."],
+        "economy_analysis": "N/A",
+        "tactical_recommendations": [],
         "strongest_area": "N/A",
         "weakest_area": "N/A",
     }
-    return {"final_report": report}
 
 
 def cache_node(state: MatchState) -> dict[str, Any]:

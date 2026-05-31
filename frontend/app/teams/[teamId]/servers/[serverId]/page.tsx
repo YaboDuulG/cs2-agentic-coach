@@ -24,6 +24,7 @@ import {
   HelpCircle
 } from "lucide-react";
 import { CloudMotifBg } from "@/components/patterns/mongolian";
+import { ServerControlPanel } from "@/components/ServerControlPanel";
 
 interface PracticeServer {
   id: string;
@@ -809,6 +810,12 @@ export default function ServerDashboardPage() {
               
               /* CONFIGS AND COMMANDS TAB */
               <div className="card p-6 space-y-6">
+                
+                {/* AI RCON Console */}
+                <div className="mb-8">
+                  <ServerControlPanel teamId={teamId as string} matchId={`team_${teamId}_dummy`} />
+                </div>
+
                 <div>
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-1">Server Chat Commands</h3>
                   <p className="text-xs text-[#8BA7CC]">

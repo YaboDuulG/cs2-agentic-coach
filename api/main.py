@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from api.auth import verify_shared_secret
 from api.routes import (
     analyses,
+    chat,
     coaching,
     discord,
     faceit,
@@ -97,6 +98,9 @@ app.include_router(
 )
 app.include_router(
     discord.router, prefix="/api/discord", tags=["Discord"]
+)
+app.include_router(
+    chat.router, prefix="/api/chat", tags=["Chat"], dependencies=[Depends(verify_shared_secret)]
 )
 
 
