@@ -27,9 +27,9 @@ pytest-asyncio
 # --- LangGraph & AI Dependencies ---
 langgraph==1.2.2
 google-generativeai>=0.8.3
-langchain==0.3.7
+langchain==1.3.2
 langchain-google-genai==2.0.1
-langchain-community==0.3.7
+langchain-community>=0.3.31
 
 # --- RCON ---
 rcon==2.4.9
