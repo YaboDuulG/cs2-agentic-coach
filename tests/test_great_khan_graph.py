@@ -33,7 +33,7 @@ def test_graph_compilation():
 # NOTE: @patch decorators are applied bottom-up: the BOTTOM-MOST decorator
 # injects the FIRST argument, the top-most injects the LAST argument.
 @patch("agents.great_khan._compute_stats") # → mock_stats    (last arg  — top)
-@patch("agents.great_khan._call_gemini")   # → mock_gemini   (3rd arg)
+@patch("agents.scribe.report_generator.generate_reports")   # → mock_gemini   (3rd arg)
 @patch("db.database.SessionLocal")         # → mock_session  (2nd arg)
 @patch("db.rag.retrieve_similar_chunks")   # → mock_retrieve (1st arg  — bottom)
 def test_tactical_analysis_pipeline(mock_retrieve, mock_session, mock_gemini, mock_stats):
@@ -53,12 +53,9 @@ def test_tactical_analysis_pipeline(mock_retrieve, mock_session, mock_gemini, mo
     }
 
     mock_gemini.return_value = {
-        "summary": "Mock summary.",
-        "key_findings": ["F1", "F2"],
-        "economy_analysis": "Mock econ.",
-        "tactical_recommendations": [],
-        "strongest_area": "Mock strong.",
-        "weakest_area": "Mock weak.",
+        "strat_card": "Mock strat card.",
+        "player_reports": {"s1mple": "Mock report"},
+        "coach_report": "Mock coach.",
     }
 
     mock_retrieve.return_value = [{"content": "CS2 Mirage guidelines", "source": "game_rules"}]
@@ -75,8 +72,8 @@ def test_tactical_analysis_pipeline(mock_retrieve, mock_session, mock_gemini, mo
     report = analyse_match("match-123", user_query="")
 
     assert report is not None
-    assert report["summary"] == "Mock summary."
-    assert len(report["key_findings"]) == 2
+    assert report["strat_card"] == "Mock strat card."
+    assert "s1mple" in report["player_reports"]
 
     # Assert mocks were called
     mock_stats.assert_called_once_with("match-123")

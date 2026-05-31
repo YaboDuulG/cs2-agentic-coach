@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-from typing import Any, Literal
+from typing import Any
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
@@ -145,31 +144,6 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
         return None
 
 
-def _call_gemini(prompt: str) -> dict[str, Any] | None:
-    """Call Gemini and parse the JSON coaching response."""
-    try:
-        import google.generativeai as genai  # noqa: PLC0415
-
-        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-        if not api_key:
-            logger.warning("No Gemini API key — returning stub coaching notes")
-            return _stub_coaching()
-
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(COACHING_MODEL)
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.4,
-                response_mime_type="application/json",
-            ),
-        )
-        return json.loads(response.text)
-    except Exception as e:
-        logger.error(f"Gemini call failed: {e}")
-        return None
-
-
 def _stub_coaching() -> dict[str, Any]:
     """Fallback when no API key is configured."""
     return {
@@ -186,6 +160,50 @@ def _stub_coaching() -> dict[str, Any]:
         "weakest_area": "AI coaching not yet configured.",
     }
 
+
+def _call_gemini(prompt: str) -> dict[str, Any] | None:
+    """Call Gemini and parse the JSON response."""
+    try:
+        import os  # noqa: PLC0415
+
+        import google.generativeai as genai  # noqa: PLC0415
+
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            logger.warning("No Gemini API key — returning stub notes")
+            return _stub_coaching()
+
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.4,
+                response_mime_type="application/json",
+            ),
+        )
+        import json  # noqa: PLC0415
+        return json.loads(response.text)
+    except Exception as e:
+        logger.error(f"Gemini call failed: {e}")
+        return None
+
+
+def _stub_coaching() -> dict[str, Any]:
+    """Fallback when no API key is configured."""
+    return {
+        "summary": "AI coaching requires GEMINI_API_KEY to be configured.",
+        "key_findings": ["Configure GEMINI_API_KEY to see AI insights."],
+        "economy_analysis": "Data parsed successfully.",
+        "tactical_recommendations": [
+            {
+                "title": "Configure API Key",
+                "detail": "Add GEMINI_API_KEY to Secret Manager.",
+            }
+        ],
+        "strongest_area": "Demo parsed successfully.",
+        "weakest_area": "AI coaching not yet configured.",
+    }
 
 # ---------------------------------------------------------------------------
 # LangGraph Node Definitions
@@ -227,16 +245,19 @@ def scout_node(state: MatchState) -> dict[str, Any]:
 
 def rag_node(state: MatchState) -> dict[str, Any]:
     """Retrieves context from the RAG database based on the map name."""
-    scout_out = state.get("scout_output", {})
-    map_name = scout_out.get("map_name", "unknown")
-    logger.info(f"[Library RAG Node] Querying rules and pro tactics for de_{map_name}...")
+    match_id = state.get("match_id")
 
     from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import Match  # noqa: PLC0415
     from db.rag import retrieve_similar_chunks  # noqa: PLC0415
 
-    rag_context = []
     db = SessionLocal()
     try:
+        match_obj = db.query(Match).filter(Match.match_id == match_id).first()
+        map_name = match_obj.map_name if match_obj else "unknown"
+        logger.info(f"[Library RAG Node] Querying rules and pro tactics for de_{map_name}...")
+
+        rag_context = []
         # Query CS2 map rules and guidelines
         map_chunks = retrieve_similar_chunks(
             db, query=f"CS2 tactical guidelines map {map_name}", limit=3, source="game_rules"
@@ -263,18 +284,36 @@ def rag_node(state: MatchState) -> dict[str, Any]:
 
 
 def tactician_node(state: MatchState) -> dict[str, Any]:
-    """Evaluates duels and entry efficiency via the Tactician FCR module."""
+    """Evaluates duels, economy, utility, and movement via Tactician modules."""
     match_id = state.get("match_id")
-    logger.info(f"[Tactician Node] Running FCR analysis for match {match_id}...")
+    logger.info(f"[Tactician Node] Running tactical analysis for match {match_id}...")
 
     from db.database import SessionLocal  # noqa: PLC0415
-    from db.models import FirstContact, Round  # noqa: PLC0415
+    from db.models import FirstContact, Grenade, PlayerTrajectory, Round  # noqa: PLC0415
+    from services.tactician.economy_coherence import (  # noqa: PLC0415
+        analyze_economy,
+        economy_to_dict,
+    )
     from services.tactician.fcr import analyze_fcr, fcr_to_dict  # noqa: PLC0415
+    from services.tactician.positional_patterns import (  # noqa: PLC0415
+        analyze_positions,
+        positions_to_dict,
+    )
+    from services.tactician.rotation_efficiency import (  # noqa: PLC0415
+        analyze_rotations,
+        rotation_to_dict,
+    )
+    from services.tactician.utility_sequencing import (  # noqa: PLC0415
+        analyze_utility,
+        utility_to_dict,
+    )
 
     db = SessionLocal()
     try:
         first_contacts = db.query(FirstContact).filter(FirstContact.match_id == match_id).all()
         rounds = db.query(Round).filter(Round.match_id == match_id).all()
+        grenades = db.query(Grenade).filter(Grenade.match_id == match_id).all()
+        trajectories = db.query(PlayerTrajectory).filter(PlayerTrajectory.match_id == match_id).all()
 
         fc_list = []
         for fc in first_contacts:
@@ -301,18 +340,51 @@ def tactician_node(state: MatchState) -> dict[str, Any]:
                 }
             )
 
+        g_list = []
+        for g in grenades:
+            g_list.append(
+                {
+                    "round_num": g.round_num,
+                    "tick": g.tick,
+                    "thrower": g.thrower,
+                    "grenade_type": g.grenade_type,
+                }
+            )
+
+        t_list = []
+        for t in trajectories:
+            t_list.append(
+                {
+                    "round_num": t.round_num,
+                    "player": t.player,
+                    "positions_json": t.positions_json,
+                }
+            )
+
         match_data = {
             "metadata": {"match_id": match_id, "total_rounds": len(rounds)},
             "first_contacts": fc_list,
             "rounds": r_list,
+            "grenades": g_list,
+            "trajectories": t_list,
         }
 
-        analysis = analyze_fcr(match_data)
-        fcr_data = fcr_to_dict(analysis)
-        return {"tactical_analysis": {"fcr": fcr_data}}
+        fcr_data = fcr_to_dict(analyze_fcr(match_data))
+        eco_data = economy_to_dict(analyze_economy(match_data))
+        rot_data = rotation_to_dict(analyze_rotations(match_data))
+        pos_data = positions_to_dict(analyze_positions(match_data))
+        util_data = utility_to_dict(analyze_utility(match_data))
+
+        return {"tactical_analysis": {
+            "fcr": fcr_data,
+            "economy": eco_data,
+            "rotations": rot_data,
+            "positions": pos_data,
+            "utility": util_data
+        }}
     except Exception as e:
-        logger.error(f"Tactician FCR analysis failed: {e}")
-        return {"errors": ["Tactician FCR analysis failed."]}
+        logger.error(f"Tactician analysis failed: {e}")
+        return {"errors": ["Tactician analysis failed."]}
     finally:
         db.close()
 
@@ -326,24 +398,9 @@ def scribe_node(state: MatchState) -> dict[str, Any]:
 
     logger.info("[Scribe Node] Generating final report...")
 
-    fcr_text = ""
-    fcr_data = tactical_analysis.get("fcr") if tactical_analysis else None
-    if fcr_data:
-        fcr_text = "\n\nFirst Contact Resolution (FCR) Details:\n"
-        fcr_text += f"FCR Match Rate (how often first kill wins the round): {fcr_data.get('fcr_match_rate'):.1%}\n"
-        flags = fcr_data.get("flags", [])
-        if flags:
-            fcr_text += "FCR Flags:\n"
-            for f in flags:
-                fcr_text += f"- [{f.get('severity', 'warning').upper()}] {f.get('message')}\n"
+    from agents.scribe.report_generator import generate_reports
 
-    prompt = _build_prompt(match_id, scout_out, rag_context)
-    if fcr_text:
-        prompt += fcr_text
-
-    report = _call_gemini(prompt)
-    if not report:
-        report = _stub_coaching()
+    report = generate_reports(match_id, scout_out, rag_context, tactical_analysis)
 
     score = 1.0
     grounded = True
@@ -506,13 +563,18 @@ def cache_node(state: MatchState) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def route_after_supervisor(state: MatchState) -> Literal["scout", "general_node", "warlord"]:
+from langgraph.types import Send
+
+
+def route_after_supervisor(state: MatchState) -> Any:
     intent = state.get("intent", "tactical_analysis")
     if intent == "server_request":
         return "warlord"
     elif intent == "general":
         return "general_node"
-    return "scout"
+
+    # Parallel fan-out: trigger scout and rag simultaneously
+    return [Send("scout", state), Send("rag", state)]
 
 
 # ---------------------------------------------------------------------------
@@ -539,10 +601,10 @@ def _get_app() -> Any:
         workflow.add_conditional_edges(
             "supervisor",
             route_after_supervisor,
-            {"scout": "scout", "general_node": "general_node", "warlord": "warlord"},
+            ["scout", "rag", "general_node", "warlord"],
         )
-        workflow.add_edge("scout", "rag")
-        workflow.add_edge("rag", "tactician")
+        # Both scout and rag flow into tactician, which will wait for both to complete
+        workflow.add_edge(["scout", "rag"], "tactician")
         workflow.add_edge("tactician", "scribe")
         workflow.add_edge("scribe", "cache")
         workflow.add_edge("general_node", "cache")
@@ -571,11 +633,10 @@ def build_graph() -> Any:
     workflow.add_conditional_edges(
         "supervisor",
         route_after_supervisor,
-        {"scout": "scout", "general_node": "general_node", "warlord": "warlord"},
+        ["scout", "rag", "general_node", "warlord"],
     )
 
-    workflow.add_edge("scout", "rag")
-    workflow.add_edge("rag", "tactician")
+    workflow.add_edge(["scout", "rag"], "tactician")
     workflow.add_edge("tactician", "scribe")
     workflow.add_edge("scribe", "cache")
     workflow.add_edge("general_node", "cache")
