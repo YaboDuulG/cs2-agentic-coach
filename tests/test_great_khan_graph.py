@@ -139,7 +139,7 @@ def test_server_request_route(mock_session, mock_llm_class):
     mock_llm_class.return_value = mock_llm
     mock_llm.invoke.return_value.content = '{"commands": ["sv_cheats 1"]}'
 
-    with patch("services.warlord.rcon_client.execute_batch_commands") as mock_rcon:
+    with patch("services.warlord.rcon_client.execute_batch_commands"):
         report = analyse_match("match-123", user_query="Please spin up a practice server on de_nuke")
 
     assert report is not None
