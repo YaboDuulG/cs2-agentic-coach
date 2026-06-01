@@ -114,15 +114,34 @@ def test_general_informational_route(mock_retrieve, mock_session, mock_gemini):
         mock_stats.assert_not_called()
 
 
+@patch("agents.great_khan.ChatGoogleGenerativeAI")
 @patch("db.database.SessionLocal")
-def test_server_request_route(mock_session):
+def test_server_request_route(mock_session, mock_llm_class):
     """Verify that server-related queries route to the warlord node."""
     mock_db = MagicMock()
     mock_session.return_value = mock_db
-    mock_db.query.return_value.filter.return_value.first.return_value = MagicMock()
 
-    report = analyse_match("match-123", user_query="Please spin up a practice server on de_nuke")
+    # Mock Match object with team_id
+    mock_match = MagicMock()
+    mock_match.team_id = "team-123"
+
+    # Mock PracticeServer with IP and RCON
+    mock_server = MagicMock()
+    mock_server.status = "active"
+    mock_server.ip_address = "127.0.0.1:27015"
+    mock_server.rcon_password = "password"
+
+    # Set up DB queries
+    mock_db.query.return_value.filter.return_value.first.side_effect = [mock_match, mock_server]
+
+    # Mock LLM and response
+    mock_llm = MagicMock()
+    mock_llm_class.return_value = mock_llm
+    mock_llm.invoke.return_value.content = '{"commands": ["sv_cheats 1"]}'
+
+    with patch("services.warlord.rcon_client.execute_batch_commands") as mock_rcon:
+        report = analyse_match("match-123", user_query="Please spin up a practice server on de_nuke")
 
     assert report is not None
-    assert "Server command parsed." in report["summary"]
-    assert "Warlord server node executed." in report["key_findings"]
+    assert "Executed 1 server commands successfully." in report["summary"]
+    assert "Executed: sv_cheats 1" in report["key_findings"][0]
