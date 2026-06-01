@@ -21,16 +21,18 @@ router = APIRouter()
 
 def call_gemini_text(prompt: str, model_name: str = "gemini-2.0-flash") -> str:
     """Call Gemini's standard text generation model."""
-    import google.generativeai as genai  # noqa: PLC0415
+    from google import genai  # noqa: PLC0415
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         logger.warning("No Gemini API key found for chat text generation.")
         return "Gemini API key is not configured."
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(model_name)
-        response = model.generate_content(prompt)
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+        )
         return response.text
     except Exception as e:
         logger.error(f"Gemini call failed: {e}")
@@ -39,7 +41,8 @@ def call_gemini_text(prompt: str, model_name: str = "gemini-2.0-flash") -> str:
 
 def parse_strategy_with_gemini(raw_text: str) -> dict:
     """Convert raw Discord chat message into structured playbook JSON card using Gemini."""
-    import google.generativeai as genai  # noqa: PLC0415
+    from google import genai  # noqa: PLC0415
+    from google.genai import types  # noqa: PLC0415
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
@@ -51,8 +54,7 @@ def parse_strategy_with_gemini(raw_text: str) -> dict:
             "steps": [raw_text],
         }
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        client = genai.Client(api_key=api_key)
         prompt = f"""
         Analyze the following Counter-Strike strategy posted by a player.
         Extract the following information and format it strictly as a JSON object:
@@ -65,9 +67,10 @@ def parse_strategy_with_gemini(raw_text: str) -> dict:
         Raw Discord post:
         \"\"\"{raw_text}\"\"\"
         """
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
                 temperature=0.2,
                 response_mime_type="application/json",
             ),

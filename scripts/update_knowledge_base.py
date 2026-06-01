@@ -47,21 +47,25 @@ def format_weapon_name(weapon: str | None) -> str:
 
 def get_embedding(text: str, api_key: str) -> list[float]:
     """Call Gemini's embedding API to generate a 768-dimensional vector."""
-    import google.generativeai as genai
-    genai.configure(api_key=api_key)
+    from google import genai
+    from google.genai import types
 
-    model_name = os.environ.get("GEMINI_EMBEDDING_MODEL") or "models/gemini-embedding-001"
-    if not model_name.startswith("models/"):
-        model_name = "models/" + model_name
+    client = genai.Client(api_key=api_key)
+
+    model_name = os.environ.get("GEMINI_EMBEDDING_MODEL") or "gemini-embedding-001"
+    if model_name.startswith("models/"):
+        model_name = model_name.replace("models/", "")
 
     # Generate embedding
-    response = genai.embed_content(
+    response = client.models.embed_content(
         model=model_name,
-        content=text,
-        task_type="retrieval_document",
-        output_dimensionality=768
+        contents=text,
+        config=types.EmbedContentConfig(
+            task_type="RETRIEVAL_DOCUMENT",
+            output_dimensionality=768
+        )
     )
-    return response["embedding"]
+    return response.embeddings[0].values
 
 def ingest_match(db, match_id: str, api_key: str):
     """Generate and store embeddings for a specific match's macro and micro stats."""
