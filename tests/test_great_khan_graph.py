@@ -114,7 +114,7 @@ def test_general_informational_route(mock_retrieve, mock_session, mock_gemini):
         mock_stats.assert_not_called()
 
 
-@patch("agents.great_khan.ChatGoogleGenerativeAI")
+@patch("langchain_google_genai.ChatGoogleGenerativeAI")
 @patch("db.database.SessionLocal")
 def test_server_request_route(mock_session, mock_llm_class):
     """Verify that server-related queries route to the warlord node."""
