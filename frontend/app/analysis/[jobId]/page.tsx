@@ -672,13 +672,22 @@ function CoachingPanel({ matchId }: { matchId: string }) {
         if (stopped) return;
         try {
           const res = await fetch(`/api/coaching/${matchId}`);
-          const data = await res.json();
-          if (data.status === "ready") {
-            setCoaching(data.coaching);
-            setStatus("ready");
-            return;
+          if (!res.ok) {
+            if (res.status === 202) {
+              setStatus("pending");
+            } else {
+              setStatus("error");
+              return;
+            }
+          } else {
+            const data = await res.json();
+            if (data.status === "ready") {
+              setCoaching(data.coaching);
+              setStatus("ready");
+              return;
+            }
+            setStatus("pending");
           }
-          setStatus("pending");
         } catch { setStatus("error"); return; }
         await new Promise(r => setTimeout(r, 5000));
       }
