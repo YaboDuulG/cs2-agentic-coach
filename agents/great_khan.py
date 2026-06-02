@@ -22,7 +22,7 @@ from agents.state import MatchState
 
 logger = logging.getLogger("great_khan")
 
-COACHING_MODEL = "gemini-3.5-flash"
+COACHING_MODEL = "gemini-2.5-flash"
 
 
 # ---------------------------------------------------------------------------
@@ -556,7 +556,7 @@ def warlord_node(state: MatchState) -> dict[str, Any]:
             return {"final_report": _stub_server_report("GEMINI_API_KEY not configured.")}
 
         llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
+            model="gemini-2.5-flash",
             temperature=0.0,
             google_api_key=api_key,
             model_kwargs={"response_mime_type": "application/json"}

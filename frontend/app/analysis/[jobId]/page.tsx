@@ -61,12 +61,17 @@ interface JobResult {
 }
 
 interface Coaching {
-  summary: string;
-  key_findings: string[];
-  economy_analysis: string;
-  tactical_recommendations: { title: string; detail: string }[];
-  strongest_area: string;
-  weakest_area: string;
+  summary?: string;
+  key_findings?: string[];
+  economy_analysis?: string;
+  tactical_recommendations?: { title: string; detail: string }[];
+  strongest_area?: string;
+  weakest_area?: string;
+
+  // Scribe format
+  strat_card?: string;
+  player_reports?: Record<string, string>;
+  coach_report?: string;
 }
 
 const STATUS_CONFIG: Record<JobStatus, { label: string; color: string; icon: React.ReactNode }> = {
@@ -664,6 +669,8 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
 function CoachingPanel({ matchId }: { matchId: string }) {
   const [coaching, setCoaching] = useState<Coaching | null>(null);
   const [status, setStatus] = useState<"loading" | "pending" | "ready" | "error">("loading");
+  const [activeSubTab, setActiveSubTab] = useState<"strat_card" | "player_reports" | "coach_report">("strat_card");
+  const [selectedPlayer, setSelectedPlayer] = useState<string>("");
 
   useEffect(() => {
     let stopped = false;
@@ -697,16 +704,99 @@ function CoachingPanel({ matchId }: { matchId: string }) {
     return () => { stopped = true; };
   }, [matchId]);
 
+  const parseBold = (text: string) => {
+    const parts = text.split(/\*\*([^\*]+)\*\*/g);
+    return parts.map((part, i) => {
+      if (i % 2 === 1) {
+        return <strong key={i} className="text-slate-100 font-bold">{part}</strong>;
+      }
+      return part;
+    });
+  };
+
+  const renderMarkdown = (text?: string) => {
+    if (!text) return <p className="text-slate-400 text-sm">No analysis notes available.</p>;
+    const lines = text.split("\n");
+    return (
+      <div className="space-y-2 text-sm text-slate-300 leading-relaxed">
+        {lines.map((line, idx) => {
+          const trimmed = line.trim();
+          if (!trimmed) {
+            return <div key={idx} className="h-2" />;
+          }
+
+          // Headers
+          if (trimmed.startsWith("####")) {
+            return <h5 key={idx} className="text-sm font-semibold text-slate-200 mt-4 mb-2">{trimmed.replace(/^####\s*/, "")}</h5>;
+          }
+          if (trimmed.startsWith("###")) {
+            return <h4 key={idx} className="text-base font-bold text-[#C9A227] mt-5 mb-3">{trimmed.replace(/^###\s*/, "")}</h4>;
+          }
+          if (trimmed.startsWith("##")) {
+            return <h3 key={idx} className="text-lg font-extrabold text-[#C9A227] mt-6 mb-4">{trimmed.replace(/^##\s*/, "")}</h3>;
+          }
+          if (trimmed.startsWith("#")) {
+            return <h2 key={idx} className="text-xl font-black text-[#C9A227] mt-6 mb-4">{trimmed.replace(/^#\s*/, "")}</h2>;
+          }
+
+          // Bullet list
+          if (trimmed.startsWith("*") || trimmed.startsWith("-")) {
+            const content = trimmed.replace(/^[\*\-]\s*/, "");
+            return (
+              <div key={idx} className="flex gap-2 pl-4 py-0.5">
+                <span className="text-[#C9A227]">•</span>
+                <span>{parseBold(content)}</span>
+              </div>
+            );
+          }
+
+          return <p key={idx}>{parseBold(trimmed)}</p>;
+        })}
+      </div>
+    );
+  };
+
+  const isScribeFormat = coaching && (
+    coaching.strat_card !== undefined ||
+    coaching.coach_report !== undefined ||
+    coaching.player_reports !== undefined
+  );
+
   return (
     <div className="card p-6" style={{ borderColor: "rgba(201,162,39,0.2)", background: "rgba(201,162,39,0.02)" }}>
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(201,162,39,0.1)", border: "1px solid rgba(201,162,39,0.25)" }}>
-          <Brain size={20} color="#C9A227" />
+      <div className="flex items-center justify-between gap-3 mb-5 border-b border-slate-800/80 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(201,162,39,0.1)", border: "1px solid rgba(201,162,39,0.25)" }}>
+            <Brain size={20} color="#C9A227" />
+          </div>
+          <div>
+            <h2 className="heading-display" style={{ fontSize: "1.1rem" }}>Great Khan Analysis</h2>
+            <p style={{ color: "#8BA7CC", fontSize: "0.75rem" }}>AI tactical coaching powered by Gemini</p>
+          </div>
         </div>
-        <div>
-          <h2 className="heading-display" style={{ fontSize: "1.1rem" }}>Great Khan Analysis</h2>
-          <p style={{ color: "#8BA7CC", fontSize: "0.75rem" }}>AI tactical coaching powered by Gemini</p>
-        </div>
+
+        {status === "ready" && isScribeFormat && coaching && (
+          <div className="flex bg-slate-900/60 p-1 rounded-lg border border-slate-800 gap-1">
+            <button
+              onClick={() => setActiveSubTab("strat_card")}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 ${activeSubTab === "strat_card" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
+            >
+              Strat Card
+            </button>
+            <button
+              onClick={() => setActiveSubTab("player_reports")}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 ${activeSubTab === "player_reports" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
+            >
+              Player Reports
+            </button>
+            <button
+              onClick={() => setActiveSubTab("coach_report")}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 ${activeSubTab === "coach_report" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
+            >
+              Coach Insights
+            </button>
+          </div>
+        )}
       </div>
 
       {status === "loading" || status === "pending" ? (
@@ -717,50 +807,107 @@ function CoachingPanel({ matchId }: { matchId: string }) {
       ) : status === "error" ? (
         <p style={{ color: "#4A6A8A", fontSize: "0.875rem" }}>Coaching not available for this match yet.</p>
       ) : coaching ? (
-        <div className="space-y-5">
-          <p style={{ color: "#C4CEDD", lineHeight: 1.7 }}>{coaching.summary}</p>
+        <div className="space-y-4">
+          {isScribeFormat ? (
+            <div>
+              {activeSubTab === "strat_card" && (
+                <div className="bg-slate-950/40 p-5 rounded-xl border border-slate-900 shadow-inner">
+                  {renderMarkdown(coaching.strat_card)}
+                </div>
+              )}
 
-          <div>
-            <h3 style={{ color: "#C9A227", fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>Key Findings</h3>
-            <ul className="space-y-2">
-              {coaching.key_findings.map((f, i) => (
-                <li key={i} className="flex gap-2" style={{ fontSize: "0.875rem", color: "#C4CEDD" }}>
-                  <span style={{ color: "#C9A227", flexShrink: 0 }}>›</span> {f}
-                </li>
-              ))}
-            </ul>
-          </div>
+              {activeSubTab === "player_reports" && (
+                <div className="space-y-4">
+                  {(() => {
+                    const players = Object.keys(coaching.player_reports || {});
+                    const currentPlayer = selectedPlayer || players[0] || "";
 
-          <div>
-            <h3 style={{ color: "#C9A227", fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>Economy</h3>
-            <p style={{ color: "#8BA7CC", fontSize: "0.875rem", lineHeight: 1.6 }}>{coaching.economy_analysis}</p>
-          </div>
+                    if (players.length === 0) {
+                      return <p className="text-slate-400 text-sm">No player reports available.</p>;
+                    }
 
-          <div>
-            <h3 style={{ color: "#C9A227", fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>Recommendations</h3>
-            <div className="space-y-3">
-              {coaching.tactical_recommendations.map((r, i) => (
-                <div key={i} className="flex gap-3">
-                  <Lightbulb size={14} color="#C9A227" style={{ flexShrink: 0, marginTop: 2 }} />
-                  <div>
-                    <span style={{ color: "#F0F4FF", fontWeight: 600, fontSize: "0.875rem" }}>{r.title}: </span>
-                    <span style={{ color: "#8BA7CC", fontSize: "0.875rem" }}>{r.detail}</span>
+                    return (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3 bg-slate-900/40 p-3 rounded-lg border border-slate-800/60">
+                          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Select Player:</span>
+                          <select
+                            value={currentPlayer}
+                            onChange={(e) => setSelectedPlayer(e.target.value)}
+                            className="bg-slate-950 border border-slate-800 text-[#C9A227] font-semibold rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#C9A227] transition-colors"
+                          >
+                            {players.map((p) => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="bg-slate-950/40 p-5 rounded-xl border border-slate-900 shadow-inner">
+                          {renderMarkdown(coaching.player_reports?.[currentPlayer])}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {activeSubTab === "coach_report" && (
+                <div className="bg-slate-950/40 p-5 rounded-xl border border-slate-900 shadow-inner">
+                  {renderMarkdown(coaching.coach_report)}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <p style={{ color: "#C4CEDD", lineHeight: 1.7 }}>{coaching.summary}</p>
+
+              {coaching.key_findings && coaching.key_findings.length > 0 && (
+                <div>
+                  <h3 style={{ color: "#C9A227", fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>Key Findings</h3>
+                  <ul className="space-y-2">
+                    {coaching.key_findings.map((f, i) => (
+                      <li key={i} className="flex gap-2" style={{ fontSize: "0.875rem", color: "#C4CEDD" }}>
+                        <span style={{ color: "#C9A227", flexShrink: 0 }}>›</span> {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {coaching.economy_analysis && (
+                <div>
+                  <h3 style={{ color: "#C9A227", fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>Economy</h3>
+                  <p style={{ color: "#8BA7CC", fontSize: "0.875rem", lineHeight: 1.6 }}>{coaching.economy_analysis}</p>
+                </div>
+              )}
+
+              {coaching.tactical_recommendations && coaching.tactical_recommendations.length > 0 && (
+                <div>
+                  <h3 style={{ color: "#C9A227", fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>Recommendations</h3>
+                  <div className="space-y-3">
+                    {coaching.tactical_recommendations.map((r, i) => (
+                      <div key={i} className="flex gap-3">
+                        <Lightbulb size={14} color="#C9A227" style={{ flexShrink: 0, marginTop: 2 }} />
+                        <div>
+                          <span style={{ color: "#F0F4FF", fontWeight: 600, fontSize: "0.875rem" }}>{r.title}: </span>
+                          <span style={{ color: "#8BA7CC", fontSize: "0.875rem" }}>{r.detail}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              )}
 
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <div className="rounded-xl p-4" style={{ background: "rgba(34,211,160,0.06)", border: "1px solid rgba(34,211,160,0.15)" }}>
-              <div className="flex items-center gap-2 mb-2"><Shield size={14} color="#22D3A0" /><span style={{ color: "#22D3A0", fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase" }}>Strongest Area</span></div>
-              <p style={{ color: "#C4CEDD", fontSize: "0.8rem" }}>{coaching.strongest_area}</p>
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div className="rounded-xl p-4" style={{ background: "rgba(34,211,160,0.06)", border: "1px solid rgba(34,211,160,0.15)" }}>
+                  <div className="flex items-center gap-2 mb-2"><Shield size={14} color="#22D3A0" /><span style={{ color: "#22D3A0", fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase" }}>Strongest Area</span></div>
+                  <p style={{ color: "#C4CEDD", fontSize: "0.8rem" }}>{coaching.strongest_area}</p>
+                </div>
+                <div className="rounded-xl p-4" style={{ background: "rgba(255,77,109,0.06)", border: "1px solid rgba(255,77,109,0.15)" }}>
+                  <div className="flex items-center gap-2 mb-2"><Zap size={14} color="#FF4D6D" /><span style={{ color: "#FF4D6D", fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase" }}>Fix First</span></div>
+                  <p style={{ color: "#C4CEDD", fontSize: "0.8rem" }}>{coaching.weakest_area}</p>
+                </div>
+              </div>
             </div>
-            <div className="rounded-xl p-4" style={{ background: "rgba(255,77,109,0.06)", border: "1px solid rgba(255,77,109,0.15)" }}>
-              <div className="flex items-center gap-2 mb-2"><Zap size={14} color="#FF4D6D" /><span style={{ color: "#FF4D6D", fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase" }}>Fix First</span></div>
-              <p style={{ color: "#C4CEDD", fontSize: "0.8rem" }}>{coaching.weakest_area}</p>
-            </div>
-          </div>
+          )}
         </div>
       ) : null}
     </div>

@@ -28,7 +28,7 @@ def generate_reports(match_id: str, scout_out: dict, rag_context: list, tactical
         from langchain_google_genai import ChatGoogleGenerativeAI
 
         llm = ChatGoogleGenerativeAI(
-            model="gemini-3.1-pro",
+            model="gemini-2.5-flash",
             temperature=0.4,
             google_api_key=api_key,
             model_kwargs={"response_mime_type": "application/json"}
