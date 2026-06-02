@@ -69,6 +69,7 @@ export default function TeamDetailPage() {
 
   const [showInviteBox, setShowInviteBox] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [showWebhookGuide, setShowWebhookGuide] = useState(false);
 
   // Tabs
   const [activeTab, setActiveTab] = useState<"overview" | "tactics" | "settings">("overview");
@@ -578,6 +579,43 @@ export default function TeamDetailPage() {
                       To sync strategies, add an outgoing webhook in Discord pointing to:
                       <div className="mt-2 bg-black/40 p-2 rounded text-[10px] font-mono break-all select-all border border-white/5 text-[#8BA7CC]">
                         {typeof window !== 'undefined' ? `${window.location.origin}/api/discord/webhook?team_id=${teamId}` : `/api/discord/webhook?team_id=${teamId}`}
+                      </div>
+                      <div className="mt-2.5">
+                        <button
+                          onClick={() => setShowWebhookGuide(!showWebhookGuide)}
+                          className="text-[10.5px] text-[#2D7DD2] hover:text-[#2D7DD2]/80 font-bold transition-colors flex items-center gap-1 select-none cursor-pointer"
+                        >
+                          {showWebhookGuide ? "✕ Hide Setup Guide" : "➔ How to setup webhook ingestion"}
+                        </button>
+                        {showWebhookGuide && (
+                          <div className="mt-2 p-2.5 rounded-lg border border-[#1E3A5F] bg-[#070D18]/90 text-[10.5px] space-y-2 animate-fadeIn">
+                            <p className="text-slate-300 font-semibold">How to sync Discord posts:</p>
+                            <p>Discord does not natively support channel-to-endpoint outgoing webhooks. You can set this up using either method below:</p>
+                            
+                            <div className="space-y-1">
+                              <p className="font-bold text-slate-300">Option A: Automation (Zapier / Make.com)</p>
+                              <ol className="list-decimal pl-4 space-y-0.5">
+                                <li>Create a free account on <a href="https://zapier.com" target="_blank" rel="noopener noreferrer" className="text-[#2D7DD2] hover:underline font-bold">Zapier.com</a> or <a href="https://make.com" target="_blank" rel="noopener noreferrer" className="text-[#2D7DD2] hover:underline font-bold">Make.com</a>.</li>
+                                <li>Set the **Trigger** to: *New Message in Channel* (select your Discord strategy channel).</li>
+                                <li>Set the **Action** to: *Webhooks (POST)* pointing to the URL above.</li>
+                                <li>Pass the payload as JSON:</li>
+                              </ol>
+                              <pre className="mt-1 bg-black/50 p-1.5 rounded text-[9.5px] font-mono text-[#8BA7CC] leading-normal border border-white/5">
+{`{
+  "content": "{{Message Content}}",
+  "author": {
+    "username": "{{User Username}}"
+  }
+}`}
+                              </pre>
+                            </div>
+
+                            <div className="space-y-1 pt-1.5 border-t border-[#1E3A5F]/40">
+                              <p className="font-bold text-slate-300">Option B: Custom Discord Bot</p>
+                              <p>Run a lightweight Discord bot using discord.js or discord.py. Listen to messages in your strategy channel, and send a POST request with the JSON payload format shown in Option A to this team webhook URL.</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
