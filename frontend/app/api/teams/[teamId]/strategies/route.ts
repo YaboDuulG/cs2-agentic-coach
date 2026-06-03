@@ -26,8 +26,9 @@ export async function GET(
     }
 
     return NextResponse.json(await res.json());
-  } catch (err: any) {
+  } catch (err) {
     console.error("Error in strategies list proxy:", err);
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 });
+    const errorMsg = err instanceof Error ? err.message : "Internal server error";
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }

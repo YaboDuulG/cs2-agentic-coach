@@ -90,7 +90,7 @@ export default function HomePage() {
               style={{ background: "rgba(201,162,39,0.1)", border: "1px solid rgba(201,162,39,0.25)", borderRadius: 20, padding: "6px 16px" }}>
               <SoyomboIcon size={14} color="#C9A227" />
               <span style={{ color: "#C9A227", fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                Khan's Command Hub
+                Khan&apos;s Command Hub
               </span>
             </div>
 

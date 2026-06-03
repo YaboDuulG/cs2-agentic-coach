@@ -6,9 +6,10 @@ Enables retrieving and saving dynamically configurable prompts and model setting
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+from db.config import DEFAULTS
 from db.database import SessionLocal
 from db.models import SystemConfig
-from db.config import DEFAULTS
 
 router = APIRouter()
 

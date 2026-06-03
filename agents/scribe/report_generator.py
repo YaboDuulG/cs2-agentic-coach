@@ -26,6 +26,7 @@ def generate_reports(match_id: str, scout_out: dict, rag_context: list, tactical
 
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
+
         from db.config import get_config
 
         model_name = get_config("coaching_model", "gemini-2.5-flash")

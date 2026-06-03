@@ -22,8 +22,9 @@ export async function GET() {
       return NextResponse.json(data, { status: res.status });
     }
     return NextResponse.json(data);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Failed to fetch configs" }, { status: 502 });
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to fetch configs";
+    return NextResponse.json({ error: errorMsg }, { status: 502 });
   }
 }
 
@@ -49,7 +50,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(data, { status: res.status });
     }
     return NextResponse.json(data);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Failed to update configs" }, { status: 502 });
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to update configs";
+    return NextResponse.json({ error: errorMsg }, { status: 502 });
   }
 }

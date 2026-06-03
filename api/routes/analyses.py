@@ -99,10 +99,11 @@ async def get_match_notes(match_id: str, user_id: str | None = None):
 @router.post("/{match_id}/notes", summary="Update custom notes and trigger analysis re-run")
 async def update_match_notes(match_id: str, body: UpdateNotesRequest, user_id: str | None = None):
     """Save user-submitted coach notes for a match and run Great Khan analysis in background to refresh coaching."""
+    import threading  # noqa: PLC0415
+
+    from api.routes.coaching import _run_coaching  # noqa: PLC0415
     from db.database import SessionLocal  # noqa: PLC0415
     from db.models import Match  # noqa: PLC0415
-    from api.routes.coaching import _run_coaching  # noqa: PLC0415
-    import threading  # noqa: PLC0415
 
     db = SessionLocal()
     try:

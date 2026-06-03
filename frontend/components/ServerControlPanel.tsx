@@ -40,8 +40,9 @@ export function ServerControlPanel({ teamId, matchId }: Props) {
       const responseText = data.summary || data.final_report?.summary || "Command executed.";
       
       setLogs(prev => [...prev, { id: Date.now(), text: responseText, type: "system" }]);
-    } catch (err: any) {
-      setLogs(prev => [...prev, { id: Date.now(), text: `Error executing command: ${err.message}`, type: "error" }]);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Error executing command";
+      setLogs(prev => [...prev, { id: Date.now(), text: `Error executing command: ${errorMsg}`, type: "error" }]);
     } finally {
       setIsSending(false);
     }

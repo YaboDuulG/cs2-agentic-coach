@@ -674,7 +674,15 @@ function CoachingPanel({ matchId }: { matchId: string }) {
   const [status, setStatus] = useState<"loading" | "pending" | "ready" | "error">("loading");
   const [activeSubTab, setActiveSubTab] = useState<"individual_report" | "notes">("individual_report");
   const [activeTeamTab, setActiveTeamTab] = useState<"team_strategy" | "coach_insights" | "player_reports" | "notes">("team_strategy");
-  const [coachingMode, setCoachingMode] = useState<"individual" | "team">("individual");
+  const [coachingMode, setCoachingMode] = useState<"individual" | "team">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("coaching_mode");
+      if (saved === "individual" || saved === "team") {
+        return saved as "individual" | "team";
+      }
+    }
+    return "individual";
+  });
   const [expandedPlayers, setExpandedPlayers] = useState<Record<string, boolean>>({});
 
   // Notes state
@@ -683,12 +691,6 @@ function CoachingPanel({ matchId }: { matchId: string }) {
   const [notesSuccess, setNotesSuccess] = useState(false);
 
   useEffect(() => {
-    // Initial load
-    const saved = localStorage.getItem("coaching_mode") as "individual" | "team";
-    if (saved === "individual" || saved === "team") {
-      setCoachingMode(saved);
-    }
-
     // Subscribe to changes
     const handler = (e: Event) => {
       const customEvent = e as CustomEvent<"individual" | "team">;
@@ -2945,7 +2947,7 @@ export default function AnalysisPage() {
       else { team1 = allTeams[0] as string; team2 = "Unknown"; }
     }
     return { team1Name: team1, team2Name: team2 };
-  }, [result?.player_stats]);
+  }, [result]);
 
   const cfg = STATUS_CONFIG[status];
 

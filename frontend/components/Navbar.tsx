@@ -14,13 +14,23 @@ export function Navbar() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const plan = (user?.publicMetadata?.plan as string) ?? "free";
 
-  const [coachingMode, setCoachingMode] = useState<"individual" | "team">("individual");
+  const [coachingMode, setCoachingMode] = useState<"individual" | "team">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("coaching_mode") as "individual" | "team";
+      if (saved === "individual" || saved === "team") return saved;
+    }
+    return "individual";
+  });
 
   useEffect(() => {
-    const saved = localStorage.getItem("coaching_mode") as "individual" | "team";
-    if (saved === "individual" || saved === "team") {
-      setCoachingMode(saved);
-    }
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent<"individual" | "team">;
+      if (customEvent.detail === "individual" || customEvent.detail === "team") {
+        setCoachingMode(customEvent.detail);
+      }
+    };
+    window.addEventListener("coachingModeChange", handler);
+    return () => window.removeEventListener("coachingModeChange", handler);
   }, []);
 
   const handleToggle = (mode: "individual" | "team") => {

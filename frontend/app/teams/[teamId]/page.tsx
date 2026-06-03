@@ -40,6 +40,22 @@ interface PracticeServer {
   mode: string;
 }
 
+interface Strategy {
+  id: string;
+  title: string;
+  map_name: string;
+  author: string;
+  summary: string;
+  side: string;
+  created_at: string;
+  content?: string;
+  steps?: string[];
+}
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
 
 const STATUS_COLORS: Record<string, string> = {
   done: "#22D3A0", processing: "#2D7DD2", queued: "#8BA7CC", failed: "#FF4D6D",
@@ -75,10 +91,10 @@ export default function TeamDetailPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "tactics" | "settings">("overview");
   const [settingsTab, setSettingsTab] = useState<"profile" | "password" | "members" | "subscription" | "danger">("profile");
 
-  const [strategies, setStrategies] = useState<any[]>([]);
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [strategiesLoading, setStrategiesLoading] = useState(false);
   const [chatMessage, setChatMessage] = useState("");
-  const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [stratSearch, setStratSearch] = useState("");
   const [expandedStrats, setExpandedStrats] = useState<Record<string, boolean>>({});
@@ -96,7 +112,9 @@ export default function TeamDetailPage() {
 
   useEffect(() => {
     if (activeTab === "tactics") {
-      fetchStrategies();
+      Promise.resolve().then(() => {
+        fetchStrategies();
+      });
     }
   }, [activeTab, fetchStrategies]);
 
@@ -788,7 +806,7 @@ export default function TeamDetailPage() {
                       const userMsg = chatMessage.trim();
                       setChatMessage("");
                       
-                      const newHistory = [...chatHistory, { role: "user", content: userMsg }];
+                      const newHistory = [...chatHistory, { role: "user" as const, content: userMsg }];
                       setChatHistory(newHistory);
                       setChatLoading(true);
                       
@@ -807,12 +825,12 @@ export default function TeamDetailPage() {
                         
                         if (res.ok) {
                           const data = await res.json();
-                          setChatHistory([...newHistory, { role: "assistant", content: data.response || "No reply" }]);
+                          setChatHistory([...newHistory, { role: "assistant" as const, content: data.response || "No reply" }]);
                         } else {
-                          setChatHistory([...newHistory, { role: "assistant", content: "Failed to connect to AI Coach." }]);
+                          setChatHistory([...newHistory, { role: "assistant" as const, content: "Failed to connect to AI Coach." }]);
                         }
-                      } catch (err) {
-                        setChatHistory([...newHistory, { role: "assistant", content: "Error communicating with the coach." }]);
+                      } catch {
+                        setChatHistory([...newHistory, { role: "assistant" as const, content: "Error communicating with the coach." }]);
                       } finally {
                         setChatLoading(false);
                       }

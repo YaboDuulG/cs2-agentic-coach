@@ -398,7 +398,7 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
                 )}
               </div>
               <p className="text-[11px] text-slate-500 mt-1 leading-normal">
-                Bypass standard Steam ID verification checks. Focus the Great Khan's AI strategy output on opposition layout trends, rotations, and performance profiles.
+                Bypass standard Steam ID verification checks. Focus the Great Khan&apos;s AI strategy output on opposition layout trends, rotations, and performance profiles.
               </p>
             </label>
           </div>

@@ -118,8 +118,9 @@ export default function ProfilePage() {
         },
       });
       setSteamEdit(false);
-    } catch (err: any) {
-      setSteamError(err.message || "Failed to update profile.");
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to update profile.";
+      setSteamError(errorMsg);
     }
     setSteamSaving(false);
   }

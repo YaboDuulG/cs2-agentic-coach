@@ -44,8 +44,9 @@ export default function AdminSettingsPage() {
         }
         const data = await res.json();
         setConfigs(data);
-      } catch (err: any) {
-        setError(err.message || "Failed to retrieve configurations.");
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : "Failed to retrieve configurations.";
+        setError(errorMsg);
       } finally {
         setLoading(false);
       }
@@ -75,8 +76,9 @@ export default function AdminSettingsPage() {
 
       setSuccess(true);
       setTimeout(() => setSuccess(false), 5000);
-    } catch (err: any) {
-      setError(err.message || "Failed to update configurations.");
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to update configurations.";
+      setError(errorMsg);
     } finally {
       setSaving(false);
     }
@@ -91,7 +93,7 @@ export default function AdminSettingsPage() {
       <div className="relative min-h-screen flex items-center justify-center" style={{ background: "#080E1A" }}>
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-4 border-[#C9A227] border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-slate-400 font-mono">Accessing the Khan's Archives...</p>
+          <p className="text-xs text-slate-400 font-mono">Accessing the Khan&apos;s Archives...</p>
         </div>
       </div>
     );
@@ -126,7 +128,7 @@ export default function AdminSettingsPage() {
           </div>
           <div className="text-left">
             <h1 className="heading-display" style={{ fontSize: "1.6rem" }}>
-              Khan's Command Center
+              Khan&apos;s Command Center
             </h1>
             <p style={{ color: "#8BA7CC", fontSize: "0.85rem", marginTop: 2 }}>
               Dynamic LLM configuration, temperature variables, and strategic prompts.
@@ -223,7 +225,7 @@ export default function AdminSettingsPage() {
                   Coaching Focus Instruction (Individual / Team template)
                 </label>
                 <p className="text-[10px] text-slate-500 leading-normal">
-                  Appended when compiling coaching insights specifically targeting the user's squad. Supported variables: <code className="text-[#C9A227] font-bold font-mono text-[9px] bg-slate-950 px-1 py-0.5 rounded">&#123;user_team&#125;</code>, <code className="text-[#C9A227] font-bold font-mono text-[9px] bg-slate-950 px-1 py-0.5 rounded">&#123;uploader_steam_id&#125;</code>.
+                  Appended when compiling coaching insights specifically targeting the user&apos;s squad. Supported variables: <code className="text-[#C9A227] font-bold font-mono text-[9px] bg-slate-950 px-1 py-0.5 rounded">&#123;user_team&#125;</code>, <code className="text-[#C9A227] font-bold font-mono text-[9px] bg-slate-950 px-1 py-0.5 rounded">&#123;uploader_steam_id&#125;</code>.
                 </p>
                 <textarea
                   value={configs.prompt_focus_instruction}

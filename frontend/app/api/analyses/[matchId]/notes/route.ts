@@ -47,7 +47,8 @@ export async function POST(
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
-  } catch (err: any) {
-    return NextResponse.json({ error: "Failed to update notes", detail: err.message }, { status: 502 });
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: "Failed to update notes", detail: errorMsg }, { status: 502 });
   }
 }

@@ -26,8 +26,9 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(await res.json());
-  } catch (err: any) {
+  } catch (err) {
     console.error("Error in Discord webhook proxy:", err);
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 });
+    const errorMsg = err instanceof Error ? err.message : "Internal server error";
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
