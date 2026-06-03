@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from api.auth import verify_shared_secret
 from api.routes import (
+    admin,
     analyses,
     chat,
     coaching,
@@ -67,6 +68,12 @@ app.include_router(
     analyses.router,
     prefix="/api/analyses",
     tags=["Analyses"],
+    dependencies=[Depends(verify_shared_secret)],
+)
+app.include_router(
+    admin.router,
+    prefix="/api/admin",
+    tags=["Admin"],
     dependencies=[Depends(verify_shared_secret)],
 )
 app.include_router(

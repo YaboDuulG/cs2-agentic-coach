@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
@@ -13,6 +13,21 @@ export function Navbar() {
   const { user } = useUser();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const plan = (user?.publicMetadata?.plan as string) ?? "free";
+
+  const [coachingMode, setCoachingMode] = useState<"individual" | "team">("individual");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("coaching_mode") as "individual" | "team";
+    if (saved === "individual" || saved === "team") {
+      setCoachingMode(saved);
+    }
+  }, []);
+
+  const handleToggle = (mode: "individual" | "team") => {
+    setCoachingMode(mode);
+    localStorage.setItem("coaching_mode", mode);
+    window.dispatchEvent(new CustomEvent("coachingModeChange", { detail: mode }));
+  };
 
   const planLabel = plan === "pro" ? "Pro" : plan === "basic" ? "Basic" : "Free";
   const planColor =
@@ -46,26 +61,26 @@ export function Navbar() {
           <div className="flex items-center gap-3">
             {user && (
               <div className="flex items-center bg-[#070D18]/90 border border-[#1E3A5F]/60 rounded-lg p-0.5 text-[11px] sm:text-xs font-semibold shadow-inner mr-1 z-10">
-                <Link
-                  href="/profile"
-                  className={`px-2.5 py-1 rounded-md transition-all duration-250 select-none ${
-                    !pathname.startsWith("/teams")
+                <button
+                  onClick={() => handleToggle("individual")}
+                  className={`px-2.5 py-1 rounded-md transition-all duration-250 select-none cursor-pointer ${
+                    coachingMode === "individual"
                       ? "bg-gradient-to-r from-[#1B4F8A] to-[#2D7DD2] text-white shadow-sm font-bold"
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
                   Individual
-                </Link>
-                <Link
-                  href="/teams"
-                  className={`px-2.5 py-1 rounded-md transition-all duration-250 select-none ${
-                    pathname.startsWith("/teams")
+                </button>
+                <button
+                  onClick={() => handleToggle("team")}
+                  className={`px-2.5 py-1 rounded-md transition-all duration-250 select-none cursor-pointer ${
+                    coachingMode === "team"
                       ? "bg-gradient-to-r from-[#1B4F8A] to-[#2D7DD2] text-white shadow-sm font-bold"
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
                   Team
-                </Link>
+                </button>
               </div>
             )}
             {user ? (

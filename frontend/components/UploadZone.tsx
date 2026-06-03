@@ -22,6 +22,7 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
   const [bytesUploaded, setBytesUploaded] = useState(0);
   const [totalBytes, setTotalBytes] = useState(0);
   const [uploadSpeed, setUploadSpeed] = useState<string | null>(null);
+  const [isRecon, setIsRecon] = useState(false);
   
   const xhrListRef = useRef<XMLHttpRequest[]>([]);
   const startTimeRef = useRef<number>(0);
@@ -92,6 +93,7 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
             size_bytes: uploadFile.size,
             team_id: teamId,
             chunk_count: chunkCount,
+            is_recon: isRecon,
           }),
         });
 
@@ -188,6 +190,7 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
             size_bytes: uploadFile.size,
             team_id: teamId,
             chunk_count: 1,
+            is_recon: isRecon,
           }),
         });
 
@@ -243,7 +246,7 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
       setError(e instanceof Error ? e.message : "Upload failed.");
       setUploading(false);
     }
-  }, [router, onSuccess, teamId]);
+  }, [router, onSuccess, teamId, isRecon]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -312,32 +315,92 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
           </div>
         </div>
       ) : (
-        <div
-          {...getRootProps()}
-          className="relative cursor-pointer mx-auto transition-all duration-300 max-w-[540px]"
-          style={{
-            background: isDragActive ? "rgba(45,125,210,0.12)" : "rgba(13,24,37,0.85)",
-            border: `2px dashed ${isDragActive ? "#2D7DD2" : "rgba(45,125,210,0.4)"}`,
-            borderRadius: 16,
-            padding: "40px 32px",
-            backdropFilter: "blur(12px)",
-            boxShadow: isDragActive ? "0 0 40px rgba(45,125,210,0.3)" : "0 8px 32px rgba(0,0,0,0.4)",
-          }}
-        >
-          <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-[14px]"
-            style={{ background: "linear-gradient(90deg, transparent, #2D7DD2, transparent)" }} />
-          <input {...getInputProps()} />
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-              style={{ background: "rgba(45,125,210,0.15)", border: "1px solid rgba(45,125,210,0.3)" }}>
-              <Upload size={28} color="#2D7DD2" />
+        <div className="flex flex-col items-center">
+          {/* Circular Compass Shield Dropzone */}
+          <div
+            {...getRootProps()}
+            className="relative cursor-pointer mx-auto transition-all duration-300 rounded-full w-72 h-72 flex items-center justify-center overflow-hidden group select-none"
+            style={{
+              background: isDragActive ? "rgba(45,125,210,0.18)" : "rgba(13,24,37,0.85)",
+              border: `2px solid ${isDragActive ? "#FFE135" : "rgba(45,125,210,0.4)"}`,
+              backdropFilter: "blur(12px)",
+              boxShadow: isDragActive ? "0 0 50px rgba(255,225,53,0.25)" : "0 8px 32px rgba(0,0,0,0.5)",
+            }}
+          >
+            {/* Tactical Blueprint Grid Background */}
+            <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_center,rgba(45,125,210,0.15)_0%,transparent_75%)] bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:16px_16px]" />
+
+            {/* Slow-spinning decorative rings */}
+            <div 
+              className="absolute inset-2 border-2 border-dashed border-[#2D7DD2]/30 rounded-full animate-spin pointer-events-none" 
+              style={{ animationDuration: "25s" }}
+            />
+            <div 
+              className="absolute inset-6 border border-dotted border-[#C9A227]/40 rounded-full animate-spin pointer-events-none" 
+              style={{ animationDuration: "40s", animationDirection: "reverse" }}
+            />
+            <div 
+              className="absolute inset-10 border border-slate-800/40 rounded-full pointer-events-none" 
+            />
+
+            {/* Drag-over active glow */}
+            {isDragActive && (
+              <div className="absolute inset-0 bg-[#FFE135]/5 animate-pulse rounded-full pointer-events-none" />
+            )}
+
+            <input {...getInputProps()} />
+
+            {/* Central elements */}
+            <div className="relative z-10 flex flex-col items-center gap-3 text-center px-6">
+              <div 
+                className="w-14 h-14 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-105"
+                style={{ 
+                  background: isDragActive ? "rgba(255,225,53,0.15)" : "rgba(45,125,210,0.15)", 
+                  border: isDragActive ? "1px solid rgba(255,225,53,0.35)" : "1px solid rgba(45,125,210,0.3)" 
+                }}
+              >
+                <Upload size={22} className={isDragActive ? "text-[#FFE135] animate-bounce" : "text-[#2D7DD2]"} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-white font-bold text-sm tracking-wide">
+                  {isDragActive ? "Scan the battlefield" : "Drop CS2 Demo"}
+                </p>
+                <p className="text-slate-400 text-[11px] leading-tight">
+                  or click to upload<br />
+                  <span className="font-mono text-slate-500">.dem (max {MAX_MB}MB)</span>
+                </p>
+              </div>
             </div>
-            <div className="text-center">
-              <p style={{ color: "#F0F4FF", fontWeight: 600, marginBottom: 4 }}>
-                {isDragActive ? "Drop your demo here" : "Drop your .dem file here"}
+          </div>
+
+          {/* Ilchi Spy Scan Checkbox */}
+          <div 
+            className="mt-6 p-4 rounded-xl border transition-all duration-300 flex items-start gap-3 select-none w-full max-w-[480px]"
+            style={{
+              background: isRecon ? "rgba(201,162,39,0.06)" : "rgba(13,24,37,0.4)",
+              borderColor: isRecon ? "rgba(201,162,39,0.35)" : "rgba(30,58,95,0.4)",
+            }}
+          >
+            <input
+              type="checkbox"
+              id="is-recon-checkbox"
+              checked={isRecon}
+              onChange={(e) => setIsRecon(e.target.checked)}
+              className="mt-1 w-4 h-4 rounded border-slate-700 bg-slate-900 text-[#C9A227] focus:ring-[#C9A227] cursor-pointer"
+            />
+            <label htmlFor="is-recon-checkbox" className="flex-1 text-left cursor-pointer select-none">
+              <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <span className={isRecon ? "text-[#C9A227]" : "text-slate-300"}>Ilchi Spy Scan (Opposition Research)</span>
+                {isRecon && (
+                  <span className="text-[9px] bg-[#C9A227]/20 text-[#C9A227] px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider animate-pulse">
+                    Active
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1 leading-normal">
+                Bypass standard Steam ID verification checks. Focus the Great Khan's AI strategy output on opposition layout trends, rotations, and performance profiles.
               </p>
-              <p style={{ color: "#8BA7CC", fontSize: "0.85rem" }}>or click to browse — up to {MAX_MB}MB</p>
-            </div>
+            </label>
           </div>
         </div>
       )}

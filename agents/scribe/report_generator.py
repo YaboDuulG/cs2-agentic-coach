@@ -26,10 +26,18 @@ def generate_reports(match_id: str, scout_out: dict, rag_context: list, tactical
 
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
+        from db.config import get_config
+
+        model_name = get_config("coaching_model", "gemini-2.5-flash")
+        temp_str = get_config("coaching_temperature", "0.4")
+        try:
+            temperature = float(temp_str)
+        except ValueError:
+            temperature = 0.4
 
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            temperature=0.4,
+            model=model_name,
+            temperature=temperature,
             google_api_key=api_key,
             model_kwargs={"response_mime_type": "application/json"}
         )
@@ -42,19 +50,53 @@ def generate_reports(match_id: str, scout_out: dict, rag_context: list, tactical
             "tactical_analysis": tactical_analysis
         }
 
-        prompt = f"""
-You are the DemoSage CS2 Coach ('The Scribe').
-Analyze the following match data, which includes raw stats, RAG context (pro strategies and rules), and automated tactical analysis (economy, rotations, utility, first contacts).
+        user_team = scout_out.get("user_team")
+        user_notes = scout_out.get("user_notes")
+        uploader_steam_id = scout_out.get("uploader_steam_id")
+        is_recon = scout_out.get("is_recon", False)
 
-Generate a JSON object containing three distinct reports:
-1. "strat_card": A markdown string for the whole team. Focus on high-level team strategy, what the team did well, areas to improve, and a pro reference if applicable.
-2. "player_reports": A dictionary mapping player names to their individual markdown reports. Focus on constructive framing (positives first, then areas to improve based on tactician flags).
-3. "coach_report": A markdown string for the team owner. Aggregate the tactical analysis flags, highlighting critical issues (like over-peeking, terrible utility dumping, economy mismanagement) across the team.
+        # Load prompts from DB
+        scribe_base = get_config("prompt_scribe_base")
+        focus_prompt_template = get_config("prompt_focus_instruction")
+        recon_prompt = get_config("prompt_recon_instruction")
+
+        focus_instruction = ""
+        if is_recon:
+            focus_instruction = recon_prompt
+        elif user_team:
+            focus_instruction = focus_prompt_template.format(
+                user_team=user_team, uploader_steam_id=uploader_steam_id
+            )
+
+        notes_instruction = ""
+        if user_notes:
+            notes_instruction = f"""
+CRITICAL COACH NOTES TO INCORPORATE:
+The user/coach has provided the following custom notes/instructions for this analysis:
+---
+{user_notes}
+---
+You MUST address, incorporate, or tailor your coaching, recommendations, and tactical insights based directly on these custom notes.
+"""
+
+        prompt = f"""
+{scribe_base}
+{focus_instruction}
+{notes_instruction}
+
+Generate a JSON object containing the following reports:
+1. "individual_report": A markdown string focused exclusively on the uploader ({uploader_steam_id}) and how they can personally improve (their duels, positioning, utility, economy). If this is a Recon Scan (is_recon=true) or the uploader's Steam ID is not present in the match stats, focus this report on detailing individual highlights, head-to-head match-up analysis, and performance profiles of key players.
+2. "team_report": A markdown string focused on the team's structure, rotation coordination, trade-fragging, utility setups, and communication improvements.
+3. "player_reports": A dictionary mapping player names to their individual constructive markdown reports.
+4. "strat_card": Legacy field - populate this with the same markdown as "team_report".
+5. "coach_report": Legacy field - populate this with a summary of the tactical errors and rotation flags.
 
 Ensure the output is valid JSON matching this schema:
 {{
-    "strat_card": "markdown string",
+    "individual_report": "markdown string",
+    "team_report": "markdown string",
     "player_reports": {{ "PlayerName": "markdown string" }},
+    "strat_card": "markdown string",
     "coach_report": "markdown string"
 }}
 
@@ -73,7 +115,9 @@ Match Data:
 
 def _stub_reports() -> dict[str, Any]:
     return {
-        "strat_card": "### Strat Card\nAI coaching requires GEMINI_API_KEY.",
+        "individual_report": "### Individual Report\nAI coaching requires GEMINI_API_KEY.",
+        "team_report": "### Team Report\nAI coaching requires GEMINI_API_KEY.",
         "player_reports": {},
+        "strat_card": "### Strat Card\nAI coaching requires GEMINI_API_KEY.",
         "coach_report": "### Coach Report\nAI coaching requires GEMINI_API_KEY."
     }

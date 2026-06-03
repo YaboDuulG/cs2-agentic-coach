@@ -58,6 +58,7 @@ interface JobResult {
   created_at?: string;
   parse_duration_seconds?: number;
   elapsed_seconds?: number;
+  is_recon?: boolean;
 }
 
 interface Coaching {
@@ -72,6 +73,8 @@ interface Coaching {
   strat_card?: string;
   player_reports?: Record<string, string>;
   coach_report?: string;
+  individual_report?: string;
+  team_report?: string;
 }
 
 const STATUS_CONFIG: Record<JobStatus, { label: string; color: string; icon: React.ReactNode }> = {
@@ -98,7 +101,7 @@ const MAP_CONFIGS: Record<string, { pos_x: number; pos_y: number; scale: number 
   de_nuke: { pos_x: -3453, pos_y: 2887, scale: 7.0 },
   de_overpass: { pos_x: -4831, pos_y: 1781, scale: 5.2 },
   de_ancient: { pos_x: -2953, pos_y: 2164, scale: 5.0 },
-  de_anubis: { pos_x: -2688, pos_y: 3328, scale: 5.22 },
+  de_anubis: { pos_x: -2796, pos_y: 3328, scale: 5.22 },
   de_vertigo: { pos_x: -3168, pos_y: 1762, scale: 4.0 },
 };
 
@@ -669,8 +672,69 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
 function CoachingPanel({ matchId }: { matchId: string }) {
   const [coaching, setCoaching] = useState<Coaching | null>(null);
   const [status, setStatus] = useState<"loading" | "pending" | "ready" | "error">("loading");
-  const [activeSubTab, setActiveSubTab] = useState<"strat_card" | "player_reports" | "coach_report">("strat_card");
-  const [selectedPlayer, setSelectedPlayer] = useState<string>("");
+  const [activeSubTab, setActiveSubTab] = useState<"individual_report" | "notes">("individual_report");
+  const [activeTeamTab, setActiveTeamTab] = useState<"team_strategy" | "coach_insights" | "player_reports" | "notes">("team_strategy");
+  const [coachingMode, setCoachingMode] = useState<"individual" | "team">("individual");
+  const [expandedPlayers, setExpandedPlayers] = useState<Record<string, boolean>>({});
+
+  // Notes state
+  const [notesText, setNotesText] = useState("");
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSuccess, setNotesSuccess] = useState(false);
+
+  useEffect(() => {
+    // Initial load
+    const saved = localStorage.getItem("coaching_mode") as "individual" | "team";
+    if (saved === "individual" || saved === "team") {
+      setCoachingMode(saved);
+    }
+
+    // Subscribe to changes
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent<"individual" | "team">;
+      if (customEvent.detail === "individual" || customEvent.detail === "team") {
+        setCoachingMode(customEvent.detail);
+      }
+    };
+    window.addEventListener("coachingModeChange", handler);
+    return () => window.removeEventListener("coachingModeChange", handler);
+  }, []);
+
+  useEffect(() => {
+    async function fetchNotes() {
+      try {
+        const res = await fetch(`/api/analyses/${matchId}/notes`);
+        if (res.ok) {
+          const data = await res.json();
+          setNotesText(data.notes || "");
+        }
+      } catch (e) {
+        console.error("Failed to fetch notes:", e);
+      }
+    }
+    fetchNotes();
+  }, [matchId]);
+
+  async function saveNotes() {
+    setNotesSaving(true);
+    setNotesSuccess(false);
+    try {
+      const res = await fetch(`/api/analyses/${matchId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: notesText }),
+      });
+      if (res.ok) {
+        setNotesSuccess(true);
+        setTimeout(() => setNotesSuccess(false), 5000);
+      } else {
+        console.error("Failed to save notes");
+      }
+    } catch (e) {
+      console.error("Failed to save notes:", e);
+    }
+    setNotesSaving(false);
+  }
 
   useEffect(() => {
     let stopped = false;
@@ -718,7 +782,7 @@ function CoachingPanel({ matchId }: { matchId: string }) {
     if (!text) return <p className="text-slate-400 text-sm">No analysis notes available.</p>;
     const lines = text.split("\n");
     return (
-      <div className="space-y-2 text-sm text-slate-300 leading-relaxed">
+      <div className="space-y-2 text-sm text-slate-300 leading-relaxed text-left">
         {lines.map((line, idx) => {
           const trimmed = line.trim();
           if (!trimmed) {
@@ -740,8 +804,8 @@ function CoachingPanel({ matchId }: { matchId: string }) {
           }
 
           // Bullet list
-          if (trimmed.startsWith("*") || trimmed.startsWith("-")) {
-            const content = trimmed.replace(/^[\*\-]\s*/, "");
+          if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
+            const content = trimmed.replace(/^[\*\-]\s+/, "");
             return (
               <div key={idx} className="flex gap-2 pl-4 py-0.5">
                 <span className="text-[#C9A227]">•</span>
@@ -757,45 +821,112 @@ function CoachingPanel({ matchId }: { matchId: string }) {
   };
 
   const isScribeFormat = coaching && (
+    coaching.individual_report !== undefined ||
+    coaching.team_report !== undefined ||
     coaching.strat_card !== undefined ||
     coaching.coach_report !== undefined ||
     coaching.player_reports !== undefined
   );
 
+  const togglePlayerAccordion = (player: string) => {
+    setExpandedPlayers(prev => ({ ...prev, [player]: !prev[player] }));
+  };
+
+  const renderNotesSection = () => (
+    <div className="bg-slate-950/40 p-5 rounded-xl border border-slate-900 shadow-inner space-y-4 text-left">
+      <h3 className="text-base font-bold text-[#C9A227]">Coach Notes</h3>
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Add custom multiline notes (e.g. key tactical focus areas, player mistakes, or custom instructions).
+        Saving notes will automatically queue a background re-run of the Great Khan AI orchestrator to update coaching reports with these inputs.
+      </p>
+      <textarea
+        value={notesText}
+        onChange={(e) => setNotesText(e.target.value)}
+        placeholder="Write your notes here..."
+        className="w-full h-40 bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C9A227] text-slate-200 resize-none transition-colors"
+      />
+      <div className="flex items-center justify-between">
+        <div>
+          {notesSuccess && (
+            <span className="text-xs font-bold text-[#22D3A0] animate-pulse">Notes saved! Re-running AI coaching in background...</span>
+          )}
+        </div>
+        <button
+          onClick={saveNotes}
+          disabled={notesSaving}
+          className="px-4 py-2 bg-[#C9A227] text-slate-950 hover:bg-[#A8841B] disabled:opacity-50 text-xs font-bold rounded-lg transition-all shadow-md cursor-pointer select-none"
+        >
+          {notesSaving ? "Saving..." : "Save and Re-Analyze"}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="card p-6" style={{ borderColor: "rgba(201,162,39,0.2)", background: "rgba(201,162,39,0.02)" }}>
-      <div className="flex items-center justify-between gap-3 mb-5 border-b border-slate-800/80 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5 border-b border-slate-800/80 pb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(201,162,39,0.1)", border: "1px solid rgba(201,162,39,0.25)" }}>
             <Brain size={20} color="#C9A227" />
           </div>
-          <div>
-            <h2 className="heading-display" style={{ fontSize: "1.1rem" }}>Great Khan Analysis</h2>
-            <p style={{ color: "#8BA7CC", fontSize: "0.75rem" }}>AI tactical coaching powered by Gemini</p>
+          <div className="text-left">
+            <h2 className="heading-display" style={{ fontSize: "1.1rem" }}>
+              {coachingMode === "individual" ? "Great Khan Individual Coaching" : "Great Khan Team Strategy"}
+            </h2>
+            <p style={{ color: "#8BA7CC", fontSize: "0.75rem" }}>
+              {coachingMode === "individual" 
+                ? "Tactical feedback focused on your personal progression" 
+                : "Squad communication, rotations, and synergy mapping"}
+            </p>
           </div>
         </div>
 
         {status === "ready" && isScribeFormat && coaching && (
-          <div className="flex bg-slate-900/60 p-1 rounded-lg border border-slate-800 gap-1">
-            <button
-              onClick={() => setActiveSubTab("strat_card")}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 ${activeSubTab === "strat_card" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
-            >
-              Strat Card
-            </button>
-            <button
-              onClick={() => setActiveSubTab("player_reports")}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 ${activeSubTab === "player_reports" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
-            >
-              Player Reports
-            </button>
-            <button
-              onClick={() => setActiveSubTab("coach_report")}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 ${activeSubTab === "coach_report" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
-            >
-              Coach Insights
-            </button>
-          </div>
+          <>
+            {coachingMode === "team" ? (
+              <div className="flex flex-wrap bg-slate-900/60 p-1 rounded-lg border border-slate-800 gap-1">
+                <button
+                  onClick={() => setActiveTeamTab("team_strategy")}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 select-none cursor-pointer ${activeTeamTab === "team_strategy" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  Team Strategy
+                </button>
+                <button
+                  onClick={() => setActiveTeamTab("coach_insights")}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 select-none cursor-pointer ${activeTeamTab === "coach_insights" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  Coach Insights
+                </button>
+                <button
+                  onClick={() => setActiveTeamTab("player_reports")}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 select-none cursor-pointer ${activeTeamTab === "player_reports" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  Teammate Profiles
+                </button>
+                <button
+                  onClick={() => setActiveTeamTab("notes")}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 select-none cursor-pointer ${activeTeamTab === "notes" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  Notes
+                </button>
+              </div>
+            ) : (
+              <div className="flex bg-slate-900/60 p-1 rounded-lg border border-slate-800 gap-1">
+                <button
+                  onClick={() => setActiveSubTab("individual_report")}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 select-none cursor-pointer ${activeSubTab === "individual_report" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  Personal Report
+                </button>
+                <button
+                  onClick={() => setActiveSubTab("notes")}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-250 select-none cursor-pointer ${activeSubTab === "notes" ? "bg-[#C9A227] text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  Notes
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -810,48 +941,72 @@ function CoachingPanel({ matchId }: { matchId: string }) {
         <div className="space-y-4">
           {isScribeFormat ? (
             <div>
-              {activeSubTab === "strat_card" && (
-                <div className="bg-slate-950/40 p-5 rounded-xl border border-slate-900 shadow-inner">
-                  {renderMarkdown(coaching.strat_card)}
+              {coachingMode === "individual" ? (
+                <div>
+                  {activeSubTab === "individual_report" ? (
+                    <div className="bg-slate-950/40 p-5 rounded-xl border border-slate-900 shadow-inner">
+                      {renderMarkdown(coaching.individual_report || coaching.summary || coaching.strat_card)}
+                    </div>
+                  ) : (
+                    renderNotesSection()
+                  )}
                 </div>
-              )}
+              ) : (
+                <div>
+                  {activeTeamTab === "team_strategy" && (
+                    <div className="bg-slate-950/40 p-5 rounded-xl border border-slate-900 shadow-inner">
+                      {renderMarkdown(coaching.team_report || coaching.strat_card)}
+                    </div>
+                  )}
 
-              {activeSubTab === "player_reports" && (
-                <div className="space-y-4">
-                  {(() => {
-                    const players = Object.keys(coaching.player_reports || {});
-                    const currentPlayer = selectedPlayer || players[0] || "";
+                  {activeTeamTab === "coach_insights" && (
+                    <div className="bg-slate-950/40 p-5 rounded-xl border border-slate-900 shadow-inner">
+                      {renderMarkdown(coaching.coach_report)}
+                    </div>
+                  )}
 
-                    if (players.length === 0) {
-                      return <p className="text-slate-400 text-sm">No player reports available.</p>;
-                    }
+                  {activeTeamTab === "player_reports" && (
+                    <div className="space-y-3">
+                      {(() => {
+                        const players = Object.keys(coaching.player_reports || {});
+                        if (players.length === 0) {
+                          return <p className="text-slate-400 text-sm">No player reports available.</p>;
+                        }
 
-                    return (
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-3 bg-slate-900/40 p-3 rounded-lg border border-slate-800/60">
-                          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Select Player:</span>
-                          <select
-                            value={currentPlayer}
-                            onChange={(e) => setSelectedPlayer(e.target.value)}
-                            className="bg-slate-950 border border-slate-800 text-[#C9A227] font-semibold rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#C9A227] transition-colors"
-                          >
-                            {players.map((p) => (
-                              <option key={p} value={p}>{p}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="bg-slate-950/40 p-5 rounded-xl border border-slate-900 shadow-inner">
-                          {renderMarkdown(coaching.player_reports?.[currentPlayer])}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
+                        return (
+                          <div className="space-y-3 text-left">
+                            <p className="text-xs text-slate-400 mb-2">Expand a teammate to view their constructive feedback report.</p>
+                            {players.map((p) => {
+                              const isExpanded = !!expandedPlayers[p];
+                              return (
+                                <div key={p} className="rounded-xl border border-slate-800 bg-slate-950/20 overflow-hidden transition-all duration-300">
+                                  <button
+                                    onClick={() => togglePlayerAccordion(p)}
+                                    className="w-full px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-900/40 transition-colors select-none focus:outline-none cursor-pointer"
+                                  >
+                                    <span className="font-semibold text-sm text-[#C9A227]">{p}</span>
+                                    <span className="text-xs text-slate-500 font-bold font-mono">
+                                      {isExpanded ? "Collapse ▲" : "Expand ▼"}
+                                    </span>
+                                  </button>
+                                  <div
+                                    className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                                      isExpanded ? "max-h-[1000px] border-t border-slate-800/80 p-5" : "max-h-0"
+                                    }`}
+                                    style={{ background: "rgba(8,14,26,0.3)" }}
+                                  >
+                                    {isExpanded && renderMarkdown(coaching.player_reports?.[p])}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
 
-              {activeSubTab === "coach_report" && (
-                <div className="bg-slate-950/40 p-5 rounded-xl border border-slate-900 shadow-inner">
-                  {renderMarkdown(coaching.coach_report)}
+                  {activeTeamTab === "notes" && renderNotesSection()}
                 </div>
               )}
             </div>
@@ -2811,6 +2966,16 @@ export default function AnalysisPage() {
             </div>
           </div>
         </div>
+
+        {result?.is_recon && (
+          <div className="mb-8 p-4 rounded-xl border border-[#C9A227]/30 bg-[#C9A227]/5 flex items-center gap-3">
+            <SoyomboIcon size={18} color="#C9A227" className="animate-pulse" />
+            <div className="text-left">
+              <h3 className="text-xs font-bold text-[#C9A227] uppercase tracking-wider font-mono">Ilchi Spy Scan Enabled</h3>
+              <p className="text-[11px] text-[#8BA7CC] mt-0.5">Opposition intelligence compiled. Standard Steam ID constraints bypassed.</p>
+            </div>
+          </div>
+        )}
 
         <UlziiBorder className="mb-10" />
 

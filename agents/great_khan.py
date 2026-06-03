@@ -37,7 +37,13 @@ def _build_prompt(match_id: str, stats: dict[str, Any], rag_context: list[dict[s
         for i, chunk in enumerate(rag_context, 1):
             rag_text += f"[{i}] {chunk.get('content')}\n"
 
-    return f"""You are DemoSage — an elite CS2 tactical coach. Analyse this match data and return ONLY valid JSON with no markdown.
+    from db.config import get_config
+    base_instructions = get_config(
+        "prompt_great_khan_instructions",
+        "You are DemoSage — an elite CS2 tactical coach. Analyse this match data and return ONLY valid JSON with no markdown."
+    )
+
+    return f"""{base_instructions}
 
 Match: {stats.get("map_name", "unknown")} | {stats.get("total_rounds", 0)} rounds
 CT wins: {stats.get("ct_wins", 0)} | T wins: {stats.get("t_wins", 0)}
@@ -104,6 +110,11 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
             top_killers = sorted(killer_counts.items(), key=lambda x: x[1], reverse=True)[:5]
             top_weapons = sorted(weapon_counts.items(), key=lambda x: x[1], reverse=True)[:5]
 
+            # First contacts
+            ct_fc = sum(1 for fc in first_contacts if fc.attacker_team == "CT")
+            t_fc = sum(1 for fc in first_contacts if fc.attacker_team == "T")
+            total_fc = len(first_contacts) or 1
+
             # Economy
             ct_spends = [r.ct_eq_val for r in rounds if r.ct_eq_val is not None and r.ct_eq_val > 0]
             t_spends = [r.t_eq_val for r in rounds if r.t_eq_val is not None and r.t_eq_val > 0]
@@ -123,10 +134,13 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
                     )
             worst_rounds = sorted(worst_rounds, key=lambda x: x["spend"], reverse=True)[:5]
 
-            # First contact win rate
-            ct_fc = sum(1 for fc in first_contacts if fc.attacker_team == "CT")
-            t_fc = len(first_contacts) - ct_fc
-            total_fc = len(first_contacts) or 1
+            user_team = None
+            if match.uploader_steam_id and match.player_stats_json:
+                try:
+                    p_stats = json.loads(match.player_stats_json)
+                    user_team = p_stats.get(match.uploader_steam_id, {}).get("team")
+                except Exception:
+                    pass
 
             return {
                 "map_name": match.map_name,
@@ -140,6 +154,10 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
                 "ct_first_contact_pct": ct_fc / total_fc,
                 "t_first_contact_pct": t_fc / total_fc,
                 "worst_rounds": worst_rounds,
+                "user_notes": match.notes,
+                "user_team": user_team,
+                "uploader_steam_id": match.uploader_steam_id,
+                "is_recon": getattr(match, "is_recon", False),
             }
         finally:
             db.close()
@@ -178,9 +196,17 @@ def _call_gemini(prompt: str) -> dict[str, Any] | None:
             logger.warning("No Gemini API key — returning stub notes")
             return _stub_coaching()
 
+        from db.config import get_config
+        model_name = get_config("coaching_model", "gemini-2.5-flash")
+        temp_str = get_config("coaching_temperature", "0.4")
+        try:
+            temperature = float(temp_str)
+        except ValueError:
+            temperature = 0.4
+
         llm = ChatGoogleGenerativeAI(
-            model=COACHING_MODEL,
-            temperature=0.4,
+            model=model_name,
+            temperature=temperature,
             google_api_key=api_key,
             model_kwargs={"response_mime_type": "application/json"}
         )

@@ -66,12 +66,115 @@ const PLANS = [
   },
 ];
 
-
-
-
-
 export default function HomePage() {
   const { user, isLoaded } = useUser();
+
+  if (!isLoaded) {
+    return (
+      <div className="relative min-h-screen flex items-center justify-center" style={{ background: "#050C15" }}>
+        <div className="w-8 h-8 border-4 border-[#C9A227] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (user) {
+    return (
+      <div className="relative" style={{ background: "#050C15", minHeight: "100vh" }}>
+        <CloudMotifBg />
+
+        {/* ── MEMBER COMMAND HUB ── */}
+        <section className="relative min-h-screen flex flex-col items-center justify-start px-6 pt-28 pb-20 overflow-hidden">
+          <div className="relative z-10 max-w-4xl w-full mx-auto text-center space-y-8">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2"
+              style={{ background: "rgba(201,162,39,0.1)", border: "1px solid rgba(201,162,39,0.25)", borderRadius: 20, padding: "6px 16px" }}>
+              <SoyomboIcon size={14} color="#C9A227" />
+              <span style={{ color: "#C9A227", fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                Khan's Command Hub
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              <h1 style={{ fontSize: "clamp(2rem, 5vw, 3rem)", fontFamily: "Cinzel, serif", fontWeight: 700, color: "#F0F4FF" }}>
+                Deploy Match Intelligence
+              </h1>
+              <p style={{ color: "#8BA7CC", fontSize: "0.95rem", maxWidth: 540, margin: "0 auto" }}>
+                Upload your CS2 replay demo to compile strategic insights. Customize focus mode in the top bar.
+              </p>
+            </div>
+
+            {/* Interactive Dropzone */}
+            <div className="py-4">
+              <UploadZone />
+            </div>
+
+            {/* Strategic Focus Guide */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-2xl mx-auto pt-6 text-left">
+              <div className="rounded-2xl p-5 border border-slate-800 bg-[#0D1825]/60 backdrop-blur-md space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-500/10 border border-blue-500/25">
+                    <span className="text-[10px] font-bold text-[#2D7DD2] uppercase tracking-wider font-mono">INDV</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-100">Individual Focus Mode</h3>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Directs the Great Khan AI to focus exclusively on your personal progression. It dissects your duels, utility usage, economy, and site defense patterns.
+                </p>
+              </div>
+
+              <div className="rounded-2xl p-5 border border-slate-800 bg-[#0D1825]/60 backdrop-blur-md space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-amber-500/10 border border-amber-500/25">
+                    <span className="text-[10px] font-bold text-[#FFE135] uppercase tracking-wider font-mono">TEAM</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-100">Team Strategy Mode</h3>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Switches the AI focus to squad coordination. Renders rotation mapping, overall trade setups, utility sequences, and teammate performance profiles.
+                </p>
+              </div>
+            </div>
+
+            {/* Secondary CTA buttons */}
+            <div className="flex items-center justify-center gap-4 pt-6">
+              <Link 
+                href="/profile"
+                className="rounded-xl border px-6 py-2.5 text-xs font-semibold hover:bg-white/5 transition-all cursor-pointer"
+                style={{ borderColor: "rgba(45,125,210,0.4)", color: "#8BA7CC" }}
+              >
+                My Saved Analyses
+              </Link>
+              <Link 
+                href="/teams"
+                className="rounded-xl border px-6 py-2.5 text-xs font-semibold hover:bg-white/5 transition-all cursor-pointer"
+                style={{ borderColor: "rgba(201,162,39,0.3)", color: "#C9A227" }}
+              >
+                Manage Teams
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ── FOOTER ── */}
+        <footer className="border-t py-10 px-6" style={{ borderColor: "#0D1825", background: "#050C15" }}>
+          <div className="mx-auto flex max-w-6xl flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <SoyomboIcon size={20} color="#C9A227" />
+              <span style={{ fontFamily: "Cinzel, serif", color: "#8BA7CC", fontWeight: 600 }}>DemoSage</span>
+            </div>
+            <div className="flex items-center gap-6 text-sm" style={{ color: "#4A6A8A" }}>
+              <Link href="/billing" className="hover:text-white transition-colors">Pricing</Link>
+              <Link href="/profile" className="hover:text-white transition-colors">My Analyses</Link>
+              <Link href="/teams" className="hover:text-white transition-colors">Teams</Link>
+            </div>
+            <p style={{ color: "#2A3A4A", fontSize: "0.8rem" }}>
+              © 2026 DemoSage · Not affiliated with Valve Corporation
+            </p>
+          </div>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="relative" style={{ background: "#050C15", minHeight: "100vh" }}>
@@ -99,7 +202,7 @@ export default function HomePage() {
           </h1>
 
           <p style={{ color: "#8BA7CC", fontSize: "1.15rem", maxWidth: 560, margin: "0 auto 40px", lineHeight: 1.7 }}>
-            Upload your CS2 demo. The Great Khan AI dissects every round, kill, and grenade — then tells you exactly where you lost the empire.
+            Upload your CS2 replay demo. The Great Khan AI dissects every round, kill, and utility grenade — then identifies strategic execution patterns.
           </p>
 
           {/* Stats */}
@@ -113,31 +216,27 @@ export default function HomePage() {
           </div>
 
           {/* CTA — auth-aware */}
-          {!isLoaded ? null : user ? (
-            <UploadZone />
-          ) : (
-            <div className="flex flex-col items-center gap-4">
-              <div className="flex items-center gap-4">
-                <SignUpButton mode="modal">
-                  <button
-                    className="flex items-center gap-2 rounded-xl px-8 py-3.5 font-semibold text-sm transition-all hover:scale-105"
-                    style={{ background: "linear-gradient(135deg, #1B4F8A, #2D7DD2)", color: "#fff", boxShadow: "0 4px 24px rgba(45,125,210,0.4)" }}
-                  >
-                    Get Started Free <ArrowRight size={16} />
-                  </button>
-                </SignUpButton>
-                <SignInButton mode="modal">
-                  <button className="rounded-xl border px-8 py-3.5 font-semibold text-sm transition-all hover:bg-white/5"
-                    style={{ borderColor: "rgba(45,125,210,0.4)", color: "#8BA7CC" }}>
-                    Log In
-                  </button>
-                </SignInButton>
-              </div>
-              <p style={{ color: "#4A6A8A", fontSize: "0.78rem" }}>
-                Free tier includes 2 demo analyses · No credit card required
-              </p>
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center gap-4">
+              <SignUpButton mode="modal">
+                <button
+                  className="flex items-center gap-2 rounded-xl px-8 py-3.5 font-semibold text-sm transition-all hover:scale-105 cursor-pointer"
+                  style={{ background: "linear-gradient(135deg, #1B4F8A, #2D7DD2)", color: "#fff", boxShadow: "0 4px 24px rgba(45,125,210,0.4)" }}
+                >
+                  Get Started Free <ArrowRight size={16} />
+                </button>
+              </SignUpButton>
+              <SignInButton mode="modal">
+                <button className="rounded-xl border px-8 py-3.5 font-semibold text-sm transition-all hover:bg-white/5 cursor-pointer"
+                  style={{ borderColor: "rgba(45,125,210,0.4)", color: "#8BA7CC" }}>
+                  Log In
+                </button>
+              </SignInButton>
             </div>
-          )}
+            <p style={{ color: "#4A6A8A", fontSize: "0.78rem" }}>
+              Free tier includes 2 demo analyses · No credit card required
+            </p>
+          </div>
         </div>
 
         {/* Scroll indicator */}
@@ -168,7 +267,7 @@ export default function HomePage() {
                   style={{ background: "rgba(45,125,210,0.1)", border: "1px solid rgba(45,125,210,0.2)" }}>
                   <Icon size={20} color="#2D7DD2" />
                 </div>
-                <div>
+                <div className="text-left">
                   <h3 style={{ color: "#F0F4FF", fontWeight: 600, marginBottom: 6 }}>{title}</h3>
                   <p style={{ color: "#8BA7CC", fontSize: "0.875rem", lineHeight: 1.6 }}>{desc}</p>
                 </div>
@@ -212,7 +311,7 @@ export default function HomePage() {
                     Most Popular
                   </div>
                 )}
-                <div className="mb-6">
+                <div className="mb-6 text-left">
                   <h3 style={{ color: "#F0F4FF", fontWeight: 700, fontSize: "1.1rem" }}>{plan.name}</h3>
                   <div className="flex items-baseline gap-1 mt-2 mb-3">
                     <span style={{ color: plan.highlight ? "#2D7DD2" : "#F0F4FF", fontFamily: "JetBrains Mono", fontSize: "2.4rem", fontWeight: 700 }}>{plan.price}</span>
@@ -220,7 +319,7 @@ export default function HomePage() {
                   </div>
                   <p style={{ color: "#8BA7CC", fontSize: "0.85rem" }}>{plan.desc}</p>
                 </div>
-                <ul className="space-y-3 flex-1 mb-8">
+                <ul className="space-y-3 flex-1 mb-8 text-left">
                   {plan.features.map(f => (
                     <li key={f} className="flex items-center gap-2.5">
                       <CheckCircle size={14} color="#22D3A0" style={{ flexShrink: 0 }} />
@@ -228,28 +327,12 @@ export default function HomePage() {
                     </li>
                   ))}
                 </ul>
-                {user ? (
-                  plan.tier === "free" ? (
-                    <Link href="/"
-                      className="rounded-xl px-5 py-3 text-sm font-semibold text-center transition-all hover:opacity-80"
-                      style={{ background: plan.highlight ? "linear-gradient(135deg,#1B4F8A,#2D7DD2)" : "#1E3A5F", color: "#fff" }}>
-                      {plan.cta}
-                    </Link>
-                  ) : (
-                    <Link href="/billing"
-                      className="rounded-xl px-5 py-3 text-sm font-semibold text-center transition-all hover:opacity-80"
-                      style={{ background: plan.highlight ? "linear-gradient(135deg,#1B4F8A,#2D7DD2)" : "#1E3A5F", color: "#fff" }}>
-                      {plan.cta}
-                    </Link>
-                  )
-                ) : (
-                  <SignUpButton mode="modal">
-                    <button className="w-full rounded-xl px-5 py-3 text-sm font-semibold transition-all hover:opacity-80"
-                      style={{ background: plan.highlight ? "linear-gradient(135deg,#1B4F8A,#2D7DD2)" : "#1E3A5F", color: "#fff" }}>
-                      {plan.cta}
-                    </button>
-                  </SignUpButton>
-                )}
+                <SignUpButton mode="modal">
+                  <button className="w-full rounded-xl px-5 py-3 text-sm font-semibold transition-all hover:opacity-80 cursor-pointer"
+                    style={{ background: plan.highlight ? "linear-gradient(135deg,#1B4F8A,#2D7DD2)" : "#1E3A5F", color: "#fff" }}>
+                    {plan.cta}
+                  </button>
+                </SignUpButton>
               </div>
             ))}
           </div>
@@ -269,20 +352,12 @@ export default function HomePage() {
           <p style={{ color: "#8BA7CC", fontSize: "1rem", lineHeight: 1.7, marginBottom: 32 }}>
             Create a team, share an 8-character invite code, and review every teammate&apos;s matches together. One dashboard for the whole roster.
           </p>
-          {user ? (
-            <Link href="/teams"
-              className="inline-flex items-center gap-2 rounded-xl px-8 py-3.5 font-semibold text-sm transition-all hover:scale-105"
+          <SignUpButton mode="modal">
+            <button className="inline-flex items-center gap-2 rounded-xl px-8 py-3.5 font-semibold text-sm transition-all hover:scale-105 cursor-pointer"
               style={{ background: "linear-gradient(135deg, rgba(201,162,39,0.15), rgba(201,162,39,0.08))", border: "1px solid rgba(201,162,39,0.3)", color: "#C9A227" }}>
               Create Your Team <ChevronRight size={16} />
-            </Link>
-          ) : (
-            <SignUpButton mode="modal">
-              <button className="inline-flex items-center gap-2 rounded-xl px-8 py-3.5 font-semibold text-sm transition-all hover:scale-105"
-                style={{ background: "linear-gradient(135deg, rgba(201,162,39,0.15), rgba(201,162,39,0.08))", border: "1px solid rgba(201,162,39,0.3)", color: "#C9A227" }}>
-                Create Your Team <ChevronRight size={16} />
-              </button>
-            </SignUpButton>
-          )}
+            </button>
+          </SignUpButton>
         </div>
       </section>
 
@@ -299,7 +374,7 @@ export default function HomePage() {
             Your last match is already a lesson. Let the Khan read it.
           </p>
           <SignUpButton mode="modal">
-            <button className="inline-flex items-center gap-2 rounded-xl px-10 py-4 font-semibold transition-all hover:scale-105"
+            <button className="inline-flex items-center gap-2 rounded-xl px-10 py-4 font-semibold transition-all hover:scale-105 cursor-pointer"
               style={{ background: "linear-gradient(135deg, #1B4F8A, #2D7DD2)", color: "#fff", fontSize: "1.05rem", boxShadow: "0 4px 32px rgba(45,125,210,0.35)" }}>
               Start Analyzing <ArrowRight size={18} />
             </button>

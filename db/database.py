@@ -68,3 +68,27 @@ def get_session():
         yield db
     finally:
         db.close()
+
+
+def run_automatic_migrations():
+    from sqlalchemy import text  # noqa: PLC0415
+    statements = [
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS notes TEXT;",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS uploader_steam_id VARCHAR(32);",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS is_recon BOOLEAN DEFAULT FALSE;",
+        "CREATE TABLE IF NOT EXISTS system_configs (key VARCHAR(64) PRIMARY KEY, value TEXT);"
+    ]
+    with engine.begin() as conn:
+        for sql in statements:
+            try:
+                conn.execute(text(sql))
+            except Exception:
+                pass
+
+
+if not _is_sqlite:
+    try:
+        run_automatic_migrations()
+    except Exception:
+        pass
+

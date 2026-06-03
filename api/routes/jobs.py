@@ -47,17 +47,18 @@ async def get_job_status(match_id: str, user_id: str | None = None):
             # Check if match record exists and has been parsed
             result = db.execute(
                 text(
-                    "SELECT match_id, map_name, status, error_message, player_stats_json, created_at, parse_duration_seconds, user_id, team_id FROM matches WHERE match_id = :id"
+                    "SELECT match_id, map_name, status, error_message, player_stats_json, created_at, parse_duration_seconds, user_id, team_id, is_recon FROM matches WHERE match_id = :id"
                 ),
                 {"id": match_id},
             ).fetchone()
 
             if result is None:
                 # Not in DB yet — still queued or Scout hasn't started
-                return {"status": "queued", "match_id": match_id}
+                return {"status": "queued", "match_id": match_id, "is_recon": False}
 
             match_user_id = result[7]
             match_team_id = result[8]
+            is_recon = result[9] if len(result) > 9 else False
 
             # Access check
             if match_team_id:
@@ -103,7 +104,7 @@ async def get_job_status(match_id: str, user_id: str | None = None):
                 elapsed_seconds = max(0, int((now_utc - ca).total_seconds()))
 
             if match_status == "failed":
-                return {"status": "failed", "match_id": match_id, "error": error_message}
+                return {"status": "failed", "match_id": match_id, "error": error_message, "is_recon": is_recon}
 
             # If the job has been stuck in pending/processing for >15 minutes (900s), consider it failed
             if match_status not in ("done", "complete", "parsed") and elapsed_seconds > 900:
@@ -122,6 +123,7 @@ async def get_job_status(match_id: str, user_id: str | None = None):
                     "status": "failed",
                     "match_id": match_id,
                     "error": "Job timed out after 15 minutes",
+                    "is_recon": is_recon,
                 }
 
             if match_status in ("pending", "queued"):
@@ -130,6 +132,7 @@ async def get_job_status(match_id: str, user_id: str | None = None):
                     "match_id": match_id,
                     "created_at": created_at.isoformat() if created_at else None,
                     "elapsed_seconds": elapsed_seconds,
+                    "is_recon": is_recon,
                 }
 
             if match_status not in ("done", "complete", "parsed"):
@@ -139,6 +142,7 @@ async def get_job_status(match_id: str, user_id: str | None = None):
                     "map": result[1],
                     "created_at": created_at.isoformat() if created_at else None,
                     "elapsed_seconds": elapsed_seconds,
+                    "is_recon": is_recon,
                 }
 
             # Fetch kills
@@ -279,6 +283,7 @@ async def get_job_status(match_id: str, user_id: str | None = None):
                 "kills": mapped_kills,
                 "rounds": clean_rounds,
                 "parse_duration_seconds": parse_duration_seconds,
+                "is_recon": is_recon,
             }
             return sanitize_nan(response_data)
         finally:

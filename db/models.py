@@ -84,6 +84,9 @@ class Match(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Cached AI coaching output (JSON string) — written by Great Khan after Scout parse
     coaching_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploader_steam_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    is_recon: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     gcs_demo_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     gcs_audio_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     gcs_parsed_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -429,3 +432,17 @@ class KnowledgeEmbedding(Base):
 
     def __repr__(self) -> str:
         return f"<KnowledgeEmbedding {self.id} source={self.source}>"
+
+
+class SystemConfig(Base):
+    """
+    Key-Value System Configurations for LLM Prompts and settings.
+    """
+    __tablename__ = "system_configs"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<SystemConfig {self.key}>"
+

@@ -176,6 +176,37 @@ async def parse_match(req: ParseRequest):
         # --- Parse ---
         result = parse_demo(dem_file)
 
+        # --- Validate uploader Steam ID ---
+        try:
+            from db.database import SessionLocal  # noqa: PLC0415
+            from db.models import Match  # noqa: PLC0415
+            db = SessionLocal()
+            try:
+                match_obj = db.get(Match, req.match_id)
+                if match_obj and match_obj.user_id:
+                    # If is_recon is True, skip uploader Steam ID check entirely
+                    if getattr(match_obj, "is_recon", False):
+                        logger.info(f"[Scout] Match {req.match_id} is marked as Recon (Opposition Research) - bypassing Steam ID validation checks.")
+                    else:
+                        # User uploaded match, validation is required
+                        if not match_obj.uploader_steam_id:
+                            raise ValueError(
+                                "Your Steam ID is not configured. Please set your Steam ID on the Profile page before uploading."
+                            )
+                        players = result.get("player_stats", {})
+                        if match_obj.uploader_steam_id not in players:
+                            raise ValueError(
+                                f"Your Steam ID ({match_obj.uploader_steam_id}) was not found in this CS2 match."
+                            )
+            finally:
+                db.close()
+        except Exception as val_exc:
+            if isinstance(val_exc, ValueError):
+                logger.error(f"[Scout] Validation failed for match {req.match_id}: {val_exc}")
+                raise
+            else:
+                logger.warning(f"[Scout] Database lookup warning for validation: {val_exc}")
+
         # --- Write to DB ---
         duration = time.perf_counter() - start_time
         logger.info(f"[Scout] Parse completed in {duration:.2f} seconds")

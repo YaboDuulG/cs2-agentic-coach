@@ -31,11 +31,13 @@ export async function POST(req: NextRequest) {
 
   // --- Validate request ---
   try {
-    const { filename, size_bytes, team_id, chunk_count = 1 } = await req.json();
+    const { filename, size_bytes, team_id, chunk_count = 1, is_recon = false } = await req.json();
 
     if (!filename || (!filename.endsWith(".dem") && !filename.endsWith(".dem.gz"))) {
       return NextResponse.json({ error: "Only .dem or .dem.gz files are accepted." }, { status: 400 });
     }
+
+    const steamId = (user.unsafeMetadata?.steam_id as string) ?? "";
 
     // --- Get presigned URL from FastAPI ---
     const res = await fetch(`${API_URL}/api/upload/presign`, {
@@ -44,8 +46,9 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
         "Content-Type": "application/json",
         "x-clerk-user-id": userId,
+        "x-clerk-user-steam-id": steamId,
       },
-      body: JSON.stringify({ filename, size_bytes, team_id, chunk_count }),
+      body: JSON.stringify({ filename, size_bytes, team_id, chunk_count, is_recon }),
     });
 
     const data = await res.json();

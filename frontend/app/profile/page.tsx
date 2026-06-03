@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
 import { PLAN_LIMITS } from "@/lib/flags";
+import { UploadModal } from "@/components/UploadModal";
 
 interface Analysis {
   match_id: string;
@@ -42,12 +43,86 @@ function timeAgo(iso: string) {
   return "Just now";
 }
 
+function normalizeSteamId(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return "";
+
+  // 1. Check if it's already a 64-bit SteamID (17 digits starting with 7656)
+  if (/^7656\d{13}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // 2. Check if it's a Steam Community profile URL with 64-bit ID
+  const profileMatch = trimmed.match(/steamcommunity\.com\/profiles\/(7656\d{13})/i);
+  if (profileMatch) {
+    return profileMatch[1];
+  }
+
+  // 3. Steam ID 3: [U:1:ACCOUNT_ID] or U:1:ACCOUNT_ID
+  const id3Match = trimmed.match(/\[?U:1:(\d+)\]?/i);
+  if (id3Match) {
+    try {
+      const accountId = BigInt(id3Match[1]);
+      return (accountId + BigInt("76561197960265728")).toString();
+    } catch {
+      return trimmed;
+    }
+  }
+
+  // 4. Steam ID 2: STEAM_X:Y:Z
+  const id2Match = trimmed.match(/^STEAM_\d+:([01]):(\d+)$/i);
+  if (id2Match) {
+    try {
+      const y = BigInt(id2Match[1]);
+      const z = BigInt(id2Match[2]);
+      return (z * BigInt(2) + y + BigInt("76561197960265728")).toString();
+    } catch {
+      return trimmed;
+    }
+  }
+
+  return trimmed;
+}
+
 export default function ProfilePage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Steam ID settings states
+  const [steamInput, setSteamInput] = useState("");
+  const [steamEdit, setSteamEdit] = useState(false);
+  const [steamSaving, setSteamSaving] = useState(false);
+  const [steamError, setSteamError] = useState("");
+
+  const currentSteamId = (user?.unsafeMetadata?.steam_id as string) ?? "";
+
+  async function saveSteamId() {
+    if (!user) return;
+    setSteamSaving(true);
+    setSteamError("");
+    const normalized = normalizeSteamId(steamInput);
+    if (steamInput.trim() && !/^7656\d{13}$/.test(normalized)) {
+      setSteamError("Invalid Steam ID format. Could not resolve to a 17-digit SteamID64.");
+      setSteamSaving(false);
+      return;
+    }
+    try {
+      await user.update({
+        unsafeMetadata: {
+          ...user.unsafeMetadata,
+          steam_id: normalized,
+        },
+      });
+      setSteamEdit(false);
+    } catch (err: any) {
+      setSteamError(err.message || "Failed to update profile.");
+    }
+    setSteamSaving(false);
+  }
 
   const plan = (user?.publicMetadata?.plan as string) ?? "free";
   const uploads = (user?.publicMetadata?.uploadsThisMonth as number) ?? 0;
@@ -205,6 +280,73 @@ export default function ProfilePage() {
                 <span style={{ color: planColor, fontWeight: 600, fontSize: "0.85rem" }}>{planLabel}</span>
               </div>
             </div>
+
+            {/* Steam Link Card */}
+            <div className="card p-5 mt-6" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-4 h-4 text-[#2D7DD2]" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 .007c-.43 0-.85.04-1.28.11L5.94 4.88a10.983 10.983 0 00-4.66 9.61c0 5.48 4.02 10.02 9.33 10.84l4.57-2.64c.24.1.51.15.79.15.82 0 1.54-.5 1.87-1.22l5.03-2.9c1.97-2.12 3.13-4.94 3.13-8.02A11.026 11.026 0 0012 .007zM7.22 13.99c.35 0 .69.06 1.01.17l.01-.01.55-.32a3.868 3.868 0 013.78.14c.73.42 1.25 1.1 1.48 1.88l1.45-.84c-.03-.23-.05-.46-.05-.7 0-2.22 1.8-4.02 4.02-4.02a4.02 4.02 0 012.39.79l.01-.01 2.05-1.18c-.46-3.83-3.79-6.79-7.87-6.79a7.994 7.994 0 00-7.99 7.99c0 .32.03.63.08.94zm11.23-1.89c1.23 0 2.22.99 2.22 2.22 0 1.23-.99 2.22-2.22 2.22-1.23 0-2.22-.99-2.22-2.22 0-1.23.99-2.22 2.22-2.22zm-7.79 3.65c.34.2.57.56.57.97 0 .61-.5 1.11-1.11 1.11-.42 0-.78-.23-.97-.57l-.36.21c-.01.27-.12.53-.33.74-.35.35-.92.35-1.27 0-.35-.35-.35-.92 0-1.27.21-.21.47-.32.74-.33l.21-.36a1.114 1.114 0 012.08-.29l.44-.21z"/>
+                </svg>
+                <h3 className="font-semibold text-white" style={{ fontSize: "0.85rem" }}>Steam Profile Link</h3>
+              </div>
+              <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                Provide your Steam ID to personalize your AI reports and isolate coaching specifically to your team.
+              </p>
+              
+              {steamEdit ? (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={steamInput}
+                    onChange={(e) => setSteamInput(e.target.value)}
+                    placeholder="SteamID64, profile URL, or SteamID3"
+                    className="w-full bg-slate-950 border border-[#1E3A5F] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#2D7DD2] text-slate-200 transition-colors"
+                  />
+                  {steamError && (
+                    <p className="text-[10px] text-[#FF4D6D] font-medium">{steamError}</p>
+                  )}
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => setSteamEdit(false)}
+                      className="px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveSteamId}
+                      disabled={steamSaving}
+                      className="px-3 py-1.5 rounded bg-[#2D7DD2] text-white hover:bg-[#1B4F8A] text-xs font-semibold transition-colors flex items-center gap-1.5"
+                    >
+                      {steamSaving ? "Saving..." : "Save ID"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {currentSteamId ? (
+                    <div className="flex flex-col gap-2 rounded-lg bg-slate-950/60 border border-slate-900 px-3 py-2.5">
+                      <div>
+                        <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Linked Steam ID</p>
+                        <p className="text-xs font-bold text-[#C9A227] font-mono truncate">{currentSteamId}</p>
+                      </div>
+                      <button
+                        onClick={() => { setSteamInput(currentSteamId); setSteamEdit(true); setSteamError(""); }}
+                        className="text-xs font-semibold text-[#2D7DD2] hover:text-[#5BA3E8] transition-colors text-left"
+                      >
+                        Change Steam ID
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setSteamInput(""); setSteamEdit(true); setSteamError(""); }}
+                      className="w-full py-2.5 rounded-lg bg-[#2D7DD2]/10 border border-[#2D7DD2]/30 text-[#2D7DD2] hover:bg-[#2D7DD2]/20 text-xs font-semibold transition-all text-center"
+                    >
+                      + Link Steam Account
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ── Analyses feed ── */}
@@ -213,9 +355,12 @@ export default function ProfilePage() {
               <h2 className="heading-display" style={{ fontSize: "0.95rem" }}>
                 <Crosshair size={14} className="inline mr-2" />Recent Analyses
               </h2>
-              <Link href="/" className="text-xs font-semibold transition-colors hover:text-white" style={{ color: "#2D7DD2" }}>
+              <button
+                onClick={() => setIsUploadOpen(true)}
+                className="text-xs font-semibold transition-colors hover:text-white text-[#2D7DD2] cursor-pointer focus:outline-none"
+              >
                 + New Upload
-              </Link>
+              </button>
             </div>
 
             {loading ? (
@@ -231,11 +376,13 @@ export default function ProfilePage() {
                 <p style={{ color: "#8BA7CC", fontSize: "0.875rem", marginBottom: 20 }}>
                   Upload your first CS2 demo to see the Khan&apos;s verdict.
                 </p>
-                <Link href="/"
-                  className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-                  style={{ background: "linear-gradient(135deg,#1B4F8A,#2D7DD2)", color: "#fff" }}>
+                <button
+                  onClick={() => setIsUploadOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-all focus:outline-none"
+                  style={{ background: "linear-gradient(135deg,#1B4F8A,#2D7DD2)" }}
+                >
                   Upload a Demo <ArrowRight size={14} />
-                </Link>
+                </button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -279,6 +426,7 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+      <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
     </div>
   );
 }

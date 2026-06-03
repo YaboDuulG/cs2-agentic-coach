@@ -77,6 +77,7 @@ async def get_coaching(match_id: str, user_id: str | None = None):
                 "status": "ready",
                 "match_id": match_id,
                 "coaching": coaching_data,
+                "is_recon": getattr(match, "is_recon", False),
             }
         finally:
             db.close()

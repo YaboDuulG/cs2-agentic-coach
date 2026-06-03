@@ -22,6 +22,7 @@ class PresignRequest(BaseModel):
     size_bytes: int = 0
     team_id: str | None = None
     chunk_count: int = 1
+    is_recon: bool = False
 
 
 @router.post("/presign", summary="Get a presigned GCS URL for direct browser upload")
@@ -41,6 +42,7 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
     bucket_name = os.environ.get("GCS_BUCKET", "").strip()
     local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
     user_id = request.headers.get("x-clerk-user-id")
+    uploader_steam_id = request.headers.get("x-clerk-user-steam-id")
 
     # Verify team membership if uploading to a team
     if body.team_id:
@@ -64,7 +66,7 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
             db.close()
 
     # Create match record in DB immediately so jobs endpoint returns 'queued'
-    _create_match_record(match_id, secure_filename, user_id, body.team_id)
+    _create_match_record(match_id, secure_filename, user_id, body.team_id, uploader_steam_id, body.is_recon)
 
     if local_mode or not bucket_name:
         # Local dev: return a fake presigned URL(s)
@@ -273,7 +275,7 @@ async def stub_upload(match_id: str, part_name: str | None = None):
 
 
 def _create_match_record(
-    match_id: str, filename: str, user_id: str | None = None, team_id: str | None = None
+    match_id: str, filename: str, user_id: str | None = None, team_id: str | None = None, uploader_steam_id: str | None = None, is_recon: bool = False
 ) -> None:
     """Insert a queued match row so /api/jobs/{id} returns 'queued' immediately."""
     try:
@@ -287,12 +289,12 @@ def _create_match_record(
                 text("""
                     INSERT INTO matches (
                         match_id, map_name, tickrate, total_rounds,
-                        demo_filename, status, user_id, team_id, created_at, updated_at
+                        demo_filename, status, user_id, team_id, uploader_steam_id, is_recon, created_at, updated_at
                     )
-                    VALUES (:id, 'unknown', 64, 0, :filename, 'PENDING', :user_id, :team_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    VALUES (:id, 'unknown', 64, 0, :filename, 'PENDING', :user_id, :team_id, :uploader_steam_id, :is_recon, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT (match_id) DO NOTHING
                 """),
-                {"id": match_id, "filename": filename, "user_id": user_id, "team_id": team_id},
+                {"id": match_id, "filename": filename, "user_id": user_id, "team_id": team_id, "uploader_steam_id": uploader_steam_id, "is_recon": is_recon},
             )
             db.commit()
         finally:

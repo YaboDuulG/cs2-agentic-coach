@@ -40,6 +40,14 @@ def run_migrations():
             "matches_player_stats_json",
             "ALTER TABLE matches ADD COLUMN IF NOT EXISTS player_stats_json TEXT;",
         ),
+        (
+            "matches_notes",
+            "ALTER TABLE matches ADD COLUMN IF NOT EXISTS notes TEXT;",
+        ),
+        (
+            "matches_uploader_steam_id",
+            "ALTER TABLE matches ADD COLUMN IF NOT EXISTS uploader_steam_id VARCHAR(32);",
+        ),
     ]
 
     for label, sql in statements:
