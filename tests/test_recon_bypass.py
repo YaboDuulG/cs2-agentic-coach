@@ -2,6 +2,9 @@ from pathlib import Path
 import sys
 from unittest.mock import MagicMock, patch
 
+# Mock demoparser2 which is not installed in CI environment
+sys.modules['demoparser2'] = MagicMock()
+
 from fastapi import HTTPException
 import pytest
 
