@@ -113,17 +113,18 @@ Upload .dem + audio
 
 ---
 
-### 🛰️ The Scout — Demo Parser
-- **Role:** Extract raw structured data from CS2 `.dem` files
-- **Runtime:** Dockerized Python environment (awpy + demoparser2)
-- **LLM:** **None** — *Rationale: Demo parsing is deterministic code (awpy + demoparser2). No LLM needed. If anomaly flagging is added later (e.g., detecting corrupted rounds), use `gemini-2.0-flash-lite` at minimal cost.*
-- **Outputs (JSON):**
+### 🛰️ The Scout — Demo Parser (Background Agent)
+- **Role:** Extract raw structured data from CS2 `.dem` files and trigger downstream analysis.
+- **Runtime:** Dockerized Python environment running as a serverless container on **Google Cloud Run** or local environments.
+- **Asynchronous Execution:** Triggered via **Google Cloud Tasks** or **Pub/Sub** immediately upon file upload to Google Cloud Storage (GCS). It fetches the `.dem` file, parses it, and writes the structured data to the SQL database.
+- **LLM:** **None** (Uses Rust-native `demoparser2` for high-speed, deterministic parsing).
+- **Outputs (JSON/SQL):**
   - Kill events (weapon, distance, head/body, attacker position, victim position)
   - Grenade/utility events (throw position, landing position, type, timing)
   - Player trajectories per round (heatmap-ready coordinate streams)
   - Round metadata (economy, outcome, site contested, CT/T side)
   - "First Contact" events — first engagement per round per player
-- **Trigger:** File upload OR FACEIT/SCL webhook → auto-queued
+- **Downstream Orchestration:** Once parsing completes, the Scout automatically registers the match as `COMPLETE` in the database and triggers the **Great Khan / Tactician / Scribe** analysis loop asynchronously.
 
 ---
 
@@ -511,7 +512,8 @@ def check_cs2_update_active() -> tuple[bool, str]:
 | **Demo Parsing** | awpy + demoparser2 | Dockerized, CS2-native; no LLM used |
 | **Audio Transcription** | Gemini 2.5 Flash (native audio) | Direct audio → text; no separate service |
 | **Speaker Diarization** | pyannote.audio | Speaker separation |
-| **Database + pgvector** | **Cloud SQL for PostgreSQL** (Enterprise, shared-core) | ~$10/mo; pgvector extension enabled; LangGraph PostgresSaver |
+| **Database + pgvector** | **AWS Lightsail PostgreSQL** (Micro Instance via Docker) | $3.50/mo flat fee (micro instance); running ankane/pgvector:v0.5.1 under Docker; SQLite fallback for local testing |
+| **LLM Caching** | LangChain global `SQLiteCache` | Cache database `.langchain.db` initialized to store repeatable Gemini completions, reducing tokens and latency |
 | **File Storage** (demos, audio) | **Google Cloud Storage (GCS)** | 5GB free, then $0.02/GB; no egress within region |
 | **Task Queue** | **Cloud Tasks** | Serverless; 1M tasks/mo free; replaces Celery + Redis |
 | **API + Agent Compute** | **Cloud Run** | Serverless containers; 2M req/mo free; scales to zero |
@@ -706,6 +708,8 @@ def check_cs2_update_active() -> tuple[bool, str]:
 | **DB Schema** | SQLAlchemy 2.0 ORM with SQLite fallback for CI | `DATABASE_URL_TEST=sqlite:///:memory:` allows full model tests in CI without PostgreSQL or psycopg2 |
 | **Trajectory Sampling** | Every 8 ticks by default (`TRAJECTORY_SAMPLE_TICKS` env var) | ~8 positions/sec at 64tick — good heatmap resolution without excessive storage |
 | **GCP Provisioning** | `scripts/setup_gcp.py` one-shot script | Runs all gcloud commands in sequence; billing link step is interactive (cannot be automated) |
+| **Production Database Hosting** | AWS Lightsail VM (Ubuntu 24.04 + Docker) | Fixed cost of $3.50/mo; deployed via `deploy_lightsail.mjs` running `ankane/pgvector` container; eliminates Postgres SQL billing spikes |
+| **LLM Caching System** | LangChain global `SQLiteCache` | Writes to `.langchain.db` database; cache hits eliminate duplicate API model requests on repeated inputs |
 
 ---
 
