@@ -4,18 +4,19 @@ Tests for Social Media & YouTube Tactical Sentiment RAG.
 
 import datetime
 import json
+
+# Force SQLite for testing
+import os
 from unittest.mock import patch
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-# Force SQLite for testing
-import os
 os.environ["DATABASE_URL_TEST"] = "sqlite:///:memory:"
 
 from db.models import Base, KnowledgeEmbedding
-from scripts.social_sentiment_scraper import ingest_sentiment, clean_expired_chunks
+from scripts.social_sentiment_scraper import clean_expired_chunks, ingest_sentiment
 
 
 @pytest.fixture(scope="module")
@@ -44,7 +45,7 @@ def clean_db(db_session):
 def test_ingest_sentiment_saves_embeddings(mock_get_embedding, db_session):
     """Verify that ingest_sentiment successfully calls embedding API and inserts records."""
     mock_get_embedding.return_value = [0.1] * 768
-    
+
     ingest_sentiment(
         db=db_session,
         team_a="The MongolZ",
@@ -52,15 +53,15 @@ def test_ingest_sentiment_saves_embeddings(mock_get_embedding, db_session):
         map_name="de_mirage",
         api_key="fake-gemini-key"
     )
-    
+
     # Verify records exist in database
     reddit_records = db_session.query(KnowledgeEmbedding).filter_by(source="social_sentiment").all()
     # 1 mock reddit post + 2 mock tweets = 3 records
     assert len(reddit_records) == 3
-    
+
     youtube_records = db_session.query(KnowledgeEmbedding).filter_by(source="youtube_breakdown").all()
     assert len(youtube_records) == 1
-    
+
     assert "YOUTUBE STRATEGY BREAKDOWN" in youtube_records[0].content
     meta = json.loads(youtube_records[0].metadata_json)
     assert meta["team_a"] == "The MongolZ"
@@ -79,7 +80,7 @@ def test_clean_expired_chunks_purges_old_records(db_session):
         metadata_json=json.dumps({"ingested_at": recent_date})
     )
     db_session.add(recent_chunk)
-    
+
     # Stale chunk (95 days ago)
     old_date = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=95)).isoformat()
     old_chunk = KnowledgeEmbedding(
@@ -90,10 +91,10 @@ def test_clean_expired_chunks_purges_old_records(db_session):
     )
     db_session.add(old_chunk)
     db_session.commit()
-    
+
     # Run cleanup
     clean_expired_chunks(db_session)
-    
+
     # Verify only recent chunk remains
     remaining = db_session.query(KnowledgeEmbedding).all()
     assert len(remaining) == 1

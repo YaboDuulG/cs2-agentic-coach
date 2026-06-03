@@ -15,9 +15,9 @@ import logging
 import os
 from pathlib import Path
 import sys
-from typing import Any
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Configure logging
@@ -34,7 +34,7 @@ from db.models import Base, KnowledgeEmbedding
 
 # Try importing YouTube transcript API safely
 try:
-    from youtube_transcript_api import YouTubeTranscriptApi
+    from youtube_transcript_api import YouTubeTranscriptApi  # noqa: F401
     YOUTUBE_SUPPORTED = True
 except ImportError:
     YOUTUBE_SUPPORTED = False
@@ -81,13 +81,13 @@ def get_embedding(text: str, api_key: str) -> list[float]:
 def clean_expired_chunks(db) -> int:
     """Delete RAG chunks older than 90 days from social and video sources."""
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=90)
-    
+
     # We iterate and check metadata_json for date matching or simple age filtering
     logger.info("Checking for expired social/YouTube chunks...")
     all_chunks = db.query(KnowledgeEmbedding).filter(
         KnowledgeEmbedding.source.in_(["social_sentiment", "youtube_breakdown"])
     ).all()
-    
+
     deleted_count = 0
     for chunk in all_chunks:
         try:
@@ -100,7 +100,7 @@ def clean_expired_chunks(db) -> int:
                     deleted_count += 1
         except Exception as e:
             logger.error(f"Error parsing metadata for chunk {chunk.id}: {e}")
-            
+
     db.commit()
     if deleted_count:
         logger.info(f"Purged {deleted_count} expired strategy chunks from database.")
@@ -164,7 +164,7 @@ def get_youtube_mock_breakdowns(map_name: str) -> list[dict]:
 def ingest_sentiment(db, team_a: str, team_b: str, map_name: str, api_key: str):
     """Scrape, chunk, and embed social media and YouTube tactical discussions."""
     logger.info(f"Starting ingestion: {team_a} vs {team_b} on {map_name}")
-    
+
     # Metadata parameters for version/pool tracking
     ingested_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
     meta = {
@@ -175,7 +175,7 @@ def ingest_sentiment(db, team_a: str, team_b: str, map_name: str, api_key: str):
         "team_b": team_b,
         "map": map_name
     }
-    
+
     # 1. Reddit Ingestion
     reddit_posts = get_reddit_mock_threads(team_a, team_b, map_name)
     # If keys are set in production, we could call actual Reddit client here
@@ -208,12 +208,12 @@ def ingest_sentiment(db, team_a: str, team_b: str, map_name: str, api_key: str):
     for yt in yt_breakdowns:
         video_url = f"https://youtube.com/watch?v={yt['video_id']}"
         content = f"YOUTUBE STRATEGY BREAKDOWN: {yt['title']}\nTRANSCRIPT:\n{yt['transcript']}\nVideo Link: {video_url}"
-        
+
         # In production with YOUTUBE_SUPPORTED=True:
         # We can extract transcripts dynamically using YouTubeTranscriptApi.get_transcript(yt['video_id'])
-        
+
         vector = get_embedding(content, api_key)
-        
+
         yt_meta = {**meta, "video_id": yt["video_id"], "video_url": video_url}
         db.add(KnowledgeEmbedding(
             content=content,
@@ -243,11 +243,11 @@ def main():
     # Initialize tables
     Base.metadata.create_all(engine)
     db = SessionLocal()
-    
+
     try:
         if args.cleanup:
             clean_expired_chunks(db)
-        
+
         ingest_sentiment(db, args.team_a, args.team_b, args.map, api_key)
     finally:
         db.close()
