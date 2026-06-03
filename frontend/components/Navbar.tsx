@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
-import { Upload } from "lucide-react";
+import { Upload, Shield } from "lucide-react";
 import { SoyomboIcon } from "@/components/patterns/mongolian";
 import { UploadModal } from "@/components/UploadModal";
 
@@ -13,6 +13,8 @@ export function Navbar() {
   const { user } = useUser();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const plan = (user?.publicMetadata?.plan as string) ?? "free";
+  const isAdmin = (user?.publicMetadata?.role as string) === "admin" ||
+    (user?.publicMetadata?.is_admin as boolean) === true;
 
   const [coachingMode, setCoachingMode] = useState<"individual" | "team">(() => {
     if (typeof window !== "undefined") {
@@ -114,6 +116,16 @@ export function Navbar() {
                     Pricing
                   </Link>
                 )}
+                {isAdmin && (
+                  <Link
+                    href="/settings/admin"
+                    className={`transition-colors flex items-center gap-1 ${isActive("/settings/admin")}`}
+                    title="Admin Dashboard"
+                  >
+                    <Shield size={12} className="text-[#FF4D6D]" />
+                    <span className="text-[#FF4D6D] font-bold">Admin</span>
+                  </Link>
+                )}
               </div>
               <span className={`text-xs font-semibold font-mono hidden sm:inline ${planColor}`}>
                 {planLabel}
@@ -145,7 +157,7 @@ export function Navbar() {
         </div>
       </div>
     </nav>
-    <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
+    <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} defaultMode={coachingMode} />
     </>
   );
 }

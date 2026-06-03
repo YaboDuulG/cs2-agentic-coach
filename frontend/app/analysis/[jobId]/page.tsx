@@ -94,6 +94,87 @@ function isTeam1CT(round: number): boolean {
   return otHalf % 2 === 0;
 }
 
+// --- Player Grade System ---
+type PlayerGrade = "S" | "A" | "B" | "C" | "F";
+interface GradeResult {
+  grade: PlayerGrade;
+  score: number;
+  color: string;
+  breakdown: { label: string; raw: string; contribution: number }[];
+}
+
+function computePlayerGrade(p: any, totalRounds: number): GradeResult {
+  const rounds = Math.max(1, totalRounds);
+
+  // --- Normalize metrics to 0-100 scale ---
+  // KAST: already 0-100
+  const kastScore = Math.min(100, Math.max(0, (p.kast ?? 0)));
+
+  // ADR: 120+ is elite, normalize to 0-100 (120 = 100)
+  const adr = p.adr ?? 0;
+  const adrScore = Math.min(100, (adr / 120) * 100);
+
+  // K/D: 2.0+ = elite. Clamp at 2.0 → 100
+  const kills = p.kills ?? 0;
+  const deaths = Math.max(1, p.deaths ?? 1);
+  const kd = kills / deaths;
+  const kdScore = Math.min(100, (kd / 2.0) * 100);
+
+  // Utility thrown per round: 4+ = elite
+  const utilThrown = ((p.utility_smokes ?? 0) + (p.utility_flashes ?? 0) + (p.utility_molotovs ?? 0) + (p.utility_hes ?? 0)) / rounds;
+  const utilScore = Math.min(100, (utilThrown / 4) * 100);
+
+  // Enemies flashed per round: 2+ = elite
+  const flashSuccesses = (p.flashSuccesses ?? 0) / rounds;
+  const flashScore = Math.min(100, (flashSuccesses / 2) * 100);
+
+  // Entry kill success: 0-100
+  const entryScore = Math.min(100, Math.max(0, p.entry_success_pct ?? 50));
+
+  // HS%: 60%+ = elite
+  const hsPct = p.hs_pct ?? 0;
+  const hsScore = Math.min(100, (hsPct / 60) * 100);
+
+  // Trade kills per round: 0.5+ = elite
+  const tradeKills = (p.trade_kills ?? 0) / rounds;
+  const tradeScore = Math.min(100, (tradeKills / 0.5) * 100);
+
+  // --- Weighted composite score ---
+  const score =
+    kastScore  * 0.25 +
+    adrScore   * 0.20 +
+    kdScore    * 0.15 +
+    utilScore  * 0.10 +
+    flashScore * 0.10 +
+    entryScore * 0.10 +
+    hsScore    * 0.05 +
+    tradeScore * 0.05;
+
+  let grade: PlayerGrade;
+  let color: string;
+  if (score >= 85)      { grade = "S"; color = "#C9A227"; }
+  else if (score >= 70) { grade = "A"; color = "#22D3A0"; }
+  else if (score >= 55) { grade = "B"; color = "#2D7DD2"; }
+  else if (score >= 40) { grade = "C"; color = "#F59E0B"; }
+  else                  { grade = "F"; color = "#FF4D6D"; }
+
+  return {
+    grade,
+    score: Math.round(score),
+    color,
+    breakdown: [
+      { label: "KAST",    raw: `${Math.round(kastScore)}%`,   contribution: Math.round(kastScore * 0.25) },
+      { label: "ADR",     raw: adr.toFixed(0),                contribution: Math.round(adrScore * 0.20) },
+      { label: "K/D",     raw: kd.toFixed(2),                  contribution: Math.round(kdScore * 0.15) },
+      { label: "Utility", raw: `${utilThrown.toFixed(1)}/r`,   contribution: Math.round(utilScore * 0.10) },
+      { label: "Flashes", raw: `${flashSuccesses.toFixed(1)}/r`, contribution: Math.round(flashScore * 0.10) },
+      { label: "Entry",   raw: `${Math.round(entryScore)}%`,   contribution: Math.round(entryScore * 0.10) },
+      { label: "HS%",     raw: `${Math.round(hsPct)}%`,        contribution: Math.round(hsScore * 0.05) },
+      { label: "Trades",  raw: `${tradeKills.toFixed(1)}/r`,   contribution: Math.round(tradeScore * 0.05) },
+    ],
+  };
+}
+
 const MAP_CONFIGS: Record<string, { pos_x: number; pos_y: number; scale: number }> = {
   de_dust2: { pos_x: -2476, pos_y: 3239, scale: 4.4 },
   de_mirage: { pos_x: -3230, pos_y: 1713, scale: 5.0 },
@@ -739,22 +820,25 @@ function CoachingPanel({ matchId }: { matchId: string }) {
   }
 
   useEffect(() => {
+    if (status !== "loading" && status !== "pending") return;
     let stopped = false;
     async function poll() {
-      for (let i = 0; i < 20; i++) {
+      // Poll up to 60 times × 5s = 5 minutes total
+      for (let i = 0; i < 60; i++) {
         if (stopped) return;
         try {
           const res = await fetch(`/api/coaching/${matchId}`);
-          if (!res.ok) {
-            if (res.status === 202) {
-              setStatus("pending");
-            } else {
-              setStatus("error");
-              return;
-            }
+          if (res.status === 404) {
+            // Coaching not yet generated
+            setStatus("pending");
+          } else if (res.status === 202) {
+            setStatus("pending");
+          } else if (!res.ok) {
+            setStatus("error");
+            return;
           } else {
             const data = await res.json();
-            if (data.status === "ready") {
+            if (data.status === "ready" || data.coaching) {
               setCoaching(data.coaching);
               setStatus("ready");
               return;
@@ -768,7 +852,8 @@ function CoachingPanel({ matchId }: { matchId: string }) {
     }
     poll();
     return () => { stopped = true; };
-  }, [matchId]);
+  }, [matchId, status]);
+
 
   const parseBold = (text: string) => {
     const parts = text.split(/\*\*([^\*]+)\*\*/g);
@@ -938,7 +1023,18 @@ function CoachingPanel({ matchId }: { matchId: string }) {
           <span style={{ color: "#8BA7CC", fontSize: "0.875rem" }}>The Khan is studying your demo…</span>
         </div>
       ) : status === "error" ? (
-        <p style={{ color: "#4A6A8A", fontSize: "0.875rem" }}>Coaching not available for this match yet.</p>
+        <div className="flex flex-col items-start gap-3 py-4">
+          <p style={{ color: "#4A6A8A", fontSize: "0.875rem" }}>
+            Coaching not available yet — the Great Khan may still be analyzing this match.
+          </p>
+          <button
+            onClick={() => setStatus("loading")}
+            className="px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer select-none"
+            style={{ background: "rgba(201,162,39,0.1)", border: "1px solid rgba(201,162,39,0.3)", color: "#C9A227" }}
+          >
+            ↻ Retry
+          </button>
+        </div>
       ) : coaching ? (
         <div className="space-y-4">
           {isScribeFormat ? (
@@ -1440,7 +1536,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
         <thead>
           <tr className="bg-[#0b1322] border-b border-[#1E3A5F]/40 text-slate-400 font-semibold text-[11px]">
             {renderHeader("Player", "name", "left", "py-3.5 px-4")}
-            {renderHeader("Rank", "rankPoints", "left", "py-3.5 px-4")}
+            {renderHeader("Grade", "rankPoints", "left", "py-3.5 px-4")}
             {renderHeader("K / D / A", "kills", "right", "py-3.5 px-4")}
             {renderHeader("HS %", "hs_pct", "right", "py-3.5 px-4")}
             {renderHeader("ADR", "adr", "right", "py-3.5 px-4")}
@@ -1453,7 +1549,7 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
         <thead>
           <tr className="bg-[#0b1322] border-b border-[#1E3A5F]/40 text-slate-400 font-semibold text-[11px]">
             {renderHeader("Player", "name", "left", "py-3.5 px-4")}
-            {renderHeader("Rank", "rankPoints", "left", "py-3.5 px-4")}
+            {renderHeader("Grade", "rankPoints", "left", "py-3.5 px-4")}
             {renderHeader("Entry Kills", "entry_kills", "right", "py-3.5 px-4 text-emerald-400")}
             {renderHeader("Entry Deaths", "entry_deaths", "right", "py-3.5 px-4 text-rose-400")}
             {renderHeader("Attempts", "entry_attempts", "right", "py-3.5 px-4")}
@@ -1562,16 +1658,45 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
       </td>
     );
 
-    const rankCell = (
-      <td className="py-2.5 px-4 text-left border-r border-[#1E3A5F]/10">
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded-full flex items-center justify-center text-white font-black text-[9px] border shadow-sm" style={{ backgroundColor: p.rankLevel >= 14 ? '#ef4444' : p.rankLevel >= 12 ? '#eb5e28' : '#10b981', borderColor: p.rankLevel >= 14 ? '#991b1b' : p.rankLevel >= 12 ? '#c2410c' : '#065f46' }}>
-            {p.rankLevel}
+    const rankCell = (() => {
+      const totalRounds = result?.rounds?.length ?? 24;
+      const gradeResult = computePlayerGrade(p, totalRounds);
+      return (
+        <td className="py-2.5 px-4 text-left border-r border-[#1E3A5F]/10">
+          <div className="relative group flex items-center gap-2">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm cursor-help select-none transition-all group-hover:scale-110"
+              style={{
+                background: `${gradeResult.color}18`,
+                border: `1.5px solid ${gradeResult.color}60`,
+                color: gradeResult.color,
+                fontFamily: "JetBrains Mono",
+                textShadow: `0 0 8px ${gradeResult.color}80`,
+              }}
+              title={`Grade ${gradeResult.grade} — Score: ${gradeResult.score}/100`}
+            >
+              {gradeResult.grade}
+            </div>
+            <span className="text-[10px] font-mono" style={{ color: gradeResult.color }}>{gradeResult.score}</span>
+            {/* Breakdown tooltip */}
+            <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-48 rounded-xl border p-3 shadow-2xl"
+              style={{ background: "rgba(8,14,26,0.98)", borderColor: "rgba(45,125,210,0.3)", backdropFilter: "blur(12px)" }}
+            >
+              <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: gradeResult.color }}>Grade Breakdown</p>
+              {gradeResult.breakdown.map((b) => (
+                <div key={b.label} className="flex items-center justify-between mb-0.5">
+                  <span className="text-[10px] text-slate-400 font-mono">{b.label}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-300 font-mono">{b.raw}</span>
+                    <span className="text-[10px] font-mono" style={{ color: gradeResult.color }}>+{b.contribution}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <span className="text-[10px] text-slate-400 font-mono">{p.rankPoints.toLocaleString()}</span>
-        </div>
-      </td>
-    );
+        </td>
+      );
+    })();
 
     if (activeTab === "summary") {
       return (
@@ -2712,6 +2837,26 @@ function RoundTimeline({
   const displayTeam1Name = (team1Name === "CT" || team1Name === "COUNTER_TERRORIST" || team1Name === "Counter-Terrorists") ? "Team A" : team1Name;
   const displayTeam2Name = (team2Name === "TERRORIST" || team2Name === "T" || team2Name === "Terrorists") ? "Team B" : team2Name;
 
+  // Build set of round indices where a side-switch occurs (isTeam1CT changes)
+  const switchAfterIndices = new Set<number>();
+  for (let i = 0; i < rounds.length - 1; i++) {
+    if (isTeam1CT(rounds[i].round) !== isTeam1CT(rounds[i + 1].round)) {
+      switchAfterIndices.add(i);
+    }
+  }
+
+  // Running score to display inside each divider badge
+  const runningT1Scores: number[] = [];
+  const runningT2Scores: number[] = [];
+  let rt1 = 0; let rt2 = 0;
+  for (const r of rounds) {
+    const isT1win = (isTeam1CT(r.round) && (r.winner === "CT" || r.winner === "COUNTER_TERRORIST")) ||
+                   (!isTeam1CT(r.round) && (r.winner === "T" || r.winner === "TERRORIST"));
+    if (isT1win) rt1++; else rt2++;
+    runningT1Scores.push(rt1);
+    runningT2Scores.push(rt2);
+  }
+
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between mb-4">
@@ -2723,8 +2868,8 @@ function RoundTimeline({
       <div className="flex flex-wrap gap-1.5 items-center">
         {rounds.map((r, index) => {
           const isSelected = selectedRound === r.round;
-          // Standard CS2 regulation halftime is after round 12
-          const showHalftimeDivider = r.round === 12 && rounds.length > 12;
+          const showDivider = switchAfterIndices.has(index);
+          const isOT = showDivider && r.round > 24;
           return (
             <Fragment key={r.round}>
               <div
@@ -2752,10 +2897,23 @@ function RoundTimeline({
                 </div>
                 <span style={{ color: isSelected ? "#22D3A0" : "#4A6A8A", fontSize: "0.55rem", fontFamily: "JetBrains Mono", fontWeight: isSelected ? 600 : 400 }}>{r.round}</span>
               </div>
-              {showHalftimeDivider && (
-                <div className="flex flex-col items-center justify-center self-stretch px-2 select-none">
-                  <div className="w-[2px] bg-slate-700 h-6 rounded" title="Halftime" />
-                  <span className="text-[8px] text-slate-500 font-mono mt-1 font-bold">HALF</span>
+              {showDivider && (
+                <div className="flex flex-col items-center justify-center self-stretch select-none" style={{ margin: "0 4px" }}>
+                  <div
+                    className="rounded-full flex flex-col items-center justify-center py-1 px-2.5 gap-0.5"
+                    style={{
+                      background: isOT ? "rgba(235,94,40,0.12)" : "rgba(45,125,210,0.12)",
+                      border: `1.5px solid ${isOT ? "rgba(235,94,40,0.5)" : "rgba(45,125,210,0.5)"}`,
+                    }}
+                    title={isOT ? "Overtime Side Switch" : "Halftime — Sides Swap"}
+                  >
+                    <span className="text-[7px] font-black font-mono uppercase tracking-widest whitespace-nowrap" style={{ color: isOT ? "#eb5e28" : "#2D7DD2" }}>
+                      {isOT ? "OT" : "HALF"}
+                    </span>
+                    <span className="text-[7px] font-mono font-bold" style={{ color: isOT ? "#eb5e28" : "#2D7DD2" }}>
+                      {runningT1Scores[index]}-{runningT2Scores[index]}
+                    </span>
+                  </div>
                 </div>
               )}
             </Fragment>

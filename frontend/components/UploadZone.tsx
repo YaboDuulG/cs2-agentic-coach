@@ -12,9 +12,10 @@ const MAX_BYTES = MAX_MB * 1024 * 1024;
 interface UploadZoneProps {
   onSuccess?: () => void;
   teamId?: string;
+  defaultMode?: "individual" | "team";
 }
 
-export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
+export function UploadZone({ onSuccess, teamId, defaultMode }: UploadZoneProps) {
   const router = useRouter();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -373,7 +374,8 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
             </div>
           </div>
 
-          {/* Ilchi Spy Scan Checkbox */}
+          {/* Ilchi Spy Scan Checkbox — only in team mode */}
+          {defaultMode !== "individual" && (
           <div 
             className="mt-6 p-4 rounded-xl border transition-all duration-300 flex items-start gap-3 select-none w-full max-w-[480px]"
             style={{
@@ -402,6 +404,7 @@ export function UploadZone({ onSuccess, teamId }: UploadZoneProps) {
               </p>
             </label>
           </div>
+          )}
         </div>
       )}
       {error && <p className="text-center mt-3" style={{ color: "#FF4D6D", fontSize: "0.875rem" }}>{error}</p>}

@@ -43,8 +43,14 @@ function timeAgo(iso: string) {
   return "Just now";
 }
 
+/** Returns "VANITY" if the input is a Steam vanity URL (cannot be resolved client-side). */
+function isSteamVanityUrl(input: string): boolean {
+  return /steamcommunity\.com\/id\//i.test(input.trim());
+}
+
 function normalizeSteamId(input: string): string {
-  const trimmed = input.trim();
+  // Strip trailing slashes/spaces
+  const trimmed = input.trim().replace(/\/+$/, "");
   if (!trimmed) return "";
 
   // 1. Check if it's already a 64-bit SteamID (17 digits starting with 7656)
@@ -53,6 +59,7 @@ function normalizeSteamId(input: string): string {
   }
 
   // 2. Check if it's a Steam Community profile URL with 64-bit ID
+  //    Handles: https://steamcommunity.com/profiles/76561198012345678[/]
   const profileMatch = trimmed.match(/steamcommunity\.com\/profiles\/(7656\d{13})/i);
   if (profileMatch) {
     return profileMatch[1];
@@ -104,17 +111,42 @@ export default function ProfilePage() {
     if (!user) return;
     setSteamSaving(true);
     setSteamError("");
-    const normalized = normalizeSteamId(steamInput);
-    if (steamInput.trim() && !/^7656\d{13}$/.test(normalized)) {
-      setSteamError("Invalid Steam ID format. Could not resolve to a 17-digit SteamID64.");
-      setSteamSaving(false);
-      return;
+
+    let finalId = "";
+
+    // Auto-resolve Steam vanity URLs (steamcommunity.com/id/username) via server API
+    if (steamInput.trim() && isSteamVanityUrl(steamInput)) {
+      try {
+        const res = await fetch(`/api/steam/resolve?url=${encodeURIComponent(steamInput.trim())}`);
+        const data = await res.json();
+        if (!res.ok || !data.steamid) {
+          setSteamError(data.error ?? "Could not resolve this Steam vanity URL. Try using your numeric profile URL: steamcommunity.com/profiles/76561198XXXXXXXXX");
+          setSteamSaving(false);
+          return;
+        }
+        finalId = data.steamid;
+      } catch {
+        setSteamError("Network error resolving vanity URL. Try again or use your numeric profile URL.");
+        setSteamSaving(false);
+        return;
+      }
+    } else {
+      finalId = normalizeSteamId(steamInput);
+      if (steamInput.trim() && !/^7656\d{13}$/.test(finalId)) {
+        setSteamError(
+          "Invalid Steam ID format. Accepted formats: SteamID64 (76561198...), " +
+          "steamcommunity.com/profiles/76561198..., steamcommunity.com/id/username, [U:1:XXXXXXXX], or STEAM_0:X:XXXXXXXX"
+        );
+        setSteamSaving(false);
+        return;
+      }
     }
+
     try {
       await user.update({
         unsafeMetadata: {
           ...user.unsafeMetadata,
-          steam_id: normalized,
+          steam_id: finalId,
         },
       });
       setSteamEdit(false);

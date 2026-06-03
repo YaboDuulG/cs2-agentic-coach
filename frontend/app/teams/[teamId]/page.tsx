@@ -88,7 +88,7 @@ export default function TeamDetailPage() {
   const [showWebhookGuide, setShowWebhookGuide] = useState(false);
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<"overview" | "tactics" | "settings">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "stratbook" | "settings">("overview");
   const [settingsTab, setSettingsTab] = useState<"profile" | "password" | "members" | "subscription" | "danger">("profile");
 
   const [strategies, setStrategies] = useState<Strategy[]>([]);
@@ -111,7 +111,7 @@ export default function TeamDetailPage() {
   }, [teamId]);
 
   useEffect(() => {
-    if (activeTab === "tactics") {
+    if (activeTab === "stratbook") {
       Promise.resolve().then(() => {
         fetchStrategies();
       });
@@ -345,14 +345,14 @@ export default function TeamDetailPage() {
                 <LayoutDashboard size={14} /> Overview
               </button>
               <button
-                onClick={() => setActiveTab("tactics")}
+                onClick={() => setActiveTab("stratbook")}
                 className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 select-none ${
-                  activeTab === "tactics"
+                  activeTab === "stratbook"
                     ? "border-[#2D7DD2] text-white"
                     : "border-transparent text-slate-400 hover:text-slate-200"
                 }`}
               >
-                <MessageSquare size={14} /> Tactics & AI Chat
+                <BookOpen size={14} /> Stratbook
               </button>
               <button
                 onClick={() => setActiveTab("settings")}
@@ -563,7 +563,7 @@ export default function TeamDetailPage() {
               </div>
             )}
 
-            {activeTab === "tactics" && (
+            {activeTab === "stratbook" && (
               /* ── TACTICS VIEW ── */
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* Left panel: Strategies List (col-span-2) */}
@@ -572,7 +572,7 @@ export default function TeamDetailPage() {
                     <div className="flex justify-between items-center">
                       <h2 className="heading-display text-sm font-bold uppercase tracking-wider text-slate-200">
                         <BookOpen size={14} className="inline mr-2 text-[#2D7DD2]" />
-                        Tactical Playbook
+                        Strategy Library
                       </h2>
                       <span className="text-[10px] text-slate-500 font-mono">
                         {strategies.length} ingested
@@ -591,47 +591,43 @@ export default function TeamDetailPage() {
                       <Search size={12} className="absolute left-3 top-3 text-slate-500" />
                     </div>
 
-                    {/* Discord Info Box */}
-                    <div className="rounded-lg p-3 border border-[#1E3A5F]/60 bg-[#0D1825]/40 text-[11px] leading-relaxed text-slate-400">
-                      <p className="font-semibold text-slate-300 mb-1">💡 Discord Webhook Ingestion</p>
-                      To sync strategies, add an outgoing webhook in Discord pointing to:
-                      <div className="mt-2 bg-black/40 p-2 rounded text-[10px] font-mono break-all select-all border border-white/5 text-[#8BA7CC]">
-                        {typeof window !== 'undefined' ? `${window.location.origin}/api/discord/webhook?team_id=${teamId}` : `/api/discord/webhook?team_id=${teamId}`}
+                    {/* Discord Bot Connect — Option B */}
+                    <div className="rounded-xl p-4 border flex flex-col gap-3" style={{ background: "rgba(88,101,242,0.06)", borderColor: "rgba(88,101,242,0.25)" }}>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(88,101,242,0.12)", border: "1px solid rgba(88,101,242,0.3)" }}>
+                          <span style={{ fontSize: "1.1rem" }}>🎮</span>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-200">Connect Discord</p>
+                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">Auto-ingest strategy posts from your server</p>
+                        </div>
                       </div>
-                      <div className="mt-2.5">
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Add the <strong className="text-slate-300">DemoSage Bot</strong> to your Discord server. It will automatically sync strategy messages from your team channel into this Stratbook.
+                      </p>
+                      <a
+                        href={`https://discord.com/api/oauth2/authorize?client_id=YOUR_DISCORD_APP_ID&permissions=68608&scope=bot%20applications.commands&state=${teamId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold text-white transition-all hover:opacity-90 cursor-pointer select-none"
+                        style={{ background: "linear-gradient(135deg, #5865F2, #7289DA)", boxShadow: "0 4px 12px rgba(88,101,242,0.3)" }}
+                      >
+                        <span>🔗</span> Add DemoSage Bot to Discord
+                      </a>
+                      <div className="text-center">
                         <button
                           onClick={() => setShowWebhookGuide(!showWebhookGuide)}
-                          className="text-[10.5px] text-[#2D7DD2] hover:text-[#2D7DD2]/80 font-bold transition-colors flex items-center gap-1 select-none cursor-pointer"
+                          className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
                         >
-                          {showWebhookGuide ? "✕ Hide Setup Guide" : "➔ How to setup webhook ingestion"}
+                          {showWebhookGuide ? "Hide" : "Manual webhook setup instead ↓"}
                         </button>
                         {showWebhookGuide && (
-                          <div className="mt-2 p-2.5 rounded-lg border border-[#1E3A5F] bg-[#070D18]/90 text-[10.5px] space-y-2 animate-fadeIn">
-                            <p className="text-slate-300 font-semibold">How to sync Discord posts:</p>
-                            <p>Discord does not natively support channel-to-endpoint outgoing webhooks. You can set this up using either method below:</p>
-                            
-                            <div className="space-y-1">
-                              <p className="font-bold text-slate-300">Option A: Automation (Zapier / Make.com)</p>
-                              <ol className="list-decimal pl-4 space-y-0.5">
-                                <li>Create a free account on <a href="https://zapier.com" target="_blank" rel="noopener noreferrer" className="text-[#2D7DD2] hover:underline font-bold">Zapier.com</a> or <a href="https://make.com" target="_blank" rel="noopener noreferrer" className="text-[#2D7DD2] hover:underline font-bold">Make.com</a>.</li>
-                                <li>Set the **Trigger** to: *New Message in Channel* (select your Discord strategy channel).</li>
-                                <li>Set the **Action** to: *Webhooks (POST)* pointing to the URL above.</li>
-                                <li>Pass the payload as JSON:</li>
-                              </ol>
-                              <pre className="mt-1 bg-black/50 p-1.5 rounded text-[9.5px] font-mono text-[#8BA7CC] leading-normal border border-white/5">
-{`{
-  "content": "{{Message Content}}",
-  "author": {
-    "username": "{{User Username}}"
-  }
-}`}
-                              </pre>
+                          <div className="mt-2 p-2.5 rounded-lg border border-[#1E3A5F] bg-[#070D18]/90 text-[10px] text-left space-y-1">
+                            <p className="text-slate-300 font-semibold">Webhook URL (manual):</p>
+                            <div className="bg-black/40 p-1.5 rounded text-[9px] font-mono break-all select-all border border-white/5 text-[#8BA7CC]">
+                              {typeof window !== 'undefined' ? `${window.location.origin}/api/discord/webhook?team_id=${teamId}` : `/api/discord/webhook?team_id=${teamId}`}
                             </div>
-
-                            <div className="space-y-1 pt-1.5 border-t border-[#1E3A5F]/40">
-                              <p className="font-bold text-slate-300">Option B: Custom Discord Bot</p>
-                              <p>Run a lightweight Discord bot using discord.js or discord.py. Listen to messages in your strategy channel, and send a POST request with the JSON payload format shown in Option A to this team webhook URL.</p>
-                            </div>
+                            <p className="text-slate-500 leading-relaxed">POST messages as JSON with <code className="text-[#8BA7CC]">content</code> and <code className="text-[#8BA7CC]">author.username</code> fields.</p>
                           </div>
                         )}
                       </div>
