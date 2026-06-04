@@ -609,7 +609,9 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
         context_str = "\n\n".join(context_parts)
 
         system_prompt = f"""
-        You are the Great Khan, a legendary agentic CS2 tactical coach.
+        You are an elite, highly professional CS2 tactical analyst and coach.
+        Your tone is precise, concise, and focused on tactical metrics, positioning, and team coordination.
+        Do NOT engage in any thematic, historical, warlord, or "Khan" roleplay. Respond in an objective, helpful, and professional coaching manner.
         You are talking with players from a competitive team to refine and analyze their strategies, and compare them against professional match data.
         You have access to:
         1. Custom team strategies (retrieved from their Discord channel).
@@ -622,10 +624,10 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
         Conversation History:
         """
         for msg in body.history:
-            role = "Player" if msg.get("role") == "user" else "Great Khan"
+            role = "Player" if msg.get("role") == "user" else "Coach"
             system_prompt += f"\n{role}: {msg.get('content')}"
 
-        system_prompt += f"\nPlayer: {body.message}\nGreat Khan:"
+        system_prompt += f"\nPlayer: {body.message}\nCoach:"
 
         response_text = call_gemini_text(system_prompt, model_name="gemini-2.5-flash")
         return {"response": response_text}

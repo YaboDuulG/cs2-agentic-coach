@@ -730,4 +730,29 @@ def check_cs2_update_active() -> tuple[bool, str]:
 
 ---
 
+## 13. Strategy & Coaching Load Optimization (Latency Reduction)
+
+To achieve sub-second page loads and near-instantaneous AI feedback on match/strategy queries, we propose the following architectural optimizations:
+
+### 13.1 Gemini Context Caching
+- **Problem:** Every invocation of the Great Khan supervisor or Tactician analyst pulls large static corpora (CS2 Game Rules, RAG context, pro match summaries) into the model's prompt. This dominates input token count, increases cost, and raises latency to 10–20 seconds.
+- **Solution:** Utilize Gemini's native **Context Caching** API. By caching the static/semi-static RAG contexts (e.g. Discord custom strategies, official guidelines, meta snapshots) in Google's Vertex AI memory (TTL of 30–60 minutes), subsequent model runs for the same user session or match bypass parsing the large context.
+- **Impact:** Reduces TTFT (Time to First Token) by up to **75%** and cuts API token costs by **50%–70%**.
+
+### 13.2 Granular Multi-Agent Fan-Out & Parallelism
+- **Problem:** Currently, the LangGraph supervisor waits for multiple worker agents (Scout, RAG) to complete before proceeding to the Tactician and Scribe.
+- **Solution:** Fully parallelize non-dependent nodes. For example, while the Comms Analyst parses voice logs, the Tactician can run on the already completed Scout database rows.
+- **State Partitioning:** Restructure `MatchState` to support parallel delta writes to separate sub-states (e.g., `individual_coaching_substate` and `team_coaching_substate`), preventing supervisor bottle-necks.
+
+### 13.3 Incremental Coaching Re-runs
+- **Problem:** Saving custom notes or adjusting a strategy re-runs the entire Great Khan graph from scratch, including data-gathering and RAG retrieval.
+- **Solution:** Implement **Node Bypass Rules**. When a re-run is triggered by a minor change (like user notes edits), the graph checks if the underlying demo data or RAG context changed. If not, the graph skips RAG/Scout analysis and goes straight to the `Scribe` node, merging the new notes with the existing cached JSON analysis.
+- **Impact:** Decreases re-run latency from ~25 seconds to **<5 seconds**.
+
+### 13.4 Streaming Response Protocol
+- **Problem:** The frontend UI displays a spinning loading state until the entire LLM response finishes generating.
+- **Solution:** Transition endpoints (like strategy chat and coaching reports) to Server-Sent Events (SSE) or WebSockets. This allows the model to stream tokens to the frontend in real-time, giving the user immediate visual feedback as the AI "types" out the tactical analysis.
+
+---
+
 *This document is the single source of truth for project planning. Update the Progress Tracker checkboxes as work completes. Create GitHub Issues directly from Phase items.*

@@ -83,6 +83,32 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
     logger.info(f"Parsing demo: {dem_path}")
     parser = DemoParser(dem_path)
 
+    # --- Match start/end ticks (Game Phase Matching) ---
+    match_start_tick = 0
+    match_end_tick = float("inf")
+    try:
+        phase_ticks_df = parser.parse_ticks(["game_phase"])
+        if phase_ticks_df is not None and "game_phase" in phase_ticks_df.columns:
+            # Find when phase changes to 2 (Live Match Start)
+            phase_2_mask = phase_ticks_df["game_phase"] == 2
+            if phase_2_mask.any():
+                match_start_tick = int(phase_ticks_df.loc[phase_2_mask, "tick"].iloc[0])
+                logger.info(f"Match start detected (phase 2) at tick: {match_start_tick}")
+
+            # Find when phase changes to 5 (Match Over)
+            phase_5_mask = phase_ticks_df["game_phase"] == 5
+            if phase_5_mask.any():
+                match_end_tick = int(phase_ticks_df.loc[phase_5_mask, "tick"].iloc[0])
+                logger.info(f"Match end detected (phase 5) at tick: {match_end_tick}")
+    except Exception as e:
+        logger.warning(f"Failed to extract game_phase: {e}")
+
+    def _resolve_round(r) -> int:
+        t = _safe_int(r.get("tick"), 0)
+        if t < match_start_tick:
+            return 0
+        return _safe_int(r.get("total_rounds_played"), 0) + 1
+
     # --- Header / metadata ---
     header = parser.parse_header()
     map_name = _safe_str(header.get("map_name", "unknown"))
@@ -114,7 +140,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         if kills_df is not None and not kills_df.empty:
             for _, row in kills_df.iterrows():
                 kill = {
-                    "round": _safe_int(row.get("total_rounds_played")),
+                    "round": _resolve_round(row),
                     "tick": _safe_int(row.get("tick")),
                     "attacker": _safe_str(row.get("attacker_name")),
                     "attacker_team": _safe_str(row.get("attacker_team_name")),
@@ -162,7 +188,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 for _, row in g_df.iterrows():
                     output["grenades"].append(
                         {
-                            "round": _safe_int(row.get("total_rounds_played")),
+                            "round": _resolve_round(row),
                             "tick": _safe_int(row.get("tick")),
                             "thrower": _safe_str(row.get("user_name")),
                             "team": _safe_str(row.get("user_team_name")),
@@ -179,28 +205,6 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
     eco_lookup: dict[int, dict] = {}
     # warmup_rounds: set of round numbers (total_rounds_played) to exclude
     warmup_rounds: set[int] = set()
-
-    # Rule 2 — Game Phase Matching (Robust)
-    # 1: Warmup, 2: First Half, 3: Second Half, 4: Halftime, 5: Post-Match
-    match_start_tick = 0
-    match_end_tick = float("inf")
-
-    try:
-        phase_ticks_df = parser.parse_ticks(["game_phase"])
-        if "game_phase" in phase_ticks_df.columns:
-            # Find when phase changes to 2 (Live Match Start)
-            phase_2_mask = phase_ticks_df["game_phase"] == 2
-            if phase_2_mask.any():
-                match_start_tick = int(phase_ticks_df.loc[phase_2_mask, "tick"].iloc[0])
-                logger.info(f"Match start detected (phase 2) at tick: {match_start_tick}")
-
-            # Find when phase changes to 5 (Match Over)
-            phase_5_mask = phase_ticks_df["game_phase"] == 5
-            if phase_5_mask.any():
-                match_end_tick = int(phase_ticks_df.loc[phase_5_mask, "tick"].iloc[0])
-                logger.info(f"Match end detected (phase 5) at tick: {match_end_tick}")
-    except Exception as e:
-        logger.warning(f"Failed to extract game_phase: {e}")
 
     freeze_df = None
     try:
@@ -420,7 +424,10 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
 
         if freeze_df is not None and not freeze_df.empty:
             tick_to_round_local = {
-                int(r["tick"]): int(r["total_rounds_played"]) for _, r in freeze_df.iterrows()
+                int(r["tick"]): (
+                    0 if int(r["tick"]) < match_start_tick else (int(r["total_rounds_played"]) + 1)
+                )
+                for _, r in freeze_df.iterrows()
             }
             freeze_ticks = ticks_df_all[ticks_df_all["tick"].isin(tick_to_round_local.keys())]
             for _, row in freeze_ticks.iterrows():
@@ -443,10 +450,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 if tick < match_start_tick or tick > match_end_tick:
                     continue
 
-                round_num = _safe_int(row.get("total_rounds_played"))
-                # Note: If it's the knife round, we map it to 0
-                if row.get("is_knife_round"):
-                    round_num = 0
+                round_num = _resolve_round(row)
 
                 if round_num not in valid_round_nums:
                     continue  # skip warmup kills
@@ -492,7 +496,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 if tick < match_start_tick or tick > match_end_tick:
                     continue
 
-                if _safe_int(row.get("total_rounds_played")) not in valid_round_nums:
+                if _resolve_round(row) not in valid_round_nums:
                     continue  # skip warmup utility
                 usr_id = row.get("user_steamid")
                 wep = str(row.get("weapon", ""))
@@ -515,7 +519,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 if tick < match_start_tick or tick > match_end_tick:
                     continue
 
-                if _safe_int(row.get("total_rounds_played")) not in valid_round_nums:
+                if _resolve_round(row) not in valid_round_nums:
                     continue  # skip warmup damage
                 att_id = row.get("attacker_steamid")
                 vic_id = row.get("user_steamid")
@@ -539,7 +543,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 if tick < match_start_tick or tick > match_end_tick:
                     continue
 
-                if _safe_int(row.get("total_rounds_played")) not in valid_round_nums:
+                if _resolve_round(row) not in valid_round_nums:
                     continue  # skip warmup flash events
                 att_id = row.get("attacker_steamid")
                 vic_id = row.get("user_steamid")
@@ -562,7 +566,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         entry_map = {}
         if kills_df is not None and not kills_df.empty:
             for _, row in kills_df.iterrows():
-                round_num = _safe_int(row.get("total_rounds_played"))
+                round_num = _resolve_round(row)
                 if round_num not in valid_round_nums:
                     continue  # skip warmup entry kills
                 tick = _safe_int(row.get("tick"))
@@ -589,9 +593,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             kills_list = []
             for _, row in kills_df.iterrows():
                 k_tick = _safe_int(row.get("tick"))
-                k_round_num = _safe_int(row.get("total_rounds_played"))
-                if row.get("is_knife_round"):
-                    k_round_num = 0
+                k_round_num = _resolve_round(row)
 
                 if (
                     k_tick >= match_start_tick
@@ -635,7 +637,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         deaths_by_round = {}
         if kills_df is not None and not kills_df.empty:
             for _, row in kills_df.iterrows():
-                round_num = _safe_int(row.get("total_rounds_played"))
+                round_num = _resolve_round(row)
                 if round_num not in valid_round_nums:
                     continue  # skip warmup deaths
                 vic_id = _safe_str(row.get("user_steamid"))
