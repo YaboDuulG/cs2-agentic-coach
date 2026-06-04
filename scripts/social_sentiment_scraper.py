@@ -35,10 +35,13 @@ from db.models import Base, KnowledgeEmbedding
 # Try importing YouTube transcript API safely
 try:
     from youtube_transcript_api import YouTubeTranscriptApi  # noqa: F401
+
     YOUTUBE_SUPPORTED = True
 except ImportError:
     YOUTUBE_SUPPORTED = False
-    logger.warning("youtube-transcript-api not installed. YouTube transcript fetching will use mock/cache fallbacks.")
+    logger.warning(
+        "youtube-transcript-api not installed. YouTube transcript fetching will use mock/cache fallbacks."
+    )
 
 
 def get_embedding(text: str, api_key: str) -> list[float]:
@@ -59,20 +62,22 @@ def get_embedding(text: str, api_key: str) -> list[float]:
             model=model_name,
             contents=text,
             config=types.EmbedContentConfig(
-                task_type="RETRIEVAL_DOCUMENT",
-                output_dimensionality=768
-            )
+                task_type="RETRIEVAL_DOCUMENT", output_dimensionality=768
+            ),
         )
         return response.embeddings[0].values
     except Exception as e:
         import hashlib
-        logger.warning(f"Gemini embedding API call failed: {e}. Falling back to deterministic mock embedding.")
+
+        logger.warning(
+            f"Gemini embedding API call failed: {e}. Falling back to deterministic mock embedding."
+        )
         hash_bytes = hashlib.sha256(text.encode("utf-8")).digest()
         vector = []
         current_hash = hash_bytes
         while len(vector) < 768:
             for i in range(0, len(current_hash), 4):
-                val = int.from_bytes(current_hash[i:i+4], byteorder="big", signed=True)
+                val = int.from_bytes(current_hash[i : i + 4], byteorder="big", signed=True)
                 vector.append(val / 2147483648.0)
             current_hash = hashlib.sha256(current_hash).digest()
         return vector[:768]
@@ -84,9 +89,11 @@ def clean_expired_chunks(db) -> int:
 
     # We iterate and check metadata_json for date matching or simple age filtering
     logger.info("Checking for expired social/YouTube chunks...")
-    all_chunks = db.query(KnowledgeEmbedding).filter(
-        KnowledgeEmbedding.source.in_(["social_sentiment", "youtube_breakdown"])
-    ).all()
+    all_chunks = (
+        db.query(KnowledgeEmbedding)
+        .filter(KnowledgeEmbedding.source.in_(["social_sentiment", "youtube_breakdown"]))
+        .all()
+    )
 
     deleted_count = 0
     for chunk in all_chunks:
@@ -118,7 +125,7 @@ def get_reddit_mock_threads(team_a: str, team_b: str, map_name: str) -> list[dic
                 f"The community consensus is that {team_a} needs to play a 3-A default setup or use counter-flash "
                 f"from elevator to delay executions."
             ),
-            "url": "https://reddit.com/r/GlobalOffensive/mock_thread"
+            "url": "https://reddit.com/r/GlobalOffensive/mock_thread",
         }
     ]
 
@@ -132,7 +139,7 @@ def get_twitter_mock_tweets(team_a: str, team_b: str, map_name: str) -> list[dic
                 f"Analysis Tweet: {team_a} default setups on {map_name} are extremely readable. "
                 f"They leave B site wide open early in the round. {team_b} caught them saving utility "
                 f"twice in a row. Force-buying was a massive economic throw here."
-            )
+            ),
         },
         {
             "author": "@launders",
@@ -140,8 +147,8 @@ def get_twitter_mock_tweets(team_a: str, team_b: str, map_name: str) -> list[dic
                 f"Analysis Tweet: Notice how {team_b} uses utility sequencing. "
                 f"Smoke main, flash elevator, and molly site is standard, but the flash is perfectly timed "
                 f"to blind the underpass player on {map_name}. Pure class."
-            )
-        }
+            ),
+        },
     ]
 
 
@@ -156,7 +163,7 @@ def get_youtube_mock_breakdowns(map_name: str) -> list[dict]:
                 f"For the A execute: line up at the corner of the wall, aim at the top of the antenna and throw. "
                 f"This smokes off CT spawn perfectly. Next, line up behind the boxes, throw a flash over the wall "
                 f"to blind site anchors. This utility sequence is crucial to secure site entry."
-            )
+            ),
         }
     ]
 
@@ -173,7 +180,7 @@ def ingest_sentiment(db, team_a: str, team_b: str, map_name: str, api_key: str):
         "map_pool_season": "2026_active_duty",
         "team_a": team_a,
         "team_b": team_b,
-        "map": map_name
+        "map": map_name,
     }
 
     # 1. Reddit Ingestion
@@ -182,12 +189,14 @@ def ingest_sentiment(db, team_a: str, team_b: str, map_name: str, api_key: str):
     for post in reddit_posts:
         content = f"REDDIT POST: {post['title']}\n{post['content']}\nLink: {post['url']}"
         vector = get_embedding(content, api_key)
-        db.add(KnowledgeEmbedding(
-            content=content,
-            embedding=vector,
-            source="social_sentiment",
-            metadata_json=json.dumps(meta)
-        ))
+        db.add(
+            KnowledgeEmbedding(
+                content=content,
+                embedding=vector,
+                source="social_sentiment",
+                metadata_json=json.dumps(meta),
+            )
+        )
         logger.info(f"Ingested Reddit chunk for {team_a} vs {team_b}")
 
     # 2. Twitter Ingestion
@@ -195,12 +204,14 @@ def ingest_sentiment(db, team_a: str, team_b: str, map_name: str, api_key: str):
     for tweet in tweets:
         content = f"EXPERT TWEET BY {tweet['author']}:\n{tweet['content']}"
         vector = get_embedding(content, api_key)
-        db.add(KnowledgeEmbedding(
-            content=content,
-            embedding=vector,
-            source="social_sentiment",
-            metadata_json=json.dumps(meta)
-        ))
+        db.add(
+            KnowledgeEmbedding(
+                content=content,
+                embedding=vector,
+                source="social_sentiment",
+                metadata_json=json.dumps(meta),
+            )
+        )
         logger.info(f"Ingested Twitter analyst chunk by {tweet['author']}")
 
     # 3. YouTube Ingestion
@@ -215,12 +226,14 @@ def ingest_sentiment(db, team_a: str, team_b: str, map_name: str, api_key: str):
         vector = get_embedding(content, api_key)
 
         yt_meta = {**meta, "video_id": yt["video_id"], "video_url": video_url}
-        db.add(KnowledgeEmbedding(
-            content=content,
-            embedding=vector,
-            source="youtube_breakdown",
-            metadata_json=json.dumps(yt_meta)
-        ))
+        db.add(
+            KnowledgeEmbedding(
+                content=content,
+                embedding=vector,
+                source="youtube_breakdown",
+                metadata_json=json.dumps(yt_meta),
+            )
+        )
         logger.info(f"Ingested YouTube strategy transcript: {yt['title']}")
 
     db.commit()
@@ -237,7 +250,9 @@ def main():
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
-        logger.warning("GEMINI_API_KEY or GOOGLE_API_KEY environment variable is missing. Ingestion will use mock embeddings.")
+        logger.warning(
+            "GEMINI_API_KEY or GOOGLE_API_KEY environment variable is missing. Ingestion will use mock embeddings."
+        )
         api_key = "placeholder"
 
     # Initialize tables

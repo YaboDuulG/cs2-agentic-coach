@@ -30,12 +30,10 @@ def get_query_embedding(text: str, api_key: str) -> list[float]:
     response = client.models.embed_content(
         model=model_name,
         contents=text,
-        config=types.EmbedContentConfig(
-            task_type="RETRIEVAL_QUERY",
-            output_dimensionality=768
-        )
+        config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY", output_dimensionality=768),
     )
     return response.embeddings[0].values
+
 
 def cosine_similarity(v1: list[float], v2: list[float]) -> float:
     """Compute cosine similarity between two lists of floats."""
@@ -48,7 +46,10 @@ def cosine_similarity(v1: list[float], v2: list[float]) -> float:
         return 0.0
     return dot_product / (mag1 * mag2)
 
-def retrieve_similar_chunks(db_session, query: str, limit: int = 5, source: str | None = None) -> list[dict]:
+
+def retrieve_similar_chunks(
+    db_session, query: str, limit: int = 5, source: str | None = None
+) -> list[dict]:
     """
     Retrieve top K most similar text chunks from the knowledge_embeddings table.
     Automatically detects if backend is PostgreSQL (uses pgvector) or SQLite (uses Python fallback).
@@ -96,12 +97,14 @@ def retrieve_similar_chunks(db_session, query: str, limit: int = 5, source: str 
 
         results = []
         for cand, score in top_candidates:
-            results.append({
-                "content": cand.content,
-                "source": cand.source,
-                "score": score,
-                "metadata": json.loads(cand.metadata_json) if cand.metadata_json else {}
-            })
+            results.append(
+                {
+                    "content": cand.content,
+                    "source": cand.source,
+                    "score": score,
+                    "metadata": json.loads(cand.metadata_json) if cand.metadata_json else {},
+                }
+            )
         return results
 
     else:
@@ -112,17 +115,21 @@ def retrieve_similar_chunks(db_session, query: str, limit: int = 5, source: str 
 
         # Cosine distance ranges from 0 (perfect match) to 2.
         # Order by distance ascending to get closest matches first.
-        db_results = postgres_query.order_by(
-            KnowledgeEmbedding.embedding.cosine_distance(query_vector)
-        ).limit(limit).all()
+        db_results = (
+            postgres_query.order_by(KnowledgeEmbedding.embedding.cosine_distance(query_vector))
+            .limit(limit)
+            .all()
+        )
 
         results = []
         for cand in db_results:
             # pgvector distance is 1 - cosine_similarity. We can approximate a score for matching output format.
-            results.append({
-                "content": cand.content,
-                "source": cand.source,
-                "score": None,  # pgvector order handles sorting natively
-                "metadata": json.loads(cand.metadata_json) if cand.metadata_json else {}
-            })
+            results.append(
+                {
+                    "content": cand.content,
+                    "source": cand.source,
+                    "score": None,  # pgvector order handles sorting natively
+                    "metadata": json.loads(cand.metadata_json) if cand.metadata_json else {},
+                }
+            )
         return results

@@ -31,6 +31,7 @@ def db_session():
     session.close()
     Base.metadata.drop_all(engine)
 
+
 @pytest.fixture(autouse=True)
 def clean_db(db_session):
     """Clean the tables before and after each test."""
@@ -43,6 +44,7 @@ def clean_db(db_session):
     db_session.query(Kill).delete()
     db_session.query(Match).delete()
     db_session.commit()
+
 
 @patch("services.hltv_watcher.main.SessionLocal")
 def test_hltv_watcher_mock_mode(mock_session, db_session):
@@ -61,6 +63,7 @@ def test_hltv_watcher_mock_mode(mock_session, db_session):
     assert matches[0].map_name == "de_dust2"
     assert "de_dust2_test.dem" in matches[0].gcs_demo_uri
 
+
 @patch("scripts.queue_demo_jobs.SessionLocal")
 @patch("scripts.queue_demo_jobs.enqueue_scout_job")
 def test_queue_demo_jobs(mock_enqueue, mock_session, db_session):
@@ -72,7 +75,7 @@ def test_queue_demo_jobs(mock_enqueue, mock_session, db_session):
         match_id="pending-test-match-1",
         map_name="de_mirage",
         status=MatchStatus.PENDING,
-        gcs_demo_uri="gs://bucket/test.dem"
+        gcs_demo_uri="gs://bucket/test.dem",
     )
     db_session.add(m)
     db_session.commit()
@@ -88,6 +91,7 @@ def test_queue_demo_jobs(mock_enqueue, mock_session, db_session):
     m_updated = db_session.query(Match).filter_by(match_id="pending-test-match-1").first()
     assert m_updated.status == MatchStatus.PARSING
 
+
 @patch("scripts.generate_meta_snapshot.SessionLocal")
 def test_generate_meta_snapshot(mock_session, db_session, tmp_path):
     """Verify generate_meta_snapshot executes successfully and generates correct stats."""
@@ -96,7 +100,14 @@ def test_generate_meta_snapshot(mock_session, db_session, tmp_path):
     # Seed match, round, and kill
     m = Match(match_id="snap-match-1", map_name="de_dust2", status=MatchStatus.COMPLETE)
     r = Round(match_id="snap-match-1", round_num=1, winner_side="CT")
-    k = Kill(match_id="snap-match-1", round_num=1, tick=100, attacker="P1", victim="P2", weapon="weapon_ak47")
+    k = Kill(
+        match_id="snap-match-1",
+        round_num=1,
+        tick=100,
+        attacker="P1",
+        victim="P2",
+        weapon="weapon_ak47",
+    )
     db_session.add_all([m, r, k])
     db_session.commit()
 

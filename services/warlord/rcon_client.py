@@ -5,10 +5,12 @@ from rcon.source import Client
 
 logger = logging.getLogger("warlord.rcon")
 
+
 async def send_rcon_command(host: str, port: int, password: str, command: str) -> str:
     """
     Sends an RCON command to a Source server (CS2) asynchronously.
     """
+
     def _run():
         try:
             with Client(host, port, passwd=password, timeout=5.0) as client:
@@ -21,11 +23,15 @@ async def send_rcon_command(host: str, port: int, password: str, command: str) -
     logger.info(f"[RCON] -> {host}:{port} | Cmd: {command}")
     return await asyncio.to_thread(_run)
 
-async def execute_batch_commands(host: str, port: int, password: str, commands: list[str]) -> list[str]:
+
+async def execute_batch_commands(
+    host: str, port: int, password: str, commands: list[str]
+) -> list[str]:
     """
     Executes a list of RCON commands sequentially.
     """
     results = []
+
     def _run_batch():
         try:
             with Client(host, port, passwd=password, timeout=8.0) as client:

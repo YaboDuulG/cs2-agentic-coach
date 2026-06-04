@@ -16,6 +16,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class UtilityFlag:
     round_num: int
@@ -23,10 +24,12 @@ class UtilityFlag:
     severity: str
     message: str
 
+
 @dataclass
 class UtilityAnalysis:
     flags: list[UtilityFlag] = field(default_factory=list)
     overall_efficiency: float = 1.0
+
 
 def analyze_utility(match_data: dict) -> UtilityAnalysis:
     """
@@ -53,12 +56,14 @@ def analyze_utility(match_data: dict) -> UtilityAnalysis:
 
         # If team threw >2 smokes but 0 flashes, it's highly inefficient site execution
         if len(smokes) >= 2 and len(flashes) == 0:
-            analysis.flags.append(UtilityFlag(
-                round_num=round_num,
-                player="Team",
-                severity="warning",
-                message=f"Heavy smoke usage ({len(smokes)}) without any flashbang support."
-            ))
+            analysis.flags.append(
+                UtilityFlag(
+                    round_num=round_num,
+                    player="Team",
+                    severity="warning",
+                    message=f"Heavy smoke usage ({len(smokes)}) without any flashbang support.",
+                )
+            )
             total_flags += 1
 
         # Check per-player utility dumping
@@ -70,18 +75,21 @@ def analyze_utility(match_data: dict) -> UtilityAnalysis:
 
         for player, count in player_throws.items():
             if count > 4:
-                analysis.flags.append(UtilityFlag(
-                    round_num=round_num,
-                    player=player,
-                    severity="warning",
-                    message="Dumped excessive utility in a single round."
-                ))
+                analysis.flags.append(
+                    UtilityFlag(
+                        round_num=round_num,
+                        player=player,
+                        severity="warning",
+                        message="Dumped excessive utility in a single round.",
+                    )
+                )
                 total_flags += 1
 
     total_rounds = len(match_data.get("rounds", [])) or 1
     analysis.overall_efficiency = max(0.0, 1.0 - (total_flags / (total_rounds * 2)))
 
     return analysis
+
 
 def utility_to_dict(analysis: UtilityAnalysis) -> dict:
     return {
@@ -91,8 +99,8 @@ def utility_to_dict(analysis: UtilityAnalysis) -> dict:
                 "round_num": f.round_num,
                 "player": f.player,
                 "severity": f.severity,
-                "message": f.message
+                "message": f.message,
             }
             for f in analysis.flags
-        ]
+        ],
     }

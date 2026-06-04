@@ -30,7 +30,9 @@ COACHING_MODEL = "gemini-2.5-flash"
 # ---------------------------------------------------------------------------
 
 
-def _build_prompt(match_id: str, stats: dict[str, Any], rag_context: list[dict[str, Any]] | None = None) -> str:
+def _build_prompt(
+    match_id: str, stats: dict[str, Any], rag_context: list[dict[str, Any]] | None = None
+) -> str:
     rag_text = ""
     if rag_context:
         rag_text = "\n\nCRITICAL CONTEXT & GAME RULES FOR THE COACH (RAG):\n"
@@ -38,9 +40,10 @@ def _build_prompt(match_id: str, stats: dict[str, Any], rag_context: list[dict[s
             rag_text += f"[{i}] {chunk.get('content')}\n"
 
     from db.config import get_config
+
     base_instructions = get_config(
         "prompt_great_khan_instructions",
-        "You are DemoSage — an elite CS2 tactical coach. Analyse this match data and return ONLY valid JSON with no markdown."
+        "You are DemoSage — an elite CS2 tactical coach. Analyse this match data and return ONLY valid JSON with no markdown.",
     )
 
     return f"""{base_instructions}
@@ -197,6 +200,7 @@ def _call_gemini(prompt: str) -> dict[str, Any] | None:
             return _stub_coaching()
 
         from db.config import get_config
+
         model_name = get_config("coaching_model", "gemini-2.5-flash")
         temp_str = get_config("coaching_temperature", "0.4")
         try:
@@ -208,7 +212,7 @@ def _call_gemini(prompt: str) -> dict[str, Any] | None:
             model=model_name,
             temperature=temperature,
             google_api_key=api_key,
-            model_kwargs={"response_mime_type": "application/json"}
+            model_kwargs={"response_mime_type": "application/json"},
         )
 
         # Invoke via LangChain to hit the SQLiteCache
@@ -235,6 +239,7 @@ def _stub_coaching() -> dict[str, Any]:
         "weakest_area": "AI coaching not yet configured.",
     }
 
+
 # ---------------------------------------------------------------------------
 # LangGraph Node Definitions
 # ---------------------------------------------------------------------------
@@ -252,9 +257,14 @@ def supervisor_node(state: MatchState) -> dict[str, Any]:
     query_lower = query.lower()
 
     # Route based on key terms
-    if any(k in query_lower for k in ("server", "warlord", "connect", "rcon", "dathost", "spin up")):
+    if any(
+        k in query_lower for k in ("server", "warlord", "connect", "rcon", "dathost", "spin up")
+    ):
         intent = "server_request"
-    elif any(k in query_lower for k in ("history", "past", "meta", "trend", "overall", "last game", "hltv")):
+    elif any(
+        k in query_lower
+        for k in ("history", "past", "meta", "trend", "overall", "last game", "hltv")
+    ):
         intent = "general"
     else:
         intent = "tactical_analysis"
@@ -343,7 +353,9 @@ def tactician_node(state: MatchState) -> dict[str, Any]:
         first_contacts = db.query(FirstContact).filter(FirstContact.match_id == match_id).all()
         rounds = db.query(Round).filter(Round.match_id == match_id).all()
         grenades = db.query(Grenade).filter(Grenade.match_id == match_id).all()
-        trajectories = db.query(PlayerTrajectory).filter(PlayerTrajectory.match_id == match_id).all()
+        trajectories = (
+            db.query(PlayerTrajectory).filter(PlayerTrajectory.match_id == match_id).all()
+        )
 
         fc_list = []
         for fc in first_contacts:
@@ -405,13 +417,15 @@ def tactician_node(state: MatchState) -> dict[str, Any]:
         pos_data = positions_to_dict(analyze_positions(match_data))
         util_data = utility_to_dict(analyze_utility(match_data))
 
-        return {"tactical_analysis": {
-            "fcr": fcr_data,
-            "economy": eco_data,
-            "rotations": rot_data,
-            "positions": pos_data,
-            "utility": util_data
-        }}
+        return {
+            "tactical_analysis": {
+                "fcr": fcr_data,
+                "economy": eco_data,
+                "rotations": rot_data,
+                "positions": pos_data,
+                "utility": util_data,
+            }
+        }
     except Exception as e:
         logger.error(f"Tactician analysis failed: {e}")
         return {"errors": ["Tactician analysis failed."]}
@@ -554,19 +568,35 @@ def warlord_node(state: MatchState) -> dict[str, Any]:
         # 1. Get the team_id from the match
         match = db.query(Match).filter(Match.match_id == match_id).first()
         if not match or not match.team_id:
-            return {"final_report": _stub_server_report("This match is not associated with a Team. You must be in a Team to manage servers.")}
+            return {
+                "final_report": _stub_server_report(
+                    "This match is not associated with a Team. You must be in a Team to manage servers."
+                )
+            }
 
         # 2. Get the active practice server for the team
-        server = db.query(PracticeServer).filter(
-            PracticeServer.team_id == match.team_id,
-            PracticeServer.status.in_(["booting", "active"])
-        ).first()
+        server = (
+            db.query(PracticeServer)
+            .filter(
+                PracticeServer.team_id == match.team_id,
+                PracticeServer.status.in_(["booting", "active"]),
+            )
+            .first()
+        )
 
         if not server:
-            return {"final_report": _stub_server_report("There is no active server running for your team. Please spin one up in the Training Server tab.")}
+            return {
+                "final_report": _stub_server_report(
+                    "There is no active server running for your team. Please spin one up in the Training Server tab."
+                )
+            }
 
         if server.status == "booting":
-            return {"final_report": _stub_server_report("Your server is still booting. Please wait a moment before sending commands.")}
+            return {
+                "final_report": _stub_server_report(
+                    "Your server is still booting. Please wait a moment before sending commands."
+                )
+            }
 
         if not server.ip_address or not server.rcon_password:
             return {"final_report": _stub_server_report("Server IP or RCON password missing.")}
@@ -585,7 +615,7 @@ def warlord_node(state: MatchState) -> dict[str, Any]:
             model="gemini-2.5-flash",
             temperature=0.0,
             google_api_key=api_key,
-            model_kwargs={"response_mime_type": "application/json"}
+            model_kwargs={"response_mime_type": "application/json"},
         )
 
         prompt = f"""
@@ -608,7 +638,11 @@ Return ONLY valid JSON: {{"commands": ["cmd1", "cmd2"]}}
             cmds = []
 
         if not cmds:
-            return {"final_report": _stub_server_report("I couldn't figure out which server commands you wanted to run.")}
+            return {
+                "final_report": _stub_server_report(
+                    "I couldn't figure out which server commands you wanted to run."
+                )
+            }
 
         # 4. Execute via RCON
         from services.warlord.rcon_client import execute_batch_commands
@@ -617,10 +651,13 @@ Return ONLY valid JSON: {{"commands": ["cmd1", "cmd2"]}}
 
         # We need to run this async within a sync node... LangGraph runs nodes in threads if they are sync.
         import asyncio
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(execute_batch_commands(host, int(port), server.rcon_password, cmds))
+            loop.run_until_complete(
+                execute_batch_commands(host, int(port), server.rcon_password, cmds)
+            )
         finally:
             loop.close()
 
@@ -632,7 +669,7 @@ Return ONLY valid JSON: {{"commands": ["cmd1", "cmd2"]}}
                 "economy_analysis": "Server management",
                 "tactical_recommendations": [],
                 "strongest_area": "Server Online",
-                "weakest_area": "N/A"
+                "weakest_area": "N/A",
             }
         }
 
@@ -641,6 +678,7 @@ Return ONLY valid JSON: {{"commands": ["cmd1", "cmd2"]}}
         return {"final_report": _stub_server_report(f"Failed to execute commands: {e}")}
     finally:
         db.close()
+
 
 def _stub_server_report(msg: str) -> dict:
     return {
@@ -666,13 +704,44 @@ def cache_node(state: MatchState) -> dict[str, Any]:
     logger.info(f"[Cache Node] Caching coaching notes for match {match_id}...")
 
     from db.database import SessionLocal  # noqa: PLC0415
-    from db.models import Match  # noqa: PLC0415
+    from db.models import Match, TrainingSession  # noqa: PLC0415
 
     db = SessionLocal()
     try:
         match = db.query(Match).filter(Match.match_id == match_id).first()
         if match:
             match.coaching_notes = json.dumps(report)
+
+            # Auto-link to the most recent TrainingSession started within the last 4 hours
+            from datetime import UTC, datetime, timedelta
+
+            four_hours_ago = datetime.now(UTC) - timedelta(hours=4)
+            session = None
+            if match.team_id:
+                session = (
+                    db.query(TrainingSession)
+                    .filter(
+                        TrainingSession.team_id == match.team_id,
+                        TrainingSession.started_at >= four_hours_ago,
+                    )
+                    .order_by(TrainingSession.started_at.desc())
+                    .first()
+                )
+            elif match.user_id:
+                session = (
+                    db.query(TrainingSession)
+                    .filter(
+                        TrainingSession.user_id == match.user_id,
+                        TrainingSession.started_at >= four_hours_ago,
+                    )
+                    .order_by(TrainingSession.started_at.desc())
+                    .first()
+                )
+
+            if session:
+                session.job_id = match_id
+                logger.info(f"[Cache Node] Linked training session {session.id} to job {match_id}")
+
             db.commit()
             logger.info(f"[Cache Node] Cached notes saved successfully for {match_id}.")
     except Exception as e:
@@ -803,6 +872,7 @@ def analyse_match(
     # Use a unique thread_id per invocation so MemorySaver never replays a prior
     # checkpoint from the same match — each analyse_match call is a fresh run.
     import uuid  # noqa: PLC0415
+
     run_thread_id = f"{match_id}_{uuid.uuid4().hex[:8]}"
     config = {"configurable": {"thread_id": run_thread_id}}
 
@@ -811,15 +881,11 @@ def analyse_match(
 
         # LangGraph 1.x returns an AddableValuesDict; guard against unexpected types
         if not hasattr(final_state, "get"):
-            logger.error(
-                f"[Great Khan Graph] Unexpected final_state type: {type(final_state)}"
-            )
+            logger.error(f"[Great Khan Graph] Unexpected final_state type: {type(final_state)}")
             return None
 
         if final_state.get("errors"):
-            logger.warning(
-                f"[Great Khan Graph] Workflow reported errors: {final_state['errors']}"
-            )
+            logger.warning(f"[Great Khan Graph] Workflow reported errors: {final_state['errors']}")
 
         return final_state.get("final_report")
     except Exception as e:

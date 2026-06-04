@@ -51,7 +51,9 @@ def main():
 
             try:
                 # Call api.queue to create Cloud Task
-                logger.info(f"Queueing parse job for match {match.match_id} | URI: {match.gcs_demo_uri}")
+                logger.info(
+                    f"Queueing parse job for match {match.match_id} | URI: {match.gcs_demo_uri}"
+                )
                 enqueue_scout_job(match.match_id, match.gcs_demo_uri)
 
                 # Update status
@@ -65,6 +67,7 @@ def main():
 
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     main()

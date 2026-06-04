@@ -34,7 +34,9 @@ from db.models import Match
 
 def _get_gcs_client():
     from google.cloud import storage
+
     return storage.Client()
+
 
 def upload_to_gcs(file_path: Path, gcs_path: str) -> str:
     """Upload a file to GCS and return gs:// URI."""
@@ -48,6 +50,7 @@ def upload_to_gcs(file_path: Path, gcs_path: str) -> str:
     blob.upload_from_filename(str(file_path))
     return f"gs://{bucket_name}/{gcs_path}"
 
+
 def generate_report(db) -> str:
     """Aggregate DB stats and construct a Markdown report."""
     logger.info("Aggregating pro match statistics for weekly meta snapshot...")
@@ -58,18 +61,22 @@ def generate_report(db) -> str:
         return "# DemoSage Meta Snapshot\n\nNo pro matches parsed yet."
 
     # 2. Map Pick Rates
-    map_rows = db.execute(text("SELECT map_name, COUNT(*) FROM matches GROUP BY map_name ORDER BY COUNT(*) DESC")).fetchall()
+    map_rows = db.execute(
+        text("SELECT map_name, COUNT(*) FROM matches GROUP BY map_name ORDER BY COUNT(*) DESC")
+    ).fetchall()
     map_picks = {r[0]: r[1] for r in map_rows}
 
     # 3. Round win stats per map
-    rounds_query = db.execute(text("""
+    rounds_query = db.execute(
+        text("""
         SELECT m.map_name, r.winner_side, COUNT(*)
         FROM rounds r
         JOIN matches m ON r.match_id = m.match_id
         GROUP BY m.map_name, r.winner_side
-    """)).fetchall()
+    """)
+    ).fetchall()
 
-    map_rounds = {} # map -> {CT: count, T: count}
+    map_rounds = {}  # map -> {CT: count, T: count}
     for m_name, side, count in rounds_query:
         if m_name not in map_rounds:
             map_rounds[m_name] = {"CT": 0, "T": 0}
@@ -77,7 +84,9 @@ def generate_report(db) -> str:
             map_rounds[m_name][side] = count
 
     # 4. Top Weapons Used
-    kill_rows = db.execute(text("SELECT weapon, COUNT(*) FROM kills GROUP BY weapon ORDER BY COUNT(*) DESC LIMIT 10")).fetchall()
+    kill_rows = db.execute(
+        text("SELECT weapon, COUNT(*) FROM kills GROUP BY weapon ORDER BY COUNT(*) DESC LIMIT 10")
+    ).fetchall()
     top_weapons = [(r[0].replace("weapon_", "").replace("_", " ").upper(), r[1]) for r in kill_rows]
 
     # Construct Markdown Report
@@ -107,11 +116,16 @@ def generate_report(db) -> str:
         report.append(f"| {rank} | **{w_name}** | {k_count:,} | {w_share:.1%} |")
 
     report.append("\n## 3. Tactical Meta Context Summary")
-    report.append("- **Pistol Round Meta:** Initial stats suggest teams prioritize Armor upgrades on CT side and utilities/glock spam on T side.")
-    report.append("- **Eco Recovery:** Force buy conversion rates are heavily tied to early opening kills (First Contacts) on de_mirage and de_dust2.")
+    report.append(
+        "- **Pistol Round Meta:** Initial stats suggest teams prioritize Armor upgrades on CT side and utilities/glock spam on T side."
+    )
+    report.append(
+        "- **Eco Recovery:** Force buy conversion rates are heavily tied to early opening kills (First Contacts) on de_mirage and de_dust2."
+    )
     report.append("\n*Generated dynamically on: 2026-05-28*")
 
     return "\n".join(report)
+
 
 def main():
     db = SessionLocal()
@@ -139,6 +153,7 @@ def main():
 
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     main()

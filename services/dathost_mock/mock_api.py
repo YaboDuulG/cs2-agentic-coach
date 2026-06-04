@@ -12,8 +12,10 @@ logging.basicConfig(level=logging.INFO)
 # In-memory store
 servers = {}
 
+
 class ConsoleCommand(BaseModel):
     line: str
+
 
 @app.post("/game-servers")
 async def create_server(request: Request):
@@ -27,15 +29,17 @@ async def create_server(request: Request):
         "booting": False,
         "on": False,
         "ip": "127.0.0.1",
-        "ports": {"game": 27015}
+        "ports": {"game": 27015},
     }
     return servers[server_id]
+
 
 @app.get("/game-servers/{server_id}")
 async def get_server(server_id: str):
     if server_id not in servers:
         raise HTTPException(status_code=404, detail="Server not found")
     return servers[server_id]
+
 
 @app.post("/game-servers/{server_id}/start")
 async def start_server(server_id: str):
@@ -55,6 +59,7 @@ async def start_server(server_id: str):
     asyncio.create_task(boot())
     return {"status": "starting"}
 
+
 @app.post("/game-servers/{server_id}/stop")
 async def stop_server(server_id: str):
     if server_id not in servers:
@@ -63,6 +68,7 @@ async def stop_server(server_id: str):
     servers[server_id]["on"] = False
     servers[server_id]["booting"] = False
     return {"status": "stopped"}
+
 
 @app.post("/game-servers/{server_id}/console")
 async def console_command(server_id: str, line: str = None):
@@ -73,13 +79,16 @@ async def console_command(server_id: str, line: str = None):
     logger.info(f"[Mock Console {server_id}] -> {line}")
     return {"status": "success", "output": f"Mock executed: {line}"}
 
+
 @app.delete("/game-servers/{server_id}")
 async def delete_server(server_id: str):
     if server_id in servers:
         del servers[server_id]
     return {"status": "deleted"}
 
+
 if __name__ == "__main__":
     import uvicorn
+
     logger.info("Starting DatHost Mock API on port 8001")
     uvicorn.run(app, host="0.0.0.0", port=8001)

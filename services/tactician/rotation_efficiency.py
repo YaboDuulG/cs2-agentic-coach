@@ -16,6 +16,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class RotationFlag:
     round_num: int
@@ -23,11 +24,13 @@ class RotationFlag:
     severity: str  # 'warning', 'critical'
     message: str
 
+
 @dataclass
 class PlayerRotationScore:
     player: str
     avg_velocity: float
     rotation_score: float
+
 
 @dataclass
 class RotationAnalysis:
@@ -62,11 +65,12 @@ def analyze_rotations(match_data: dict) -> RotationAnalysis:
             if len(positions) > 1:
                 # Calculate basic velocity proxy (distance between samples)
                 import math
+
                 total_dist = 0.0
                 for i in range(1, len(positions)):
-                    dx = positions[i].get("x", 0) - positions[i-1].get("x", 0)
-                    dy = positions[i].get("y", 0) - positions[i-1].get("y", 0)
-                    total_dist += math.sqrt(dx*dx + dy*dy)
+                    dx = positions[i].get("x", 0) - positions[i - 1].get("x", 0)
+                    dy = positions[i].get("y", 0) - positions[i - 1].get("y", 0)
+                    total_dist += math.sqrt(dx * dx + dy * dy)
 
                 avg_v = total_dist / len(positions)
                 player_stats[player]["total_velocity"] += avg_v
@@ -74,12 +78,14 @@ def analyze_rotations(match_data: dict) -> RotationAnalysis:
 
                 # Flag if player stayed too stationary for too long (late rotation)
                 if avg_v < 10.0 and len(positions) > 10:
-                    analysis.flags.append(RotationFlag(
-                        round_num=t.get("round_num", 0),
-                        player=player,
-                        severity="warning",
-                        message=f"Player '{player}' showed very low movement/late rotation."
-                    ))
+                    analysis.flags.append(
+                        RotationFlag(
+                            round_num=t.get("round_num", 0),
+                            player=player,
+                            severity="warning",
+                            message=f"Player '{player}' showed very low movement/late rotation.",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"Failed to parse trajectory for {player}: {e}")
 
@@ -88,13 +94,12 @@ def analyze_rotations(match_data: dict) -> RotationAnalysis:
             avg_vel = stats["total_velocity"] / stats["samples"]
             # Normalize score somewhat arbitrarily for demo
             score = min(1.0, max(0.0, avg_vel / 100.0))
-            analysis.player_scores.append(PlayerRotationScore(
-                player=player,
-                avg_velocity=avg_vel,
-                rotation_score=score
-            ))
+            analysis.player_scores.append(
+                PlayerRotationScore(player=player, avg_velocity=avg_vel, rotation_score=score)
+            )
 
     return analysis
+
 
 def rotation_to_dict(analysis: RotationAnalysis) -> dict:
     return {
@@ -102,7 +107,7 @@ def rotation_to_dict(analysis: RotationAnalysis) -> dict:
             {
                 "player": s.player,
                 "avg_velocity": round(s.avg_velocity, 2),
-                "rotation_score": round(s.rotation_score, 2)
+                "rotation_score": round(s.rotation_score, 2),
             }
             for s in analysis.player_scores
         ],
@@ -111,8 +116,8 @@ def rotation_to_dict(analysis: RotationAnalysis) -> dict:
                 "round_num": f.round_num,
                 "player": f.player,
                 "severity": f.severity,
-                "message": f.message
+                "message": f.message,
             }
             for f in analysis.flags
-        ]
+        ],
     }

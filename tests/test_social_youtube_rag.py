@@ -51,7 +51,7 @@ def test_ingest_sentiment_saves_embeddings(mock_get_embedding, db_session):
         team_a="The MongolZ",
         team_b="Team Spirit",
         map_name="de_mirage",
-        api_key="fake-gemini-key"
+        api_key="fake-gemini-key",
     )
 
     # Verify records exist in database
@@ -59,7 +59,9 @@ def test_ingest_sentiment_saves_embeddings(mock_get_embedding, db_session):
     # 1 mock reddit post + 2 mock tweets = 3 records
     assert len(reddit_records) == 3
 
-    youtube_records = db_session.query(KnowledgeEmbedding).filter_by(source="youtube_breakdown").all()
+    youtube_records = (
+        db_session.query(KnowledgeEmbedding).filter_by(source="youtube_breakdown").all()
+    )
     assert len(youtube_records) == 1
 
     assert "YOUTUBE STRATEGY BREAKDOWN" in youtube_records[0].content
@@ -72,22 +74,26 @@ def test_ingest_sentiment_saves_embeddings(mock_get_embedding, db_session):
 def test_clean_expired_chunks_purges_old_records(db_session):
     """Verify that chunks older than 90 days are deleted during cleanup."""
     # Active chunk (1 day ago)
-    recent_date = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)).isoformat()
+    recent_date = (
+        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)
+    ).isoformat()
     recent_chunk = KnowledgeEmbedding(
         content="Recent Reddit analysis",
         embedding=[0.1] * 768,
         source="social_sentiment",
-        metadata_json=json.dumps({"ingested_at": recent_date})
+        metadata_json=json.dumps({"ingested_at": recent_date}),
     )
     db_session.add(recent_chunk)
 
     # Stale chunk (95 days ago)
-    old_date = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=95)).isoformat()
+    old_date = (
+        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=95)
+    ).isoformat()
     old_chunk = KnowledgeEmbedding(
         content="Outdated Reddit post",
         embedding=[0.2] * 768,
         source="social_sentiment",
-        metadata_json=json.dumps({"ingested_at": old_date})
+        metadata_json=json.dumps({"ingested_at": old_date}),
     )
     db_session.add(old_chunk)
     db_session.commit()

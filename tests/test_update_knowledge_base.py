@@ -19,6 +19,7 @@ from scripts.update_knowledge_base import ingest_match
 
 TEST_MATCH_ID = "test-rag-match-id-123"
 
+
 @pytest.fixture(scope="module")
 def db_session():
     """Create in-memory SQLite database for testing RAG ingestion."""
@@ -30,6 +31,7 @@ def db_session():
     session.close()
     Base.metadata.drop_all(engine)
 
+
 @pytest.fixture(autouse=True)
 def seed_match_data(db_session):
     """Seed a basic match with rounds, kills, and first contacts."""
@@ -40,7 +42,7 @@ def seed_match_data(db_session):
         tickrate=64,
         total_rounds=2,
         status="complete",
-        coaching_notes=json.dumps({"summary": "Great match with solid defense."})
+        coaching_notes=json.dumps({"summary": "Great match with solid defense."}),
     )
     db_session.add(match)
 
@@ -50,13 +52,51 @@ def seed_match_data(db_session):
     db_session.add_all([r1, r2])
 
     # Seed Kills
-    k1 = Kill(match_id=TEST_MATCH_ID, round_num=1, tick=100, attacker="player_a", attacker_team="CT", victim="player_b", victim_team="T", weapon="m4a1", attacker_x=1.0, victim_x=2.0)
-    k2 = Kill(match_id=TEST_MATCH_ID, round_num=2, tick=200, attacker="player_c", attacker_team="T", victim="player_d", victim_team="CT", weapon="ak47", attacker_x=3.0, victim_x=4.0)
+    k1 = Kill(
+        match_id=TEST_MATCH_ID,
+        round_num=1,
+        tick=100,
+        attacker="player_a",
+        attacker_team="CT",
+        victim="player_b",
+        victim_team="T",
+        weapon="m4a1",
+        attacker_x=1.0,
+        victim_x=2.0,
+    )
+    k2 = Kill(
+        match_id=TEST_MATCH_ID,
+        round_num=2,
+        tick=200,
+        attacker="player_c",
+        attacker_team="T",
+        victim="player_d",
+        victim_team="CT",
+        weapon="ak47",
+        attacker_x=3.0,
+        victim_x=4.0,
+    )
     db_session.add_all([k1, k2])
 
     # Seed First Contact
-    fc1 = FirstContact(match_id=TEST_MATCH_ID, round_num=1, tick=100, attacker="player_a", attacker_team="CT", victim="player_b", weapon="m4a1")
-    fc2 = FirstContact(match_id=TEST_MATCH_ID, round_num=2, tick=200, attacker="player_c", attacker_team="T", victim="player_d", weapon="ak47")
+    fc1 = FirstContact(
+        match_id=TEST_MATCH_ID,
+        round_num=1,
+        tick=100,
+        attacker="player_a",
+        attacker_team="CT",
+        victim="player_b",
+        weapon="m4a1",
+    )
+    fc2 = FirstContact(
+        match_id=TEST_MATCH_ID,
+        round_num=2,
+        tick=200,
+        attacker="player_c",
+        attacker_team="T",
+        victim="player_d",
+        weapon="ak47",
+    )
     db_session.add_all([fc1, fc2])
 
     db_session.commit()
@@ -67,6 +107,7 @@ def seed_match_data(db_session):
     db_session.query(Round).filter_by(match_id=TEST_MATCH_ID).delete()
     db_session.query(Match).filter_by(match_id=TEST_MATCH_ID).delete()
     db_session.commit()
+
 
 @patch("scripts.update_knowledge_base.get_embedding")
 def test_ingest_match(mock_get_embedding, db_session):
@@ -83,7 +124,9 @@ def test_ingest_match(mock_get_embedding, db_session):
     assert len(embeddings) == 3
 
     # Verify summary chunk content and metadata
-    summary_chunk = [e for e in embeddings if json.loads(e.metadata_json).get("type") == "summary"][0]
+    summary_chunk = [e for e in embeddings if json.loads(e.metadata_json).get("type") == "summary"][
+        0
+    ]
     assert "de_dust2" in summary_chunk.content
     assert "Great match with solid defense" in summary_chunk.content
     meta = json.loads(summary_chunk.metadata_json)
@@ -91,7 +134,9 @@ def test_ingest_match(mock_get_embedding, db_session):
     assert meta["map_name"] == "de_dust2"
 
     # Verify round chunks content
-    round_chunks = [e for e in embeddings if json.loads(e.metadata_json).get("type") == "round_details"]
+    round_chunks = [
+        e for e in embeddings if json.loads(e.metadata_json).get("type") == "round_details"
+    ]
     assert len(round_chunks) == 2
 
     r1_chunk = [rc for rc in round_chunks if json.loads(rc.metadata_json).get("round_num") == 1][0]

@@ -21,6 +21,7 @@ from db.models import (
     MatchStatus,
     PlayerTrajectory,
     Round,
+    TrainingSession,
 )
 
 TEST_MATCH_ID = "test-match-00000000"
@@ -192,3 +193,54 @@ class TestTrajectoryModel:
         positions = json.loads(results[0].positions_json)
         assert len(positions) == 2
         assert positions[0]["x"] == 100.0
+
+
+class TestTrainingSessionModel:
+    def test_training_session_insert_and_link(self, db_session):
+        from datetime import UTC, datetime
+
+        # Insert a team and a server first to satisfy FK constraints
+        from db.models import PracticeServer, Team
+
+        team = Team(
+            id="test-team-id", name="Test Team", owner_user_id="user_owner", invite_code="TESTCODE"
+        )
+        db_session.add(team)
+        db_session.commit()
+
+        server = PracticeServer(
+            id="test-server-id",
+            team_id="test-team-id",
+            status="active",
+            mode="practice",
+            rcon_password="rcon",
+            server_password="pass",
+            expires_at=datetime.now(UTC),
+        )
+        db_session.add(server)
+        db_session.commit()
+
+        session = TrainingSession(
+            id="session-12345",
+            team_id="test-team-id",
+            user_id="user-123",
+            server_id="test-server-id",
+            mode="practice",
+            map_name="de_mirage",
+            region="dfw",
+            started_at=datetime.now(UTC),
+            job_id=TEST_MATCH_ID,
+        )
+        db_session.add(session)
+        db_session.commit()
+
+        refreshed = db_session.get(TrainingSession, "session-12345")
+        assert refreshed is not None
+        assert refreshed.job_id == TEST_MATCH_ID
+        assert refreshed.user_id == "user-123"
+
+        # Clean up
+        db_session.query(TrainingSession).filter_by(id="session-12345").delete()
+        db_session.query(PracticeServer).filter_by(id="test-server-id").delete()
+        db_session.query(Team).filter_by(id="test-team-id").delete()
+        db_session.commit()

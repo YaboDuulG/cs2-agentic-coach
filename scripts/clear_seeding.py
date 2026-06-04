@@ -29,9 +29,9 @@ def main():
     db = SessionLocal()
     try:
         logger.info("Fetching hltv_pro_match embeddings...")
-        embeddings = db.query(KnowledgeEmbedding).filter(
-            KnowledgeEmbedding.source == "hltv_pro_match"
-        ).all()
+        embeddings = (
+            db.query(KnowledgeEmbedding).filter(KnowledgeEmbedding.source == "hltv_pro_match").all()
+        )
 
         match_ids = set()
         for emb in embeddings:
@@ -47,17 +47,21 @@ def main():
         if match_ids:
             logger.info(f"Deleting {len(match_ids)} pro matches from the database...")
             # Deleting Match rows cascades to delete rounds, kills, etc.
-            deleted_matches = db.query(Match).filter(Match.match_id.in_(match_ids)).delete(
-                synchronize_session=False
+            deleted_matches = (
+                db.query(Match)
+                .filter(Match.match_id.in_(match_ids))
+                .delete(synchronize_session=False)
             )
             logger.info(f"Successfully deleted {deleted_matches} Match rows.")
         else:
             logger.info("No matching pro matches found in database.")
 
         logger.info("Deleting all hltv_pro_match embeddings...")
-        deleted_embs = db.query(KnowledgeEmbedding).filter(
-            KnowledgeEmbedding.source == "hltv_pro_match"
-        ).delete(synchronize_session=False)
+        deleted_embs = (
+            db.query(KnowledgeEmbedding)
+            .filter(KnowledgeEmbedding.source == "hltv_pro_match")
+            .delete(synchronize_session=False)
+        )
         logger.info(f"Successfully deleted {deleted_embs} hltv_pro_match embedding rows.")
 
         db.commit()

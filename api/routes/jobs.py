@@ -104,7 +104,12 @@ async def get_job_status(match_id: str, user_id: str | None = None):
                 elapsed_seconds = max(0, int((now_utc - ca).total_seconds()))
 
             if match_status == "failed":
-                return {"status": "failed", "match_id": match_id, "error": error_message, "is_recon": is_recon}
+                return {
+                    "status": "failed",
+                    "match_id": match_id,
+                    "error": error_message,
+                    "is_recon": is_recon,
+                }
 
             # If the job has been stuck in pending/processing for >15 minutes (900s), consider it failed
             if match_status not in ("done", "complete", "parsed") and elapsed_seconds > 900:

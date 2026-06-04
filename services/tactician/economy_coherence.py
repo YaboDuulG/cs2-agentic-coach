@@ -16,12 +16,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class EconomyFlag:
     round_num: int
     severity: str  # 'warning', 'critical', 'positive'
     message: str
     team: str
+
 
 @dataclass
 class RoundEconomy:
@@ -30,6 +32,7 @@ class RoundEconomy:
     t_eq_val: int
     ct_type: str
     t_type: str
+
 
 @dataclass
 class EconomyAnalysis:
@@ -53,6 +56,7 @@ def _classify_buy(eq_val: int, is_t_side: bool) -> str:
     else:
         return "eco"
 
+
 def analyze_economy(match_data: dict) -> EconomyAnalysis:
     """
     Analyzes the economy of each round and generates flags for poor decisions.
@@ -70,30 +74,36 @@ def analyze_economy(match_data: dict) -> EconomyAnalysis:
         ct_type = _classify_buy(ct_val, is_t_side=False)
         t_type = _classify_buy(t_val, is_t_side=True)
 
-        analysis.rounds.append(RoundEconomy(
-            round_num=round_num,
-            ct_eq_val=ct_val,
-            t_eq_val=t_val,
-            ct_type=ct_type,
-            t_type=t_type
-        ))
+        analysis.rounds.append(
+            RoundEconomy(
+                round_num=round_num,
+                ct_eq_val=ct_val,
+                t_eq_val=t_val,
+                ct_type=ct_type,
+                t_type=t_type,
+            )
+        )
 
         # Example flag: CT forced buy against T full buy with terrible economy
         if ct_type == "force_buy" and t_type == "full_buy" and ct_val < 15000:
-            analysis.flags.append(EconomyFlag(
-                round_num=round_num,
-                severity="warning",
-                message=f"CT forced with poor economy ({ct_val}) against T full buy.",
-                team="CT"
-            ))
+            analysis.flags.append(
+                EconomyFlag(
+                    round_num=round_num,
+                    severity="warning",
+                    message=f"CT forced with poor economy ({ct_val}) against T full buy.",
+                    team="CT",
+                )
+            )
 
         if t_type == "force_buy" and ct_type == "full_buy" and t_val < 12000:
-            analysis.flags.append(EconomyFlag(
-                round_num=round_num,
-                severity="warning",
-                message=f"T forced with poor economy ({t_val}) against CT full buy.",
-                team="T"
-            ))
+            analysis.flags.append(
+                EconomyFlag(
+                    round_num=round_num,
+                    severity="warning",
+                    message=f"T forced with poor economy ({t_val}) against CT full buy.",
+                    team="T",
+                )
+            )
 
     # Calculate overall coherence
     num_flags = len(analysis.flags)
@@ -101,6 +111,7 @@ def analyze_economy(match_data: dict) -> EconomyAnalysis:
     analysis.overall_coherence_score = max(0.0, 1.0 - (num_flags / total_rounds))
 
     return analysis
+
 
 def economy_to_dict(analysis: EconomyAnalysis) -> dict:
     return {
@@ -111,17 +122,12 @@ def economy_to_dict(analysis: EconomyAnalysis) -> dict:
                 "ct_eq_val": r.ct_eq_val,
                 "t_eq_val": r.t_eq_val,
                 "ct_type": r.ct_type,
-                "t_type": r.t_type
+                "t_type": r.t_type,
             }
             for r in analysis.rounds
         ],
         "flags": [
-            {
-                "round_num": f.round_num,
-                "severity": f.severity,
-                "message": f.message,
-                "team": f.team
-            }
+            {"round_num": f.round_num, "severity": f.severity, "message": f.message, "team": f.team}
             for f in analysis.flags
-        ]
+        ],
     }

@@ -50,23 +50,26 @@ def get_embedding(text: str, api_key: str) -> list[float]:
             model=model_name,
             contents=text,
             config=types.EmbedContentConfig(
-                task_type="RETRIEVAL_DOCUMENT",
-                output_dimensionality=768
-            )
+                task_type="RETRIEVAL_DOCUMENT", output_dimensionality=768
+            ),
         )
         return response.embeddings[0].values
     except Exception as e:
         import hashlib
-        logger.warning(f"Gemini embedding API call failed: {e}. Falling back to deterministic mock embedding.")
+
+        logger.warning(
+            f"Gemini embedding API call failed: {e}. Falling back to deterministic mock embedding."
+        )
         hash_bytes = hashlib.sha256(text.encode("utf-8")).digest()
         vector = []
         current_hash = hash_bytes
         while len(vector) < 768:
             for i in range(0, len(current_hash), 4):
-                val = int.from_bytes(current_hash[i:i+4], byteorder="big", signed=True)
+                val = int.from_bytes(current_hash[i : i + 4], byteorder="big", signed=True)
                 vector.append(val / 2147483648.0)
             current_hash = hashlib.sha256(current_hash).digest()
         return vector[:768]
+
 
 def parse_markdown_chunks(filepath: Path) -> list[dict]:
     """
@@ -100,15 +103,17 @@ def parse_markdown_chunks(filepath: Path) -> list[dict]:
                 hierarchy += f" > {current_h3}"
 
             full_content = f"{hierarchy}\n\n{chunk_text}"
-            chunks.append({
-                "content": full_content,
-                "metadata": {
-                    "h1": current_h1,
-                    "h2": current_h2,
-                    "h3": current_h3,
-                    "source_file": filepath.name
+            chunks.append(
+                {
+                    "content": full_content,
+                    "metadata": {
+                        "h1": current_h1,
+                        "h2": current_h2,
+                        "h3": current_h3,
+                        "source_file": filepath.name,
+                    },
                 }
-            })
+            )
         current_chunk_lines = []
 
     for line in lines:
@@ -131,10 +136,13 @@ def parse_markdown_chunks(filepath: Path) -> list[dict]:
     save_current_chunk()
     return chunks
 
+
 def main():
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
-        logger.warning("GEMINI_API_KEY or GOOGLE_API_KEY environment variable is missing. Ingestion will use mock embeddings.")
+        logger.warning(
+            "GEMINI_API_KEY or GOOGLE_API_KEY environment variable is missing. Ingestion will use mock embeddings."
+        )
         api_key = "placeholder"
 
     corpus_path = REPO_ROOT / "data" / "corpus" / "game_rules.md"
@@ -148,12 +156,15 @@ def main():
 
     from db.database import engine
     from db.models import Base
+
     Base.metadata.create_all(engine)
 
     db = SessionLocal()
     try:
         # Clear existing game rules to prevent duplicates
-        deleted = db.query(KnowledgeEmbedding).filter(KnowledgeEmbedding.source == "game_rules").delete()
+        deleted = (
+            db.query(KnowledgeEmbedding).filter(KnowledgeEmbedding.source == "game_rules").delete()
+        )
         db.commit()
         if deleted:
             logger.info(f"Cleared {deleted} existing game_rules embeddings.")
@@ -168,22 +179,27 @@ def main():
                 vector = get_embedding(content, api_key)
 
                 # Save to DB
-                db.add(KnowledgeEmbedding(
-                    content=content,
-                    embedding=vector,
-                    source="game_rules",
-                    metadata_json=json.dumps(meta)
-                ))
+                db.add(
+                    KnowledgeEmbedding(
+                        content=content,
+                        embedding=vector,
+                        source="game_rules",
+                        metadata_json=json.dumps(meta),
+                    )
+                )
                 chunks_created += 1
                 logger.info(f"Ingested chunk: {meta.get('h2') or ''} -> {meta.get('h3') or ''}")
             except Exception as e:
                 logger.error(f"Failed to ingest chunk: {e}")
 
         db.commit()
-        logger.info(f"Successfully completed corpus ingestion: created {chunks_created} embeddings.")
+        logger.info(
+            f"Successfully completed corpus ingestion: created {chunks_created} embeddings."
+        )
 
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     main()

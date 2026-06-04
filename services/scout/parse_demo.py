@@ -217,7 +217,9 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 logger.info(f"Rule 1 (is_warmup_period): excluded rounds {sorted(warmup_rounds)}")
 
             # Filter freeze_df to include only ticks in the live match window
-            freeze_df = freeze_df[(freeze_df["tick"] >= match_start_tick) & (freeze_df["tick"] <= match_end_tick)]
+            freeze_df = freeze_df[
+                (freeze_df["tick"] >= match_start_tick) & (freeze_df["tick"] <= match_end_tick)
+            ]
 
             # Filter out warmup rounds
             if warmup_rounds:
@@ -719,6 +721,83 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
     except Exception as e:
         logger.warning(f"Trajectory data skipped: {e}")
 
+    # --- Identify pistol rounds and flag mismatched weapons ---
+    ALLOWED_PISTOL_ROUND_WEAPONS = {
+        # Pistols
+        "glock",
+        "usp_silencer",
+        "deagle",
+        "cz75a",
+        "tec9",
+        "fiveseven",
+        "p250",
+        "elite",
+        "revolver",
+        "hkp2000",
+        "p2000",
+        "usp",
+        # Utility
+        "hegrenade",
+        "inferno",
+        "molotov",
+        "flashbang",
+        "smokegrenade",
+        "incgrenade",
+        "decoy",
+        # World / Misc
+        "world",
+        "suicide",
+        "fall",
+        "unknown",
+        "barrel",
+        "ct_unarmed",
+        "t_unarmed",
+        "worldspawn",
+        "taser",
+    }
+
+    pistol_rounds = set()
+    for r in output["rounds"]:
+        r_num = r["round_num"]
+        if r_num == 1:
+            pistol_rounds.add(r_num)
+        else:
+            eco = eco_lookup.get(r_num - 1)
+            if eco:
+                ct_val = eco.get("ct", 0)
+                t_val = eco.get("t", 0)
+                if ct_val <= 4500 and t_val <= 4500:
+                    pistol_rounds.add(r_num)
+
+    logger.info(f"Pistol rounds identified: {sorted(pistol_rounds)}")
+
+    # Flag mismatched weapons in kills
+    for k in output["kills"]:
+        r_num = k["round"]
+        if r_num in pistol_rounds:
+            clean_wep = k["weapon"].lower().replace("weapon_", "")
+            if (
+                clean_wep not in ALLOWED_PISTOL_ROUND_WEAPONS
+                and "knife" not in clean_wep
+                and "bayonet" not in clean_wep
+            ):
+                logger.warning(
+                    f"Mismatched weapon in pistol round {r_num}: {k['weapon']} used by {k['attacker']}"
+                )
+                k["weapon"] = f"{k['weapon']} [⚠️ Mismatch]"
+
+    # Also update first_contacts
+    for fc in output["first_contacts"]:
+        r_num = fc["round"]
+        if r_num in pistol_rounds:
+            clean_wep = fc["weapon"].lower().replace("weapon_", "")
+            if (
+                clean_wep not in ALLOWED_PISTOL_ROUND_WEAPONS
+                and "knife" not in clean_wep
+                and "bayonet" not in clean_wep
+            ):
+                fc["weapon"] = f"{fc['weapon']} [⚠️ Mismatch]"
+
     logger.info(
         f"Parsed — Rounds: {output['metadata']['total_rounds']} | "
         f"Warmup excluded: {len(warmup_rounds)} | "
@@ -755,7 +834,9 @@ def upload_to_gcs(data: dict, match_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def write_to_db(data: dict, match_id: str, parse_duration: float | None = None, match_name: str | None = None) -> None:
+def write_to_db(
+    data: dict, match_id: str, parse_duration: float | None = None, match_name: str | None = None
+) -> None:
     """Write parsed Scout output to PostgreSQL (or SQLite in local/test mode)."""
     from pathlib import Path as _Path
     import sys
@@ -920,7 +1001,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="DemoSage Scout — CS2 demo parser")
     ap.add_argument("--demo", required=True, help="Absolute path to .dem file")
     ap.add_argument("--match-id", required=True, help="Unique match identifier")
-    ap.add_argument("--match-name", default=None, help="Descriptive match name format 'Team 1 vs Team 2 (Event - Year)'")
+    ap.add_argument(
+        "--match-name",
+        default=None,
+        help="Descriptive match name format 'Team 1 vs Team 2 (Event - Year)'",
+    )
     ap.add_argument("--upload", action="store_true", help="Upload result to GCS")
     ap.add_argument("--write-db", action="store_true", help="Write parsed data to DB")
     args = ap.parse_args()

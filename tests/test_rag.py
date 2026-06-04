@@ -29,6 +29,7 @@ def db_session():
     session.close()
     Base.metadata.drop_all(engine)
 
+
 @pytest.fixture(autouse=True)
 def seed_embeddings(db_session):
     """Seed test embeddings with known vectors."""
@@ -49,19 +50,19 @@ def seed_embeddings(db_session):
         content="Economy buy rules: always buy Kevlar on full buy.",
         embedding=make_vector([1.0, 0.0]),
         source="game_rules",
-        metadata_json=json.dumps({"type": "economy"})
+        metadata_json=json.dumps({"type": "economy"}),
     )
     c2 = KnowledgeEmbedding(
         content="Dust II B Site strategy: smoke doors and push tunnels.",
         embedding=make_vector([0.707, 0.707]),
         source="game_rules",
-        metadata_json=json.dumps({"type": "tactics"})
+        metadata_json=json.dumps({"type": "tactics"}),
     )
     c3 = KnowledgeEmbedding(
         content="Pro Match: Astralis vs NaVi on de_nuke.",
         embedding=make_vector([0.0, 1.0]),
         source="hltv_pro_match",
-        metadata_json=json.dumps({"match_id": "pro-123"})
+        metadata_json=json.dumps({"match_id": "pro-123"}),
     )
 
     db_session.add_all([c1, c2, c3])
@@ -69,6 +70,7 @@ def seed_embeddings(db_session):
     yield
     db_session.query(KnowledgeEmbedding).delete()
     db_session.commit()
+
 
 def test_cosine_similarity():
     """Verify raw cosine similarity math."""
@@ -81,6 +83,7 @@ def test_cosine_similarity():
 
     v4 = [0.707, 0.707, 0.0]
     assert pytest.approx(cosine_similarity(v1, v4), 0.001) == 0.707
+
 
 @patch("db.rag.get_query_embedding")
 def test_retrieve_similar_chunks_sqlite(mock_get_embedding, db_session):
@@ -101,7 +104,9 @@ def test_retrieve_similar_chunks_sqlite(mock_get_embedding, db_session):
         assert results[1]["score"] > 0.6
 
         # 2. Retrieve with source filter 'hltv_pro_match' (should only return c3)
-        results_pro = retrieve_similar_chunks(db_session, "some query", limit=5, source="hltv_pro_match")
+        results_pro = retrieve_similar_chunks(
+            db_session, "some query", limit=5, source="hltv_pro_match"
+        )
         assert len(results_pro) == 1
         assert "Pro Match: Astralis vs NaVi" in results_pro[0]["content"]
         assert results_pro[0]["metadata"]["match_id"] == "pro-123"

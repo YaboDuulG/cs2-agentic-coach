@@ -38,12 +38,15 @@ def clean_player_name(name: str | None) -> str:
     if not name:
         return ""
     import re
+
     return re.sub(r"\s*\(\d+\)$", "", name)
+
 
 def format_weapon_name(weapon: str | None) -> str:
     if not weapon:
         return "unknown weapon"
     return weapon.replace("weapon_", "").replace("_", " ").upper()
+
 
 def get_embedding(text: str, api_key: str) -> list[float]:
     """Call Gemini's embedding API to generate a 768-dimensional vector."""
@@ -65,23 +68,26 @@ def get_embedding(text: str, api_key: str) -> list[float]:
             model=model_name,
             contents=text,
             config=types.EmbedContentConfig(
-                task_type="RETRIEVAL_DOCUMENT",
-                output_dimensionality=768
-            )
+                task_type="RETRIEVAL_DOCUMENT", output_dimensionality=768
+            ),
         )
         return response.embeddings[0].values
     except Exception as e:
         import hashlib
-        logger.warning(f"Gemini embedding API call failed: {e}. Falling back to deterministic mock embedding.")
+
+        logger.warning(
+            f"Gemini embedding API call failed: {e}. Falling back to deterministic mock embedding."
+        )
         hash_bytes = hashlib.sha256(text.encode("utf-8")).digest()
         vector = []
         current_hash = hash_bytes
         while len(vector) < 768:
             for i in range(0, len(current_hash), 4):
-                val = int.from_bytes(current_hash[i:i+4], byteorder="big", signed=True)
+                val = int.from_bytes(current_hash[i : i + 4], byteorder="big", signed=True)
                 vector.append(val / 2147483648.0)
             current_hash = hashlib.sha256(current_hash).digest()
         return vector[:768]
+
 
 def ingest_match(db, match_id: str, api_key: str):
     """Generate and store embeddings for a specific match's macro and micro stats."""
@@ -109,7 +115,7 @@ def ingest_match(db, match_id: str, api_key: str):
     # Check and delete existing embeddings for this match to avoid duplicates
     db.query(KnowledgeEmbedding).filter(
         KnowledgeEmbedding.source == "hltv_pro_match",
-        KnowledgeEmbedding.metadata_json.like(f'%"{match_id}"%')
+        KnowledgeEmbedding.metadata_json.like(f'%"{match_id}"%'),
     ).delete(synchronize_session=False)
     db.commit()
 
@@ -132,15 +138,17 @@ def ingest_match(db, match_id: str, api_key: str):
             "match_name": match.match_name,
             "team_id": match.team_id,
             "map_name": match.map_name,
-            "type": "summary"
+            "type": "summary",
         }
 
-        db.add(KnowledgeEmbedding(
-            content=macro_text,
-            embedding=macro_vector,
-            source="hltv_pro_match",
-            metadata_json=json.dumps(macro_meta)
-        ))
+        db.add(
+            KnowledgeEmbedding(
+                content=macro_text,
+                embedding=macro_vector,
+                source="hltv_pro_match",
+                metadata_json=json.dumps(macro_meta),
+            )
+        )
         chunks_created += 1
     except Exception as e:
         logger.error(f"Failed to generate macro embedding: {e}")
@@ -175,21 +183,26 @@ def ingest_match(db, match_id: str, api_key: str):
                 "map_name": match.map_name,
                 "round_num": r.round_num,
                 "type": "round_details",
-                "winner_side": r.winner_side
+                "winner_side": r.winner_side,
             }
-            db.add(KnowledgeEmbedding(
-                content=round_text,
-                embedding=r_vector,
-                source="hltv_pro_match",
-                metadata_json=json.dumps(r_meta)
-            ))
+            db.add(
+                KnowledgeEmbedding(
+                    content=round_text,
+                    embedding=r_vector,
+                    source="hltv_pro_match",
+                    metadata_json=json.dumps(r_meta),
+                )
+            )
             chunks_created += 1
         except Exception as e:
             logger.error(f"Failed to generate embedding for round {r.round_num}: {e}")
             continue
 
     db.commit()
-    logger.info(f"Successfully ingested match {match_id}: created {chunks_created} chunks/embeddings.")
+    logger.info(
+        f"Successfully ingested match {match_id}: created {chunks_created} chunks/embeddings."
+    )
+
 
 def main():
     parser = argparse.ArgumentParser(description="DemoSage RAG Knowledge Base Ingestion Script")
@@ -198,7 +211,9 @@ def main():
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
-        logger.warning("GEMINI_API_KEY or GOOGLE_API_KEY environment variable is missing. Ingestion will use mock embeddings.")
+        logger.warning(
+            "GEMINI_API_KEY or GOOGLE_API_KEY environment variable is missing. Ingestion will use mock embeddings."
+        )
         api_key = "placeholder"
 
     db = SessionLocal()
@@ -209,7 +224,11 @@ def main():
             # Automatic scan for un-ingested matches
             # Let's pull all match IDs from knowledge_embeddings first
             ingested_matches = set()
-            embeddings = db.query(KnowledgeEmbedding.metadata_json).filter(KnowledgeEmbedding.source == "hltv_pro_match").all()
+            embeddings = (
+                db.query(KnowledgeEmbedding.metadata_json)
+                .filter(KnowledgeEmbedding.source == "hltv_pro_match")
+                .all()
+            )
             for emb in embeddings:
                 if emb[0]:
                     try:
@@ -233,6 +252,7 @@ def main():
 
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     main()

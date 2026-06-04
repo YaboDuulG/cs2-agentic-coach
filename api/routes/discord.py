@@ -111,10 +111,10 @@ async def discord_webhook(
 
     # Format structured content for text indexing/RAG
     structured_content = f"""
-    Title: {parsed.get('title', 'Ingested Tactic')}
-    Map: {parsed.get('map_name', 'All Maps')}
-    Side: {parsed.get('side', 'Both')}
-    Summary: {parsed.get('summary', '')}
+    Title: {parsed.get("title", "Ingested Tactic")}
+    Map: {parsed.get("map_name", "All Maps")}
+    Side: {parsed.get("side", "Both")}
+    Summary: {parsed.get("summary", "")}
     Steps:
     """
     for step in parsed.get("steps", []):

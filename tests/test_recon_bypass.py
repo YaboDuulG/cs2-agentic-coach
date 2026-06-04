@@ -3,7 +3,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 # Mock demoparser2 which is not installed in CI environment
-sys.modules['demoparser2'] = MagicMock()
+sys.modules["demoparser2"] = MagicMock()
 
 from fastapi import HTTPException
 import pytest
@@ -33,27 +33,28 @@ async def test_scout_recon_validation_bypass():
         "player_stats": {
             # Let's say uploader_steam_id is NOT in the players list
             "76561198000000000": {"name": "Other Player"}
-        }
+        },
     }
 
     # Mock db Session and Match object
     mock_match_obj = MagicMock()
     mock_match_obj.match_id = "test-recon-match"
     mock_match_obj.user_id = "test-user-id"
-    mock_match_obj.uploader_steam_id = "76561198999999999" # Uploader Steam ID
+    mock_match_obj.uploader_steam_id = "76561198999999999"  # Uploader Steam ID
     mock_match_obj.is_recon = True  # Bypassed!
 
     mock_db = MagicMock()
     mock_db.get.return_value = mock_match_obj
 
     # Mock other functions called inside parse_match
-    with patch("services.scout.service.LOCAL_MODE", True), \
-         patch("parse_demo.parse_demo", return_value=mock_result) as mock_parse_demo, \
-         patch("parse_demo.write_to_db") as mock_write_to_db, \
-         patch("services.scout.service._trigger_coaching"), \
-         patch("services.scout.service._mark_failed"), \
-         patch("db.database.SessionLocal", return_value=mock_db):
-
+    with (
+        patch("services.scout.service.LOCAL_MODE", True),
+        patch("parse_demo.parse_demo", return_value=mock_result) as mock_parse_demo,
+        patch("parse_demo.write_to_db") as mock_write_to_db,
+        patch("services.scout.service._trigger_coaching"),
+        patch("services.scout.service._mark_failed"),
+        patch("db.database.SessionLocal", return_value=mock_db),
+    ):
         req = ParseRequest(match_id="test-recon-match", dem_path="dummy.dem")
 
         # This should execute successfully and NOT raise ValueError / abort
@@ -80,27 +81,26 @@ async def test_scout_no_recon_validation_fails():
         "kills": [],
         "grenades": [],
         "trajectories": [],
-        "player_stats": {
-            "76561198000000000": {"name": "Other Player"}
-        }
+        "player_stats": {"76561198000000000": {"name": "Other Player"}},
     }
 
     mock_match_obj = MagicMock()
     mock_match_obj.match_id = "test-normal-match"
     mock_match_obj.user_id = "test-user-id"
-    mock_match_obj.uploader_steam_id = "76561198999999999" # Not in player_stats
+    mock_match_obj.uploader_steam_id = "76561198999999999"  # Not in player_stats
     mock_match_obj.is_recon = False
 
     mock_db = MagicMock()
     mock_db.get.return_value = mock_match_obj
 
-    with patch("services.scout.service.LOCAL_MODE", True), \
-         patch("parse_demo.parse_demo", return_value=mock_result), \
-         patch("parse_demo.write_to_db"), \
-         patch("services.scout.service._trigger_coaching"), \
-         patch("services.scout.service._mark_failed"), \
-         patch("db.database.SessionLocal", return_value=mock_db):
-
+    with (
+        patch("services.scout.service.LOCAL_MODE", True),
+        patch("parse_demo.parse_demo", return_value=mock_result),
+        patch("parse_demo.write_to_db"),
+        patch("services.scout.service._trigger_coaching"),
+        patch("services.scout.service._mark_failed"),
+        patch("db.database.SessionLocal", return_value=mock_db),
+    ):
         req = ParseRequest(match_id="test-normal-match", dem_path="dummy.dem")
 
         # Since uploader_steam_id is not in player_stats, this should raise HTTPException / fail

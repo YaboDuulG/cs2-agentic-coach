@@ -180,13 +180,16 @@ async def parse_match(req: ParseRequest):
         try:
             from db.database import SessionLocal  # noqa: PLC0415
             from db.models import Match  # noqa: PLC0415
+
             db = SessionLocal()
             try:
                 match_obj = db.get(Match, req.match_id)
                 if match_obj and match_obj.user_id:
                     # If is_recon is True, skip uploader Steam ID check entirely
                     if getattr(match_obj, "is_recon", False):
-                        logger.info(f"[Scout] Match {req.match_id} is marked as Recon (Opposition Research) - bypassing Steam ID validation checks.")
+                        logger.info(
+                            f"[Scout] Match {req.match_id} is marked as Recon (Opposition Research) - bypassing Steam ID validation checks."
+                        )
                     else:
                         # User uploaded match, validation is required
                         if not match_obj.uploader_steam_id:

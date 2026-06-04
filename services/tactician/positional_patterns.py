@@ -16,6 +16,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class PositionalTag:
     player: str
@@ -23,9 +24,11 @@ class PositionalTag:
     severity: str  # 'positive', 'warning', 'critical'
     description: str
 
+
 @dataclass
 class PositionalAnalysis:
     tags: list[PositionalTag] = field(default_factory=list)
+
 
 def analyze_positions(match_data: dict) -> PositionalAnalysis:
     """
@@ -59,39 +62,41 @@ def analyze_positions(match_data: dict) -> PositionalAnalysis:
         # Simple heuristic for tendencies based on first contact frequency and success
         if total_engagements > 5:
             if win_rate < 0.3:
-                analysis.tags.append(PositionalTag(
-                    player=player,
-                    tag="Over-peeking",
-                    severity="critical",
-                    description=f"Dying first frequently ({stats['deaths']} times). Needs more passive setups."
-                ))
+                analysis.tags.append(
+                    PositionalTag(
+                        player=player,
+                        tag="Over-peeking",
+                        severity="critical",
+                        description=f"Dying first frequently ({stats['deaths']} times). Needs more passive setups.",
+                    )
+                )
             elif win_rate > 0.7:
-                analysis.tags.append(PositionalTag(
-                    player=player,
-                    tag="Entry Fragger",
-                    severity="positive",
-                    description=f"Highly successful opening duels ({stats['attacks']} first bloods)."
-                ))
+                analysis.tags.append(
+                    PositionalTag(
+                        player=player,
+                        tag="Entry Fragger",
+                        severity="positive",
+                        description=f"Highly successful opening duels ({stats['attacks']} first bloods).",
+                    )
+                )
             elif stats["attacks"] == 0 and stats["deaths"] < 2:
                 # Barely involved in first contacts
-                analysis.tags.append(PositionalTag(
-                    player=player,
-                    tag="Passive Anchor",
-                    severity="positive",
-                    description="Plays safely and avoids early round risks."
-                ))
+                analysis.tags.append(
+                    PositionalTag(
+                        player=player,
+                        tag="Passive Anchor",
+                        severity="positive",
+                        description="Plays safely and avoids early round risks.",
+                    )
+                )
 
     return analysis
+
 
 def positions_to_dict(analysis: PositionalAnalysis) -> dict:
     return {
         "tags": [
-            {
-                "player": t.player,
-                "tag": t.tag,
-                "severity": t.severity,
-                "description": t.description
-            }
+            {"player": t.player, "tag": t.tag, "severity": t.severity, "description": t.description}
             for t in analysis.tags
         ]
     }

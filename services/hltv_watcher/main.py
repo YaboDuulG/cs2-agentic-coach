@@ -41,13 +41,16 @@ MOCK_PRO_MATCHES = [
         "map_name": "de_dust2",
         "team_a": "Natus Vincere",
         "team_b": "FaZe Clan",
-        "demo_url": "https://storage.googleapis.com/cs2-demosage-public/demos/de_dust2_test.dem"
+        "demo_url": "https://storage.googleapis.com/cs2-demosage-public/demos/de_dust2_test.dem",
     }
 ]
 
+
 def _get_gcs_client():
     from google.cloud import storage
+
     return storage.Client()
+
 
 def upload_to_gcs(file_path: Path, gcs_path: str) -> str:
     """Upload a file to Google Cloud Storage and return gs:// URI."""
@@ -61,6 +64,7 @@ def upload_to_gcs(file_path: Path, gcs_path: str) -> str:
     blob.upload_from_filename(str(file_path))
     return f"gs://{bucket_name}/{gcs_path}"
 
+
 def extract_demo_file(archive_path: Path, extract_dir: Path) -> Path | None:
     """Extracts .dem file from .rar, .zip, or .gz archive."""
     suffix = archive_path.suffix.lower()
@@ -70,7 +74,8 @@ def extract_demo_file(archive_path: Path, extract_dir: Path) -> Path | None:
 
     if suffix == ".zip":
         import zipfile
-        with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+
+        with zipfile.ZipFile(archive_path, "r") as zip_ref:
             for file_info in zip_ref.infolist():
                 if file_info.filename.endswith(".dem"):
                     zip_ref.extract(file_info, extract_dir)
@@ -78,15 +83,24 @@ def extract_demo_file(archive_path: Path, extract_dir: Path) -> Path | None:
 
     elif suffix == ".rar":
         import subprocess
+
         # Try system 'unrar'
         try:
-            subprocess.run(["unrar", "x", "-o+", str(archive_path), str(extract_dir)], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(
+                ["unrar", "x", "-o+", str(archive_path), str(extract_dir)],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
             for p in extract_dir.glob("**/*.dem"):
                 return p
         except Exception:
             try:
                 # Fallback to 7z
-                subprocess.run(["7z", "x", f"-o{extract_dir}", str(archive_path), "-y"], check=True, stdout=subprocess.DEVNULL)
+                subprocess.run(
+                    ["7z", "x", f"-o{extract_dir}", str(archive_path), "-y"],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                )
                 for p in extract_dir.glob("**/*.dem"):
                     return p
             except Exception as e:
@@ -94,15 +108,18 @@ def extract_demo_file(archive_path: Path, extract_dir: Path) -> Path | None:
 
     elif suffix == ".gz":
         import gzip
+
         out_path = extract_dir / archive_path.stem
-        with gzip.open(archive_path, 'rb') as f_in:
-            with open(out_path, 'wb') as f_out:
+        with gzip.open(archive_path, "rb") as f_in:
+            with open(out_path, "wb") as f_out:
                 import shutil
+
                 shutil.copyfileobj(f_in, f_out)
         if out_path.exists():
             return out_path
 
     return None
+
 
 def process_match_demo(match_id: str, demo_url: str) -> str | None:
     """Downloads, extracts, and uploads demo to GCS. Returns GCS URI."""
@@ -120,6 +137,7 @@ def process_match_demo(match_id: str, demo_url: str) -> str | None:
         if "content-disposition" in r.headers:
             cd = r.headers["content-disposition"]
             import re
+
             filenames = re.findall("filename=(.+)", cd)
             if filenames:
                 filename = filenames[0].strip('"')
@@ -143,6 +161,7 @@ def process_match_demo(match_id: str, demo_url: str) -> str | None:
         logger.info(f"Uploading {dem_file_path.name} to GCS...")
         gcs_uri = upload_to_gcs(dem_file_path, gcs_path)
         return gcs_uri
+
 
 def fetch_apify_matches(api_token: str, actor_id: str) -> list[dict]:
     """Call Apify API to run HLTV scraper actor and get results."""
@@ -177,9 +196,12 @@ def fetch_apify_matches(api_token: str, actor_id: str) -> list[dict]:
     items = dataset_res.json()
     return items
 
+
 def main(args_list: list[str] | None = None):
     parser = argparse.ArgumentParser(description="DemoSage HLTV Watcher & Crawler")
-    parser.add_argument("--mode", choices=["scheduled", "manual"], default="scheduled", help="Ingestion run mode")
+    parser.add_argument(
+        "--mode", choices=["scheduled", "manual"], default="scheduled", help="Ingestion run mode"
+    )
     args = parser.parse_args(args_list)
     _ = args.mode  # Mark as read for linting
 
@@ -192,7 +214,9 @@ def main(args_list: list[str] | None = None):
 
     try:
         if not api_token or not actor_id:
-            logger.warning("APIFY_API_TOKEN or APIFY_HLTV_ACTOR_ID is missing. Falling back to MOCK mode.")
+            logger.warning(
+                "APIFY_API_TOKEN or APIFY_HLTV_ACTOR_ID is missing. Falling back to MOCK mode."
+            )
             matches_to_process = MOCK_PRO_MATCHES
             mock_mode = True
         else:
@@ -241,7 +265,7 @@ def main(args_list: list[str] | None = None):
                 map_name=map_name,
                 status=MatchStatus.PENDING,
                 demo_filename=demo_url.split("/")[-1].split("?")[0] or f"{match_id}.dem",
-                gcs_demo_uri=gcs_demo_uri
+                gcs_demo_uri=gcs_demo_uri,
             )
             db.add(match_record)
             new_matches_count += 1
@@ -258,6 +282,7 @@ def main(args_list: list[str] | None = None):
 
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     main()

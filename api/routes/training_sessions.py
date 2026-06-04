@@ -70,6 +70,7 @@ class SessionResponse(BaseModel):
     started_at: datetime
     ended_at: datetime | None
     duration_seconds: int | None
+    job_id: str | None = None
 
     model_config = {"from_attributes": True}
 

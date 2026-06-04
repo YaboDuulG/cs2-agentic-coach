@@ -29,6 +29,7 @@ def db_session():
     session.close()
     Base.metadata.drop_all(engine)
 
+
 def test_parse_markdown_chunks(tmp_path):
     """Test chunk parsing and context paths from a mock markdown file."""
     mock_md = (
@@ -70,6 +71,7 @@ def test_parse_markdown_chunks(tmp_path):
     assert "Main Title > Section Two" in c3["content"]
     assert "More details" in c3["content"]
 
+
 @patch("scripts.ingest_corpus.get_embedding")
 @patch("scripts.ingest_corpus.SessionLocal")
 @patch("scripts.ingest_corpus.parse_markdown_chunks")
@@ -80,7 +82,7 @@ def test_ingest_corpus_main(mock_parse, mock_session, mock_get_embedding, db_ses
     mock_parse.return_value = [
         {
             "content": "Test hierarchy > H2 > H3\n\nSome content text",
-            "metadata": {"h1": "Test hierarchy", "h2": "H2", "h3": "H3", "source_file": "test.md"}
+            "metadata": {"h1": "Test hierarchy", "h2": "H2", "h3": "H3", "source_file": "test.md"},
         }
     ]
     mock_get_embedding.return_value = [0.123] * 768

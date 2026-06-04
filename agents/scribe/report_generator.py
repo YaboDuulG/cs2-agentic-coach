@@ -14,10 +14,12 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-def generate_reports(match_id: str, scout_out: dict, rag_context: list, tactical_analysis: dict) -> dict[str, Any]:
+
+def generate_reports(
+    match_id: str, scout_out: dict, rag_context: list, tactical_analysis: dict
+) -> dict[str, Any]:
     """Calls Gemini to compile the final structured reports."""
     import os
-
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
@@ -40,7 +42,7 @@ def generate_reports(match_id: str, scout_out: dict, rag_context: list, tactical
             model=model_name,
             temperature=temperature,
             google_api_key=api_key,
-            model_kwargs={"response_mime_type": "application/json"}
+            model_kwargs={"response_mime_type": "application/json"},
         )
 
         # Compile data payload
@@ -48,7 +50,7 @@ def generate_reports(match_id: str, scout_out: dict, rag_context: list, tactical
             "match_id": match_id,
             "scout_stats": scout_out,
             "rag_context": rag_context,
-            "tactical_analysis": tactical_analysis
+            "tactical_analysis": tactical_analysis,
         }
 
         user_team = scout_out.get("user_team")
@@ -120,5 +122,5 @@ def _stub_reports() -> dict[str, Any]:
         "team_report": "### Team Report\nAI coaching requires GEMINI_API_KEY.",
         "player_reports": {},
         "strat_card": "### Strat Card\nAI coaching requires GEMINI_API_KEY.",
-        "coach_report": "### Coach Report\nAI coaching requires GEMINI_API_KEY."
+        "coach_report": "### Coach Report\nAI coaching requires GEMINI_API_KEY.",
     }

@@ -32,7 +32,9 @@ from db.models import Match, MatchStatus
 try:
     from playwright.sync_api import sync_playwright
 except ImportError:
-    logger.error("Playwright not installed. Please run: pip install playwright && playwright install")
+    logger.error(
+        "Playwright not installed. Please run: pip install playwright && playwright install"
+    )
     sys.exit(1)
 
 
@@ -76,26 +78,30 @@ def scrape_recent_matches(limit: int = 5) -> list[dict]:
                     # Parse Map
                     # Matches page can list multiple maps. We look for completed maps.
                     map_el = page.locator(".mapname").first
-                    map_name = map_el.text_content().strip().lower() if map_el.count() > 0 else "de_dust2"
+                    map_name = (
+                        map_el.text_content().strip().lower() if map_el.count() > 0 else "de_dust2"
+                    )
                     if not map_name.startswith("de_"):
                         map_name = "de_" + map_name
 
                     # Find the "GOTV Demo" download link
                     demo_link_el = page.locator("a[href*='/download/demo/']")
                     if demo_link_el.count() == 0:
-                        logger.warning(f"No demo download link found for match {match_id}. Skipping.")
+                        logger.warning(
+                            f"No demo download link found for match {match_id}. Skipping."
+                        )
                         continue
 
                     demo_url = demo_link_el.first.get_attribute("href")
                     if demo_url and not demo_url.startswith("http"):
                         demo_url = "https://www.hltv.org" + demo_url
 
-                    logger.info(f"Extracted Match {match_id} | Map: {map_name} | Demo URL: {demo_url}")
-                    results.append({
-                        "match_id": f"hltv-{match_id}",
-                        "map_name": map_name,
-                        "demo_url": demo_url
-                    })
+                    logger.info(
+                        f"Extracted Match {match_id} | Map: {map_name} | Demo URL: {demo_url}"
+                    )
+                    results.append(
+                        {"match_id": f"hltv-{match_id}", "map_name": map_name, "demo_url": demo_url}
+                    )
                 except Exception as ex:
                     logger.error(f"Failed parsing match URL {url}: {ex}")
                     continue
@@ -136,7 +142,9 @@ def main():
 
             # Process / download / upload demo to GCS
             if not gcs_bucket:
-                logger.info(f"[Local Mode] Registering match {match_id} using public placeholder demo.")
+                logger.info(
+                    f"[Local Mode] Registering match {match_id} using public placeholder demo."
+                )
                 gcs_demo_uri = "gs://cs2-demosage-public/demos/de_dust2_test.dem"
             else:
                 try:
@@ -153,7 +161,7 @@ def main():
                 map_name=map_name,
                 status=MatchStatus.PENDING,
                 demo_filename=f"{match_id}.dem",
-                gcs_demo_uri=gcs_demo_uri
+                gcs_demo_uri=gcs_demo_uri,
             )
             db.add(match_record)
             new_matches += 1

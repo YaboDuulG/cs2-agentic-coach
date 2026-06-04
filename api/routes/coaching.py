@@ -70,7 +70,7 @@ async def get_coaching(match_id: str, user_id: str | None = None):
                 coaching_data = {
                     "strat_card": match.coaching_notes,
                     "player_reports": {},
-                    "coach_report": match.coaching_notes
+                    "coach_report": match.coaching_notes,
                 }
 
             return {
@@ -114,13 +114,15 @@ async def get_player_coaching(match_id: str, player_name: str, user_id: str | No
 
             player_reports = coaching_data.get("player_reports", {})
             if player_name not in player_reports:
-                raise HTTPException(status_code=404, detail=f"No report found for player {player_name}")
+                raise HTTPException(
+                    status_code=404, detail=f"No report found for player {player_name}"
+                )
 
             return {
                 "status": "ready",
                 "match_id": match_id,
                 "player": player_name,
-                "report": player_reports[player_name]
+                "report": player_reports[player_name],
             }
         finally:
             db.close()

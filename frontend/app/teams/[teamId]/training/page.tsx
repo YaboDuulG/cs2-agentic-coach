@@ -40,6 +40,7 @@ interface TrainingSessionRecord {
   started_at: string;
   ended_at: string | null;
   duration_seconds: number | null;
+  job_id?: string | null;
 }
 
 interface TrainingStats {
@@ -810,7 +811,7 @@ export default function TrainingPage() {
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                       <thead>
                         <tr style={{ borderBottom: "1px solid #1E3A5F" }}>
-                          {["Mode", "Map", "Region", "Date", "Duration"].map(h => (
+                          {["Mode", "Map", "Region", "Date", "Duration", "Analysis"].map(h => (
                             <th key={h} style={{ padding: "8px 16px", textAlign: "left", color: "#4A6A8A", fontWeight: 600, whiteSpace: "nowrap" }}>{h}</th>
                           ))}
                         </tr>
@@ -830,6 +831,28 @@ export default function TrainingPage() {
                               {s.duration_seconds
                                 ? `${Math.floor(s.duration_seconds / 60)}m ${s.duration_seconds % 60}s`
                                 : "—"}
+                            </td>
+                            <td style={{ padding: "10px 16px" }}>
+                              {s.job_id ? (
+                                <button
+                                  onClick={() => router.push(`/analysis/${s.job_id}`)}
+                                  style={{
+                                    background: "none",
+                                    border: "none",
+                                    color: "#2D7DD2",
+                                    cursor: "pointer",
+                                    padding: 0,
+                                    fontWeight: 600,
+                                    textDecoration: "underline",
+                                    fontFamily: "inherit",
+                                    fontSize: "inherit",
+                                  }}
+                                >
+                                  View Analysis
+                                </button>
+                              ) : (
+                                <span style={{ color: "#4A6A8A" }}>—</span>
+                              )}
                             </td>
                           </tr>
                         ))}

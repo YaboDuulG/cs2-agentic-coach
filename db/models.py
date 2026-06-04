@@ -86,7 +86,9 @@ class Match(Base):
     coaching_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     uploader_steam_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    is_recon: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    is_recon: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     gcs_demo_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     gcs_audio_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     gcs_parsed_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -365,6 +367,9 @@ class TrainingSession(Base):
     )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    job_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("matches.match_id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     def __repr__(self) -> str:
         return f"<TrainingSession {self.id} mode={self.mode} user={self.user_id}>"
@@ -399,6 +404,7 @@ class SQLiteVectorType(TypeDecorator):
                 return value
         return value
 
+
 _db_url = (
     os.getenv("DATABASE_URL_TEST")
     or os.getenv("DATABASE_URL_LOCAL")
@@ -411,6 +417,7 @@ if _db_url.startswith("sqlite"):
     VectorType = SQLiteVectorType()
 else:
     from pgvector.sqlalchemy import Vector
+
     VectorType = Vector(768)
 
 
@@ -419,13 +426,18 @@ class KnowledgeEmbedding(Base):
     RAG Knowledge Embeddings for Khan's Library.
     Stores chunked texts and their high-dimensional vector representations.
     """
+
     __tablename__ = "knowledge_embeddings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(VectorType, nullable=False)
-    source: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)  # e.g., "game_rules", "hltv_pro_match", "tactical_playbook"
-    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # Stored JSON string metadata
+    source: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, index=True
+    )  # e.g., "game_rules", "hltv_pro_match", "tactical_playbook"
+    metadata_json: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Stored JSON string metadata
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
@@ -438,6 +450,7 @@ class SystemConfig(Base):
     """
     Key-Value System Configurations for LLM Prompts and settings.
     """
+
     __tablename__ = "system_configs"
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -445,4 +458,3 @@ class SystemConfig(Base):
 
     def __repr__(self) -> str:
         return f"<SystemConfig {self.key}>"
-

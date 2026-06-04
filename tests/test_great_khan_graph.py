@@ -32,10 +32,10 @@ def test_graph_compilation():
 
 # NOTE: @patch decorators are applied bottom-up: the BOTTOM-MOST decorator
 # injects the FIRST argument, the top-most injects the LAST argument.
-@patch("agents.great_khan._compute_stats") # → mock_stats    (last arg  — top)
-@patch("agents.scribe.report_generator.generate_reports")   # → mock_gemini   (3rd arg)
-@patch("db.database.SessionLocal")         # → mock_session  (2nd arg)
-@patch("db.rag.retrieve_similar_chunks")   # → mock_retrieve (1st arg  — bottom)
+@patch("agents.great_khan._compute_stats")  # → mock_stats    (last arg  — top)
+@patch("agents.scribe.report_generator.generate_reports")  # → mock_gemini   (3rd arg)
+@patch("db.database.SessionLocal")  # → mock_session  (2nd arg)
+@patch("db.rag.retrieve_similar_chunks")  # → mock_retrieve (1st arg  — bottom)
 def test_tactical_analysis_pipeline(mock_retrieve, mock_session, mock_gemini, mock_stats):
     """Test that the full tactical analysis pipeline runs and invokes nodes in sequence."""
     mock_stats.return_value = {
@@ -81,9 +81,9 @@ def test_tactical_analysis_pipeline(mock_retrieve, mock_session, mock_gemini, mo
     assert mock_retrieve.call_count >= 1
 
 
-@patch("agents.great_khan._call_gemini")   # → mock_gemini   (last arg  — top)
-@patch("db.database.SessionLocal")         # → mock_session  (2nd arg)
-@patch("db.rag.retrieve_similar_chunks")   # → mock_retrieve (1st arg  — bottom)
+@patch("agents.great_khan._call_gemini")  # → mock_gemini   (last arg  — top)
+@patch("db.database.SessionLocal")  # → mock_session  (2nd arg)
+@patch("db.rag.retrieve_similar_chunks")  # → mock_retrieve (1st arg  — bottom)
 def test_general_informational_route(mock_retrieve, mock_session, mock_gemini):
     """Verify that general/informational queries route to the general node."""
     mock_gemini.return_value = {
@@ -94,7 +94,9 @@ def test_general_informational_route(mock_retrieve, mock_session, mock_gemini):
         "strongest_area": "Historical strength",
         "weakest_area": "Historical weakness",
     }
-    mock_retrieve.return_value = [{"content": "HLTV NAVI vs Vitality meta info", "source": "hltv_pro_match"}]
+    mock_retrieve.return_value = [
+        {"content": "HLTV NAVI vs Vitality meta info", "source": "hltv_pro_match"}
+    ]
 
     mock_db = MagicMock()
     mock_session.return_value = mock_db
@@ -107,9 +109,11 @@ def test_general_informational_route(mock_retrieve, mock_session, mock_gemini):
     assert report["summary"] == "Mock history summary."
 
     # Verify _compute_stats is NOT called when routing to general_node
-    with patch("agents.great_khan._compute_stats") as mock_stats, \
-         patch("agents.great_khan._call_gemini"), \
-         patch("db.database.SessionLocal"):
+    with (
+        patch("agents.great_khan._compute_stats") as mock_stats,
+        patch("agents.great_khan._call_gemini"),
+        patch("db.database.SessionLocal"),
+    ):
         analyse_match("match-123", user_query="Show HLTV meta history")
         mock_stats.assert_not_called()
 
@@ -140,7 +144,9 @@ def test_server_request_route(mock_session, mock_llm_class):
     mock_llm.invoke.return_value.content = '{"commands": ["sv_cheats 1"]}'
 
     with patch("services.warlord.rcon_client.execute_batch_commands"):
-        report = analyse_match("match-123", user_query="Please spin up a practice server on de_nuke")
+        report = analyse_match(
+            "match-123", user_query="Please spin up a practice server on de_nuke"
+        )
 
     assert report is not None
     assert "Executed 1 server commands successfully." in report["summary"]

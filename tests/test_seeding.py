@@ -37,7 +37,7 @@ def test_clear_seeding_script(db_session):
         match_id=pro_match_id,
         match_name="Team A vs Team B (Tournament - 2026)",
         map_name="de_nuke",
-        status="complete"
+        status="complete",
     )
     db_session.add(pro_match)
 
@@ -45,7 +45,7 @@ def test_clear_seeding_script(db_session):
         content="Match Summary for Team A vs Team B",
         embedding=[0.1] * 768,
         source="hltv_pro_match",
-        metadata_json=json.dumps({"match_id": pro_match_id})
+        metadata_json=json.dumps({"match_id": pro_match_id}),
     )
     db_session.add(pro_embedding)
 
@@ -56,7 +56,7 @@ def test_clear_seeding_script(db_session):
         match_name="My Uploaded Match",
         map_name="de_mirage",
         status="complete",
-        user_id="user_clerk_123"
+        user_id="user_clerk_123",
     )
     db_session.add(user_match)
 
@@ -64,7 +64,7 @@ def test_clear_seeding_script(db_session):
         content="User match summary",
         embedding=[0.2] * 768,
         source="team_strategy",
-        metadata_json=json.dumps({"match_id": user_match_id})
+        metadata_json=json.dumps({"match_id": user_match_id}),
     )
     db_session.add(user_embedding)
     db_session.commit()
@@ -77,7 +77,9 @@ def test_clear_seeding_script(db_session):
     remaining_pro_matches = db_session.query(Match).filter_by(match_id=pro_match_id).all()
     assert len(remaining_pro_matches) == 0
 
-    remaining_pro_embs = db_session.query(KnowledgeEmbedding).filter_by(source="hltv_pro_match").all()
+    remaining_pro_embs = (
+        db_session.query(KnowledgeEmbedding).filter_by(source="hltv_pro_match").all()
+    )
     assert len(remaining_pro_embs) == 0
 
     # Verify that the user match and team strategy embedding were preserved
@@ -85,5 +87,7 @@ def test_clear_seeding_script(db_session):
     assert len(remaining_user_matches) == 1
     assert remaining_user_matches[0].match_name == "My Uploaded Match"
 
-    remaining_user_embs = db_session.query(KnowledgeEmbedding).filter_by(source="team_strategy").all()
+    remaining_user_embs = (
+        db_session.query(KnowledgeEmbedding).filter_by(source="team_strategy").all()
+    )
     assert len(remaining_user_embs) == 1

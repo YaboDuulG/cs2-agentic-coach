@@ -108,7 +108,9 @@ def scrape_team_matches(page, team_id: str, team_name: str, limit_per_team: int)
 
             unix_time = int(unix_time_str)
             if unix_time < six_months_ago_ms:
-                logger.info(f"Match {match_id} is older than 6 months. Stopping search for {team_name}.")
+                logger.info(
+                    f"Match {match_id} is older than 6 months. Stopping search for {team_name}."
+                )
                 break
 
             # Parse Team Names
@@ -143,11 +145,9 @@ def scrape_team_matches(page, team_id: str, team_name: str, limit_per_team: int)
             if demo_url and not demo_url.startswith("http"):
                 demo_url = "https://www.hltv.org" + demo_url
 
-            valid_matches.append({
-                "match_id": match_id,
-                "match_name": match_name,
-                "demo_url": demo_url
-            })
+            valid_matches.append(
+                {"match_id": match_id, "match_name": match_name, "demo_url": demo_url}
+            )
             logger.info(f"Valid match found: {match_name} | Demo URL: {demo_url}")
 
         except Exception as ex:
@@ -181,6 +181,7 @@ def download_and_process_match(match: dict, api_key: str):
         filename = "demo.zip"
         if "content-disposition" in r.headers:
             import re
+
             cd = r.headers["content-disposition"]
             filenames = re.findall("filename=(.+)", cd)
             if filenames:
@@ -260,9 +261,18 @@ def download_and_process_match(match: dict, api_key: str):
 
 def main():
     parser = argparse.ArgumentParser(description="DemoSage HLTV Pro Seeding Script")
-    parser.add_argument("--limit-per-team", type=int, default=3, help="Max matches to scrape per team")
-    parser.add_argument("--mock", action="store_true", help="Run in mock mode using a local demo file")
-    parser.add_argument("--mock-demo", type=str, default="demos/DemolitionNuke.dem", help="Path to local demo file for mock mode")
+    parser.add_argument(
+        "--limit-per-team", type=int, default=3, help="Max matches to scrape per team"
+    )
+    parser.add_argument(
+        "--mock", action="store_true", help="Run in mock mode using a local demo file"
+    )
+    parser.add_argument(
+        "--mock-demo",
+        type=str,
+        default="demos/DemolitionNuke.dem",
+        help="Path to local demo file for mock mode",
+    )
     args = parser.parse_args()
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
@@ -281,7 +291,7 @@ def main():
         mock_match = {
             "match_id": "mock-vitality-spirit",
             "match_name": "Vitality vs Spirit (IEM Rio - 2026)",
-            "demo_url": ""  # local file
+            "demo_url": "",  # local file
         }
 
         # Parse local demo file
@@ -338,7 +348,9 @@ def main():
 
     # Process all matches
     for idx, match in enumerate(scraped_matches):
-        logger.info(f"=== Processing Match {idx + 1}/{len(scraped_matches)}: {match['match_name']} ===")
+        logger.info(
+            f"=== Processing Match {idx + 1}/{len(scraped_matches)}: {match['match_name']} ==="
+        )
         download_and_process_match(match, api_key)
 
     logger.info("HLTV seeding completed.")

@@ -66,7 +66,9 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
             db.close()
 
     # Create match record in DB immediately so jobs endpoint returns 'queued'
-    _create_match_record(match_id, secure_filename, user_id, body.team_id, uploader_steam_id, body.is_recon)
+    _create_match_record(
+        match_id, secure_filename, user_id, body.team_id, uploader_steam_id, body.is_recon
+    )
 
     if local_mode or not bucket_name:
         # Local dev: return a fake presigned URL(s)
@@ -275,7 +277,12 @@ async def stub_upload(match_id: str, part_name: str | None = None):
 
 
 def _create_match_record(
-    match_id: str, filename: str, user_id: str | None = None, team_id: str | None = None, uploader_steam_id: str | None = None, is_recon: bool = False
+    match_id: str,
+    filename: str,
+    user_id: str | None = None,
+    team_id: str | None = None,
+    uploader_steam_id: str | None = None,
+    is_recon: bool = False,
 ) -> None:
     """Insert a queued match row so /api/jobs/{id} returns 'queued' immediately."""
     try:
@@ -294,7 +301,14 @@ def _create_match_record(
                     VALUES (:id, 'unknown', 64, 0, :filename, 'PENDING', :user_id, :team_id, :uploader_steam_id, :is_recon, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT (match_id) DO NOTHING
                 """),
-                {"id": match_id, "filename": filename, "user_id": user_id, "team_id": team_id, "uploader_steam_id": uploader_steam_id, "is_recon": is_recon},
+                {
+                    "id": match_id,
+                    "filename": filename,
+                    "user_id": user_id,
+                    "team_id": team_id,
+                    "uploader_steam_id": uploader_steam_id,
+                    "is_recon": is_recon,
+                },
             )
             db.commit()
         finally:
