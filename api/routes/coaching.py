@@ -25,7 +25,10 @@ async def trigger_coaching(match_id: str, background_tasks: BackgroundTasks):
 
 @router.get("/{match_id}", summary="Get cached coaching notes for a match")
 async def get_coaching(
-    match_id: str, background_tasks: BackgroundTasks, user_id: str | None = None
+    match_id: str,
+    background_tasks: BackgroundTasks,
+    user_id: str | None = None,
+    uploader_steam_id: str | None = None,
 ):
     """Return cached AI coaching output, or 202 if not ready yet."""
     try:
@@ -64,6 +67,18 @@ async def get_coaching(
                         status_code=403,
                         detail="Access denied: This match belongs to another user.",
                     )
+
+            # Self-healing: if uploader_steam_id is provided, match is owned by user,
+            # and match doesn't have this Steam ID mapped, update it and invalidate cached coaching notes!
+            is_owner = match.user_id == user_id
+            if uploader_steam_id and is_owner and match.uploader_steam_id != uploader_steam_id:
+                logger.info(
+                    f"[Coaching] Updating uploader_steam_id from {match.uploader_steam_id} to {uploader_steam_id} for match {match_id}. Clearing old coaching notes to force re-run."
+                )
+                match.uploader_steam_id = uploader_steam_id
+                match.coaching_notes = None
+                db.commit()
+
             if not match.coaching_notes:
                 # Self-healing: trigger coaching in background if match is COMPLETE and coaching is not running
                 if match.status == MatchStatus.COMPLETE:
