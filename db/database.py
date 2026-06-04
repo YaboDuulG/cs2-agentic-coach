@@ -33,8 +33,10 @@ _connect_args = {"check_same_thread": False} if _is_sqlite else {}
 
 # PostgreSQL pool settings — prevent stale connections on Cloud Run cold starts
 # SQLite doesn't support pool_size/max_overflow so we skip them
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
 _pool_kwargs = (
-    {}
+    {"poolclass": StaticPool}
     if _is_sqlite
     else {
         "pool_size": 5,

@@ -218,8 +218,24 @@ def main():
 
     db = SessionLocal()
     try:
+        from datetime import UTC, datetime
+
+        from db.models import SystemConfig
+
+        def update_last_run():
+            config_obj = (
+                db.query(SystemConfig).filter(SystemConfig.key == "last_hltv_ingest_run").first()
+            )
+            now_str = datetime.now(UTC).isoformat()
+            if config_obj:
+                config_obj.value = now_str
+            else:
+                db.add(SystemConfig(key="last_hltv_ingest_run", value=now_str))
+            db.commit()
+
         if args.match_id:
             ingest_match(db, args.match_id, api_key)
+            update_last_run()
         else:
             # Automatic scan for un-ingested matches
             # Let's pull all match IDs from knowledge_embeddings first
@@ -244,11 +260,13 @@ def main():
 
             if not to_ingest:
                 logger.info("RAG Knowledge Base is up to date. No new matches to ingest.")
+                update_last_run()
                 return
 
             logger.info(f"Found {len(to_ingest)} new match(es) to ingest.")
             for match in to_ingest:
                 ingest_match(db, match.match_id, api_key)
+            update_last_run()
 
     finally:
         db.close()

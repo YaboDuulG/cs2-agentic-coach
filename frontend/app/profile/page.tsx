@@ -162,19 +162,44 @@ export default function ProfilePage() {
   const limits = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] ?? PLAN_LIMITS.free;
   const maxUploads = limits.uploadsPerMonth === Infinity ? null : limits.uploadsPerMonth;
 
+  const [steamProfile, setSteamProfile] = useState<any>(null);
+  const [steamProfileLoading, setSteamProfileLoading] = useState(false);
+
   useEffect(() => {
     if (!isLoaded) return;
     if (!user) { router.push("/sign-in"); return; }
 
-    Promise.all([
+    setLoading(true);
+    const promises: Promise<any>[] = [
       fetch("/api/analyses").then(r => r.json()).catch(() => []),
       fetch("/api/teams").then(r => r.json()).catch(() => []),
-    ]).then(([a, t]) => {
+    ];
+
+    if (currentSteamId) {
+      setSteamProfileLoading(true);
+      promises.push(
+        fetch(`/api/steam/profile?steamid=${currentSteamId}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            setSteamProfile(data);
+            setSteamProfileLoading(false);
+            return data;
+          })
+          .catch(() => {
+            setSteamProfileLoading(false);
+            return null;
+          })
+      );
+    } else {
+      setSteamProfile(null);
+    }
+
+    Promise.all(promises).then(([a, t]) => {
       setAnalyses(Array.isArray(a) ? a : []);
       setTeams(Array.isArray(t) ? t : []);
       setLoading(false);
     });
-  }, [user, isLoaded, router]);
+  }, [user, isLoaded, router, currentSteamId]);
 
   if (!isLoaded || !user) return null;
 
@@ -192,13 +217,23 @@ export default function ProfilePage() {
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-10">
           {/* Avatar */}
           <div className="relative">
-            {user.imageUrl ? (
+            {steamProfile?.avatarfull ? (
+              <img src={steamProfile.avatarfull} alt="avatar" className="w-20 h-20 rounded-2xl object-cover"
+                style={{ border: "2px solid #C9A227" }} />
+            ) : user.imageUrl ? (
               <img src={user.imageUrl} alt="avatar" className="w-20 h-20 rounded-2xl object-cover"
                 style={{ border: "2px solid #1E3A5F" }} />
             ) : (
               <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
                 style={{ background: "rgba(45,125,210,0.1)", border: "2px solid #1E3A5F" }}>
                 <User size={32} color="#2D7DD2" />
+              </div>
+            )}
+            {steamProfile && (
+              <div className="absolute -bottom-1 -right-1 bg-slate-950 p-1.5 rounded-lg border border-[#C9A227]">
+                <svg className="w-3.5 h-3.5 text-[#C9A227]" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 .007c-.43 0-.85.04-1.28.11L5.94 4.88a10.983 10.983 0 00-4.66 9.61c0 5.48 4.02 10.02 9.33 10.84l4.57-2.64c.24.1.51.15.79.15.82 0 1.54-.5 1.87-1.22l5.03-2.9c1.97-2.12 3.13-4.94 3.13-8.02A11.026 11.026 0 0012 .007zM7.22 13.99c.35 0 .69.06 1.01.17l.01-.01.55-.32a3.868 3.868 0 013.78.14c.73.42 1.25 1.1 1.48 1.88l1.45-.84c-.03-.23-.05-.46-.05-.7 0-2.22 1.8-4.02 4.02-4.02a4.02 4.02 0 012.39.79l.01-.01 2.05-1.18c-.46-3.83-3.79-6.79-7.87-6.79a7.994 7.994 0 00-7.99 7.99c0 .32.03.63.08.94zm11.23-1.89c1.23 0 2.22.99 2.22 2.22 0 1.23-.99 2.22-2.22 2.22-1.23 0-2.22-.99-2.22-2.22 0-1.23.99-2.22 2.22-2.22zm-7.79 3.65c.34.2.57.56.57.97 0 .61-.5 1.11-1.11 1.11-.42 0-.78-.23-.97-.57l-.36.21c-.01.27-.12.53-.33.74-.35.35-.92.35-1.27 0-.35-.35-.35-.92 0-1.27.21-.21.47-.32.74-.33l.21-.36a1.114 1.114 0 012.08-.29l.44-.21z"/>
+                </svg>
               </div>
             )}
           </div>
@@ -252,6 +287,123 @@ export default function ProfilePage() {
         </div>
 
         <UlziiBorder className="mb-10" />
+
+        {/* ── Steam CS2 Player Dossier Card ── */}
+        {steamProfileLoading ? (
+          <div className="card p-6 mb-8 flex items-center justify-center gap-3"
+            style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+            <div className="w-5 h-5 rounded-full border-2 border-[#C9A227] border-t-transparent animate-spin" />
+            <span className="text-xs text-slate-400 font-mono">Loading Steam Profile Dossier...</span>
+          </div>
+        ) : steamProfile ? (
+          <div className="card p-6 mb-8 relative overflow-hidden"
+            style={{
+              background: "linear-gradient(135deg, rgba(13,24,37,0.85) 0%, rgba(8,14,26,0.95) 100%)",
+              border: "1px solid rgba(201, 162, 39, 0.2)",
+              boxShadow: "0 16px 36px rgba(0,0,0,0.5), 0 0 30px rgba(201, 162, 39, 0.05)"
+            }}>
+            {/* Top gold/blue accent bar */}
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#C9A227] to-transparent" />
+            
+            <div className="flex flex-col lg:flex-row gap-8 items-center">
+              {/* Profile details & avatar */}
+              <div className="flex items-center gap-5 w-full lg:w-1/3 border-b lg:border-b-0 lg:border-r border-slate-800/60 pb-6 lg:pb-0 lg:pr-8">
+                <img
+                  src={steamProfile.avatarfull}
+                  alt="Steam avatar"
+                  className="w-16 h-16 rounded-xl border border-[#C9A227]/40 shadow-lg object-cover"
+                />
+                <div className="text-left min-w-0 flex-1">
+                  <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Steam Persona</p>
+                  <h3 className="font-bold text-[#F0F4FF] text-base truncate">{steamProfile.personaname}</h3>
+                  <a
+                    href={steamProfile.profileurl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] text-[#2D7DD2] hover:text-[#5BA3E8] transition-colors mt-1 font-mono"
+                  >
+                    View Steam Profile ↗
+                  </a>
+                </div>
+              </div>
+
+              {/* Stats column: Playtime & Analyses */}
+              <div className="grid grid-cols-2 gap-6 w-full lg:w-1/3 border-b lg:border-b-0 lg:border-r border-slate-800/60 pb-6 lg:pb-0 lg:pr-8">
+                <div className="text-left">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Clock size={12} className="text-[#2D7DD2]" />
+                    <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">CS2 Playtime</span>
+                  </div>
+                  {steamProfile.playtime_private ? (
+                    <div>
+                      <p className="text-sm font-bold text-slate-400 font-mono flex items-center gap-1">
+                        <span>🔒</span> Private
+                      </p>
+                      <p className="text-[9px] text-slate-500 leading-normal">Set Steam Game details to public to sync hours.</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-xl font-extrabold text-[#F0F4FF] font-mono">
+                        {Math.round(steamProfile.playtime_forever / 60).toLocaleString()} <span className="text-[11px] text-slate-500 font-normal">hrs</span>
+                      </p>
+                      <p className="text-[9px] text-[#22D3A0] font-semibold font-mono">Synced via Steam</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-left">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Crosshair size={12} className="text-[#2D7DD2]" />
+                    <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Last Match</span>
+                  </div>
+                  {analyses.length > 0 ? (
+                    <div>
+                      <p className="text-sm font-bold text-[#F0F4FF] truncate">{analyses[0].map || "Unknown Map"}</p>
+                      <p className="text-[9px] text-slate-400 mt-0.5">{timeAgo(analyses[0].created_at)}</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm font-bold text-slate-500">—</p>
+                      <p className="text-[9px] text-slate-500">No matches analyzed</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Career assessment & rank badge */}
+              <div className="flex items-center gap-6 w-full lg:w-1/3">
+                {/* Custom Rank badge */}
+                <div className="relative w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{
+                    background: "rgba(201, 162, 39, 0.05)",
+                    border: "1px solid rgba(201, 162, 39, 0.2)",
+                    boxShadow: "inset 0 0 12px rgba(201, 162, 39, 0.1)"
+                  }}>
+                  <div className="text-center">
+                    <p className="text-[8px] text-[#C9A227] font-bold uppercase tracking-wider font-mono">Tier</p>
+                    <p className="text-2xl font-extrabold text-[#C9A227] leading-none" style={{ fontFamily: "Cinzel, serif" }}>
+                      {analyses.length > 10 ? "S" : analyses.length > 5 ? "A" : analyses.length > 0 ? "B" : "N/A"}
+                    </p>
+                  </div>
+                  {/* Subtle outer pulse effect */}
+                  <div className="absolute inset-0 rounded-xl border border-[#C9A227]/10 animate-ping pointer-events-none" style={{ animationDuration: '4s' }} />
+                </div>
+
+                <div className="text-left flex-1 min-w-0">
+                  <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Scout Assessment</p>
+                  <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wide">
+                    {analyses.length > 10 ? "Elite Legionnaire" : analyses.length > 5 ? "Experienced Scout" : analyses.length > 0 ? "Tactical Recruit" : "Awaiting Evaluation"}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                    {analyses.length > 0 
+                      ? `Based on ${analyses.length} match analyses, your tactical rotation indexes are synchronized with team strategies.`
+                      : "Upload CS2 demos to allow the Great Khan AI to build your career tactical dossier."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 

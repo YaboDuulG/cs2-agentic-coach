@@ -407,6 +407,85 @@ async def delete_team(team_id: str, user_id: str = ""):
         raise HTTPException(status_code=500, detail="Failed to delete team")
 
 
+class CreateStrategyRequest(BaseModel):
+    title: str
+    map_name: str
+    side: str
+    summary: str
+    steps: list[str]
+    author: str = "Coach"
+
+
+@router.post("/{team_id}/strategies", summary="Add a strategy manually")
+async def create_team_strategy(team_id: str, body: CreateStrategyRequest):
+    import json  # noqa: PLC0415
+
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import KnowledgeEmbedding  # noqa: PLC0415
+    from db.rag import get_query_embedding  # noqa: PLC0415
+
+    if not body.title.strip():
+        raise HTTPException(status_code=400, detail="Title cannot be empty")
+
+    structured_content = f"Title: {body.title.strip()}\nMap: {body.map_name}\nSide: {body.side}\nSummary: {body.summary}\nSteps:"
+    for step in body.steps:
+        if step.strip():
+            structured_content += f"\n- {step.strip()}"
+
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
+        logger.warning("No Gemini API key found. Using zero embedding fallback.")
+        vector = [0.0] * 768
+    else:
+        try:
+            vector = get_query_embedding(structured_content.strip(), api_key)
+        except Exception as e:
+            logger.error(f"Failed to generate strategy query embedding: {e}")
+            vector = [0.0] * 768
+
+    db = SessionLocal()
+    try:
+        meta = {
+            "team_id": team_id,
+            "map_name": body.map_name,
+            "side": body.side,
+            "title": body.title.strip(),
+            "author": body.author,
+            "summary": body.summary,
+            "steps": [s.strip() for s in body.steps if s.strip()],
+            "raw_content": structured_content.strip(),
+        }
+
+        row = KnowledgeEmbedding(
+            content=structured_content.strip(),
+            embedding=vector,
+            source="team_strategy",
+            metadata_json=json.dumps(meta),
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+
+        return {
+            "id": row.id,
+            "content": row.content,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "title": meta["title"],
+            "map_name": meta["map_name"],
+            "side": meta["side"],
+            "author": meta["author"],
+            "summary": meta["summary"],
+            "steps": meta["steps"],
+            "raw_content": meta["raw_content"],
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to save manual strategy: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save strategy: {str(e)}")
+    finally:
+        db.close()
+
+
 class StrategyChatRequest(BaseModel):
     message: str
     history: list[dict[str, str]] = []

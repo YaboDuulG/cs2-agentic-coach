@@ -43,6 +43,8 @@ DEFAULTS = {
         '- The "coach_report" must identify tactical vulnerabilities, rotational failures, and economy mistakes '
         "of both teams that can be targeted/exploited in future games.\n"
     ),
+    "last_hltv_ingest_run": "Never",
+    "last_social_ingest_run": "Never",
 }
 
 

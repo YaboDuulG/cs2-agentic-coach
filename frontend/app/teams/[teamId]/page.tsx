@@ -11,6 +11,7 @@ import {
 import { CloudMotifBg } from "@/components/patterns/mongolian";
 import { TeamIcon, getDevilFruit } from "@/components/TeamIcon";
 import { UploadModal } from "@/components/UploadModal";
+import { AddStrategyModal } from "@/components/AddStrategyModal";
 
 interface TeamDetail {
   team_id: string;
@@ -134,6 +135,7 @@ export default function TeamDetailPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isAddStratOpen, setIsAddStratOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -574,9 +576,17 @@ export default function TeamDetailPage() {
                         <BookOpen size={14} className="inline mr-2 text-[#2D7DD2]" />
                         Strategy Library
                       </h2>
-                      <span className="text-[10px] text-slate-500 font-mono">
-                        {strategies.length} ingested
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
+                          {strategies.length} ingested
+                        </span>
+                        <button
+                          onClick={() => setIsAddStratOpen(true)}
+                          className="rounded bg-[#2D7DD2] px-2.5 py-1 text-[10px] font-bold text-white hover:bg-[#1B4F8A] transition-all cursor-pointer"
+                        >
+                          + Add Strategy
+                        </button>
+                      </div>
                     </div>
 
                     {/* Search bar */}
@@ -1144,6 +1154,12 @@ export default function TeamDetailPage() {
           fetchTeamDetails();
         }}
         teamId={teamId}
+      />
+      <AddStrategyModal
+        isOpen={isAddStratOpen}
+        onClose={() => setIsAddStratOpen(false)}
+        teamId={teamId}
+        onSuccess={fetchStrategies}
       />
     </div>
   );
