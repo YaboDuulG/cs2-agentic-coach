@@ -80,6 +80,7 @@ def run_automatic_migrations():
         "ALTER TABLE matches ADD COLUMN IF NOT EXISTS uploader_steam_id VARCHAR(32);",
         "ALTER TABLE matches ADD COLUMN IF NOT EXISTS is_recon BOOLEAN DEFAULT FALSE;",
         "CREATE TABLE IF NOT EXISTS system_configs (key VARCHAR(64) PRIMARY KEY, value TEXT);",
+        "ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS job_id VARCHAR(36);",
     ]
     with engine.begin() as conn:
         for sql in statements:
