@@ -544,7 +544,11 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
     from api.routes.discord import call_gemini_text  # noqa: PLC0415
     from db.database import SessionLocal  # noqa: PLC0415
     from db.models import KnowledgeEmbedding  # noqa: PLC0415
-    from db.rag import cosine_similarity, get_query_embedding  # noqa: PLC0415
+    from db.rag import (  # noqa: PLC0415
+        cosine_similarity,
+        get_query_embedding,
+        retrieve_similar_chunks,
+    )
 
     db = SessionLocal()
     try:
@@ -585,11 +589,11 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
             strat_context.append(f"Strategy: {cand.content}\n(Ingested at {cand.created_at})")
 
         # 2. Retrieve generic game rules & professional match data
-        from db.rag import retrieve_similar_chunks  # noqa: PLC0415
-
-        rules_chunks = retrieve_similar_chunks(db, query=body.message, limit=2, source="game_rules")
+        rules_chunks = retrieve_similar_chunks(
+            db, query=body.message, limit=2, source="game_rules", team_id=team_id
+        )
         pro_chunks = retrieve_similar_chunks(
-            db, query=body.message, limit=5, source="hltv_pro_match"
+            db, query=body.message, limit=5, source="hltv_pro_match", team_id=team_id
         )
 
         # 3. Assemble prompt context

@@ -112,9 +112,14 @@ def ingest_match(db, match_id: str, api_key: str):
         except Exception:
             pass
 
+    # Determine source and scope
+    is_pro = match.user_id is None and match.team_id is None
+    source = "hltv_pro_match" if is_pro else "user_match_summary"
+    scope = "public" if is_pro else ("team" if match.team_id else "individual")
+
     # Check and delete existing embeddings for this match to avoid duplicates
     db.query(KnowledgeEmbedding).filter(
-        KnowledgeEmbedding.source == "hltv_pro_match",
+        KnowledgeEmbedding.source.in_(["hltv_pro_match", "user_match_summary"]),
         KnowledgeEmbedding.metadata_json.like(f'%"{match_id}"%'),
     ).delete(synchronize_session=False)
     db.commit()
@@ -137,15 +142,17 @@ def ingest_match(db, match_id: str, api_key: str):
             "match_id": match_id,
             "match_name": match.match_name,
             "team_id": match.team_id,
+            "user_id": match.user_id,
             "map_name": match.map_name,
             "type": "summary",
+            "scope": scope,
         }
 
         db.add(
             KnowledgeEmbedding(
                 content=macro_text,
                 embedding=macro_vector,
-                source="hltv_pro_match",
+                source=source,
                 metadata_json=json.dumps(macro_meta),
             )
         )
@@ -180,16 +187,18 @@ def ingest_match(db, match_id: str, api_key: str):
                 "match_id": match_id,
                 "match_name": match.match_name,
                 "team_id": match.team_id,
+                "user_id": match.user_id,
                 "map_name": match.map_name,
                 "round_num": r.round_num,
                 "type": "round_details",
                 "winner_side": r.winner_side,
+                "scope": scope,
             }
             db.add(
                 KnowledgeEmbedding(
                     content=round_text,
                     embedding=r_vector,
-                    source="hltv_pro_match",
+                    source=source,
                     metadata_json=json.dumps(r_meta),
                 )
             )
@@ -242,7 +251,7 @@ def main():
             ingested_matches = set()
             embeddings = (
                 db.query(KnowledgeEmbedding.metadata_json)
-                .filter(KnowledgeEmbedding.source == "hltv_pro_match")
+                .filter(KnowledgeEmbedding.source.in_(["hltv_pro_match", "user_match_summary"]))
                 .all()
             )
             for emb in embeddings:

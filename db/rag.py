@@ -48,10 +48,16 @@ def cosine_similarity(v1: list[float], v2: list[float]) -> float:
 
 
 def retrieve_similar_chunks(
-    db_session, query: str, limit: int = 5, source: str | None = None
+    db_session,
+    query: str,
+    limit: int = 5,
+    source: str | None = None,
+    user_id: str | None = None,
+    team_id: str | None = None,
 ) -> list[dict]:
     """
     Retrieve top K most similar text chunks from the knowledge_embeddings table.
+    Enforces namespace isolation walls using user_id, team_id, and scope tags.
     Automatically detects if backend is PostgreSQL (uses pgvector) or SQLite (uses Python fallback).
     """
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
@@ -66,11 +72,41 @@ def retrieve_similar_chunks(
         return []
 
     dialect = db_session.bind.dialect.name
-    logger.info(f"RAG query: '{query}' | dialect: {dialect} | limit: {limit} | source: {source}")
+    logger.info(
+        f"RAG query: '{query}' | dialect: {dialect} | limit: {limit} | source: {source} | user_id: {user_id} | team_id: {team_id}"
+    )
+
+    from sqlalchemy import or_
+
+    # 1. Build Namespace Walls (Scope isolation filter)
+    # - "public": Seeded pro matches or guidelines (backward-compatible: if metadata_json doesn't contain 'scope' or is null)
+    # - "team": Custom team plays (accessible only if team_id matches)
+    # - "individual": Private player sessions (accessible only if user_id matches)
+    public_filter = or_(
+        KnowledgeEmbedding.metadata_json.is_(None),
+        ~KnowledgeEmbedding.metadata_json.like('%"scope":%'),
+        KnowledgeEmbedding.metadata_json.like('%"scope": "public"%'),
+    )
+
+    scope_filters = [public_filter]
+
+    if team_id:
+        scope_filters.append(
+            KnowledgeEmbedding.metadata_json.like('%"scope": "team"%')
+            & KnowledgeEmbedding.metadata_json.like(f'%"team_id": "{team_id}"%')
+        )
+
+    if user_id:
+        scope_filters.append(
+            KnowledgeEmbedding.metadata_json.like('%"scope": "individual"%')
+            & KnowledgeEmbedding.metadata_json.like(f'%"user_id": "{user_id}"%')
+        )
+
+    scope_isolation_filter = or_(*scope_filters)
 
     if dialect == "sqlite":
         # SQLite Fallback: Fetch candidate rows and compute cosine similarity in Python
-        candidate_query = db_session.query(KnowledgeEmbedding)
+        candidate_query = db_session.query(KnowledgeEmbedding).filter(scope_isolation_filter)
         if source:
             candidate_query = candidate_query.filter(KnowledgeEmbedding.source == source)
         candidates = candidate_query.all()
@@ -109,7 +145,7 @@ def retrieve_similar_chunks(
 
     else:
         # PostgreSQL (pgvector): Use native <-> cosine distance operator
-        postgres_query = db_session.query(KnowledgeEmbedding)
+        postgres_query = db_session.query(KnowledgeEmbedding).filter(scope_isolation_filter)
         if source:
             postgres_query = postgres_query.filter(KnowledgeEmbedding.source == source)
 

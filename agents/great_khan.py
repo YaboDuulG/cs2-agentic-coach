@@ -295,24 +295,42 @@ def rag_node(state: MatchState) -> dict[str, Any]:
     try:
         match_obj = db.query(Match).filter(Match.match_id == match_id).first()
         map_name = match_obj.map_name if match_obj else "unknown"
+        user_id = match_obj.user_id if match_obj else None
+        team_id = match_obj.team_id if match_obj else None
+
         logger.info(f"[Library RAG Node] Querying rules and pro tactics for de_{map_name}...")
 
         rag_context = []
         # Query CS2 map rules and guidelines
         map_chunks = retrieve_similar_chunks(
-            db, query=f"CS2 tactical guidelines map {map_name}", limit=3, source="game_rules"
+            db,
+            query=f"CS2 tactical guidelines map {map_name}",
+            limit=3,
+            source="game_rules",
+            user_id=user_id,
+            team_id=team_id,
         )
         rag_context.extend(map_chunks)
 
         # Query economy save/buy rules
         econ_chunks = retrieve_similar_chunks(
-            db, query="CS2 economy buy thresholds and save rules", limit=2, source="game_rules"
+            db,
+            query="CS2 economy buy thresholds and save rules",
+            limit=2,
+            source="game_rules",
+            user_id=user_id,
+            team_id=team_id,
         )
         rag_context.extend(econ_chunks)
 
         # Query pro matches
         pro_chunks = retrieve_similar_chunks(
-            db, query=f"pro match de_{map_name} tactics", limit=2, source="hltv_pro_match"
+            db,
+            query=f"pro match de_{map_name} tactics",
+            limit=2,
+            source="hltv_pro_match",
+            user_id=user_id,
+            team_id=team_id,
         )
         rag_context.extend(pro_chunks)
     except Exception as e:
@@ -464,17 +482,36 @@ def general_node(state: MatchState) -> dict[str, Any]:
     match_id = state.get("match_id")
     logger.info(f"[General Node] Querying meta and historical games context for query: {query}")
 
+    from sqlalchemy import text  # noqa: PLC0415
+
     from db.database import SessionLocal  # noqa: PLC0415
     from db.rag import retrieve_similar_chunks  # noqa: PLC0415
 
     rag_context = []
     db = SessionLocal()
     try:
+        # Fetch user_id and team_id first for RAG routing
+        match_row = (
+            db.execute(
+                text("SELECT team_id, user_id FROM matches WHERE match_id = :match_id"),
+                {"match_id": match_id},
+            ).fetchone()
+            if match_id
+            else None
+        )
+
+        team_id = match_row[0] if match_row else None
+        user_id = match_row[1] if match_row else None
+
         # Retrieve guideline and pro match meta snapshots
-        meta_chunks = retrieve_similar_chunks(db, query=query, limit=4, source="game_rules")
+        meta_chunks = retrieve_similar_chunks(
+            db, query=query, limit=4, source="game_rules", user_id=user_id, team_id=team_id
+        )
         rag_context.extend(meta_chunks)
 
-        pro_chunks = retrieve_similar_chunks(db, query=query, limit=4, source="hltv_pro_match")
+        pro_chunks = retrieve_similar_chunks(
+            db, query=query, limit=4, source="hltv_pro_match", user_id=user_id, team_id=team_id
+        )
         rag_context.extend(pro_chunks)
     except Exception as e:
         logger.error(f"RAG retrieval failed in general_node: {e}")
@@ -482,13 +519,6 @@ def general_node(state: MatchState) -> dict[str, Any]:
     # Build historical trend profile
     past_matches_summary = ""
     try:
-        from sqlalchemy import text  # noqa: PLC0415
-
-        match_row = db.execute(
-            text("SELECT team_id, user_id FROM matches WHERE match_id = :match_id"),
-            {"match_id": match_id},
-        ).fetchone()
-
         if match_row:
             team_id, user_id = match_row[0], match_row[1]
             if team_id:

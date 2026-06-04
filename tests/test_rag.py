@@ -114,3 +114,62 @@ def test_retrieve_similar_chunks_sqlite(mock_get_embedding, db_session):
         # 3. Limit works
         results_limit = retrieve_similar_chunks(db_session, "some query", limit=1)
         assert len(results_limit) == 1
+
+
+@patch("db.rag.get_query_embedding")
+def test_retrieve_similar_chunks_isolation(mock_get_embedding, db_session):
+    """Verify that retrieve_similar_chunks respects namespace walls for user and team."""
+    # Clean up and seed custom scoped data
+    db_session.query(KnowledgeEmbedding).delete()
+
+    def make_vector():
+        return [0.1] * 768
+
+    # Public match (default scope or explicit)
+    c1 = KnowledgeEmbedding(
+        content="Public pro match advice: NaVi plays default A.",
+        embedding=make_vector(),
+        source="hltv_pro_match",
+        metadata_json=json.dumps({"scope": "public"}),
+    )
+    # Team match
+    c2 = KnowledgeEmbedding(
+        content="Team specific tactics: Mirage A split execute.",
+        embedding=make_vector(),
+        source="user_match_summary",
+        metadata_json=json.dumps({"scope": "team", "team_id": "team-abc"}),
+    )
+    # Individual match
+    c3 = KnowledgeEmbedding(
+        content="Individual training details: AWP entry positioning.",
+        embedding=make_vector(),
+        source="user_match_summary",
+        metadata_json=json.dumps({"scope": "individual", "user_id": "user-xyz"}),
+    )
+
+    db_session.add_all([c1, c2, c3])
+    db_session.commit()
+
+    mock_get_embedding.return_value = make_vector()
+
+    with patch.dict(os.environ, {"GEMINI_API_KEY": "fake-api-key"}):
+        # 1. No context: should ONLY return public embedding (c1)
+        res_none = retrieve_similar_chunks(db_session, "tactics", limit=5)
+        assert len(res_none) == 1
+        assert "Public pro match" in res_none[0]["content"]
+
+        # 2. Team-abc context: should return c1 and c2, but not c3
+        res_team = retrieve_similar_chunks(db_session, "tactics", limit=5, team_id="team-abc")
+        assert len(res_team) == 2
+        contents = [c["content"] for c in res_team]
+        assert any("Public pro match" in text for text in contents)
+        assert any("Team specific tactics" in text for text in contents)
+        assert not any("Individual training details" in text for text in contents)
+
+        # 3. User-xyz context: should return c1 and c3, but not c2
+        res_user = retrieve_similar_chunks(db_session, "tactics", limit=5, user_id="user-xyz")
+        assert len(res_user) == 2
+        contents = [c["content"] for c in res_user]
+        assert any("Public pro match" in text for text in contents)
+        assert any("Individual training details" in text for text in contents)
+        assert not any("Team specific tactics" in text for text in contents)
