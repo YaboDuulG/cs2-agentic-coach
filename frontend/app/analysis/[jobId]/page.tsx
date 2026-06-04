@@ -1678,8 +1678,8 @@ function MatchStatsPanel({ stats, result, selectedRound, onSelectRound }: MatchS
               {gradeResult.grade}
             </div>
             <span className="text-[10px] font-mono" style={{ color: gradeResult.color }}>{gradeResult.score}</span>
-            {/* Breakdown tooltip */}
-            <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-48 rounded-xl border p-3 shadow-2xl"
+            {/* Breakdown tooltip — opens upward to prevent overflow on bottom rows */}
+            <div className="absolute left-0 bottom-full mb-2 z-[999] hidden group-hover:block w-52 rounded-xl border p-3 shadow-2xl"
               style={{ background: "rgba(8,14,26,0.98)", borderColor: "rgba(45,125,210,0.3)", backdropFilter: "blur(12px)" }}
             >
               <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: gradeResult.color }}>Grade Breakdown</p>
