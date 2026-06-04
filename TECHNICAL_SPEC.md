@@ -753,6 +753,24 @@ To achieve sub-second page loads and near-instantaneous AI feedback on match/str
 - **Problem:** The frontend UI displays a spinning loading state until the entire LLM response finishes generating.
 - **Solution:** Transition endpoints (like strategy chat and coaching reports) to Server-Sent Events (SSE) or WebSockets. This allows the model to stream tokens to the frontend in real-time, giving the user immediate visual feedback as the AI "types" out the tactical analysis.
 
+### 13.5 Match-to-Vector Ingestion & Cross-Querying Pipeline
+- **Overview:** When a user-uploaded match (individual or team) finishes parsing, we run a pipeline to generate high-level structured summaries (macro metrics like ADR, utility efficiency, entry duel rates, and site-hold statistics). These summaries are chunked and vectorized using `text-embedding-004`.
+- **Cross-Querying with Pro Matches:**
+  - Standard pro match RAG contains pro-tactical execution chunks (`source="hltv_pro_match"`).
+  - User matches contain user-tactical profiles (`source="user_match_summary"`).
+  - To compare a user's match history against pro matches, the agent queries the vector store for `source="hltv_pro_match"` using the user's specific performance bottlenecks (e.g., "retake failures on Mirage A-site") as the search query. This yields highly relevant pro execution chunks, allowing the agent to highlight the delta between the user's play and the pro meta.
+
+### 13.6 Vector Namespace Walls (Strict Context Isolation)
+- **Problem:** Without strict isolation, vector database queries can return chunks from a team's strategy book when analyzing an individual match, or expose private individual matches of other users, leading to hallucinations and cross-user data leaks.
+- **Solution:** Implement a strict metadata-level namespace filter in the RAG retrieval tier:
+  - **Metadata Schema:** Every `KnowledgeEmbedding` record must store `scope` (e.g., `"public"`, `"team"`, `"individual"`), `user_id` (null if public/team), and `team_id` (null if public/individual) in its `metadata_json`.
+  - **Retrieval Enforcement:** The retrieval function `retrieve_similar_chunks` in `db/rag.py` must accept routing context:
+    - **Individual Scope:** Filter query: `(scope == "public" OR (scope == "individual" AND user_id == current_user_id))`.
+    - **Team Scope:** Filter query: `(scope == "public" OR (scope == "team" AND team_id == current_team_id))`.
+  - **Prompt Guardrails:** System instructions for the coaching agent must explicitly enforce the boundary:
+    - *Individual coach prompt:* "You are coaching SteamID X. Focus strictly on X's tactical decision-making, mechanical stats, and positioning. Do not reference team strategies or other players' matches unless explicitly compared."
+    - *Team coach prompt:* "You are coaching Team Y. Focus on team spacing, site setups, utility combos, and general team coordination. Do not reference private individual training matches."
+
 ---
 
 *This document is the single source of truth for project planning. Update the Progress Tracker checkboxes as work completes. Create GitHub Issues directly from Phase items.*
