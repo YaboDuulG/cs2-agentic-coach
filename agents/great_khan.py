@@ -137,13 +137,70 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
                     )
             worst_rounds = sorted(worst_rounds, key=lambda x: x["spend"], reverse=True)[:5]
 
+            # Group players into rosters based on starting side
+            starting_ct_players = []
+            starting_t_players = []
+            uploader_team_label = "Team A"
             user_team = None
-            if match.uploader_steam_id and match.player_stats_json:
+
+            if match.player_stats_json:
                 try:
                     p_stats = json.loads(match.player_stats_json)
-                    user_team = p_stats.get(match.uploader_steam_id, {}).get("team")
+                    for p_id, p_info in p_stats.items():
+                        if p_id == "nan":
+                            continue
+                        p_name = p_info.get("name", p_id)
+                        p_side = p_info.get("team")
+                        if p_side == "CT":
+                            starting_ct_players.append(p_name)
+                        elif p_side in ("TERRORIST", "T"):
+                            starting_t_players.append(p_name)
+
+                    if match.uploader_steam_id and match.uploader_steam_id in p_stats:
+                        user_team = p_stats[match.uploader_steam_id].get("team")
+                        if user_team == "CT":
+                            uploader_team_label = "Team A"
+                        elif user_team in ("TERRORIST", "T"):
+                            uploader_team_label = "Team B"
                 except Exception:
                     pass
+
+            team_rosters = {
+                "Team A (started CT, swapped to T at halftime)": starting_ct_players,
+                "Team B (started T, swapped to CT at halftime)": starting_t_players,
+            }
+
+            # Map rounds to Team A vs Team B (halftime at round 12)
+            round_details = []
+            for r in rounds:
+                round_num = r.round_num
+                winner_side = r.winner_side
+
+                if round_num <= 12:
+                    ct_team = "Team A"
+                    t_team = "Team B"
+                else:
+                    ct_team = "Team B"
+                    t_team = "Team A"
+
+                winner_team = (
+                    "Team A"
+                    if (winner_side == "CT" and ct_team == "Team A")
+                    or (winner_side == "T" and t_team == "Team A")
+                    else "Team B"
+                )
+
+                round_details.append(
+                    {
+                        "round_num": round_num,
+                        "winner_side": winner_side,
+                        "winner_team": winner_team,
+                        "team_a_side": "CT" if round_num <= 12 else "T",
+                        "team_b_side": "T" if round_num <= 12 else "CT",
+                        "ct_eq_val": r.ct_eq_val,
+                        "t_eq_val": r.t_eq_val,
+                    }
+                )
 
             return {
                 "map_name": match.map_name,
@@ -161,6 +218,9 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
                 "user_team": user_team,
                 "uploader_steam_id": match.uploader_steam_id,
                 "is_recon": getattr(match, "is_recon", False),
+                "team_rosters": team_rosters,
+                "round_history": round_details,
+                "uploader_team_label": uploader_team_label,
             }
         finally:
             db.close()

@@ -53,7 +53,7 @@ def generate_reports(
             "tactical_analysis": tactical_analysis,
         }
 
-        user_team = scout_out.get("user_team")
+        user_team = scout_out.get("uploader_team_label") or scout_out.get("user_team")
         user_notes = scout_out.get("user_notes")
         uploader_steam_id = scout_out.get("uploader_steam_id")
         is_recon = scout_out.get("is_recon", False)
@@ -90,6 +90,7 @@ You MUST address, incorporate, or tailor your coaching, recommendations, and tac
 Generate a JSON object containing the following reports:
 1. "individual_report": A markdown string focused exclusively on the uploader ({uploader_steam_id}) and how they can personally improve (their duels, positioning, utility, economy). If this is a Recon Scan (is_recon=true) or the uploader's Steam ID is not present in the match stats, focus this report on detailing individual highlights, head-to-head match-up analysis, and performance profiles of key players.
 2. "team_report": A markdown string focused on the team's structure, rotation coordination, trade-fragging, utility setups, and communication improvements.
+   - CRITICAL REFERENCING RULE: Do NOT refer to teams simply as "Counter-Terrorists" and "Terrorists" in general analysis, as both teams play both sides. Instead, refer to them by their rosters or as "Team A" (or "your team" if the uploader is in Team A's roster) and "Team B" (or "the opponents"). Differentiate their plays on different sides of the map (e.g., "your CT side hold on A site was solid, but during the T side execute...").
 3. "player_reports": A dictionary mapping player names to their individual constructive markdown reports.
 4. "strat_card": Legacy field - populate this with the same markdown as "team_report".
 5. "coach_report": Legacy field - populate this with a summary of the tactical errors and rotation flags.

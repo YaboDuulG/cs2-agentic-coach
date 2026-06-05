@@ -596,8 +596,49 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
             db, query=body.message, limit=5, source="hltv_pro_match", team_id=team_id
         )
 
-        # 3. Assemble prompt context
+        # 3. Fetch the team's completed matches and their summaries
+        from db.models import Match, MatchStatus  # noqa: PLC0415
+        from sqlalchemy import desc  # noqa: PLC0415
+
+        recent_matches = (
+            db.query(Match)
+            .filter(Match.team_id == team_id, Match.status == MatchStatus.COMPLETE)
+            .order_by(desc(Match.created_at))
+            .limit(5)
+            .all()
+        )
+
+        match_context = []
+        for idx, m in enumerate(recent_matches):
+            summary = "No summary available."
+            if m.coaching_notes:
+                try:
+                    notes_dict = json.loads(m.coaching_notes)
+                    summary = notes_dict.get("summary", summary)
+                except Exception:
+                    summary = m.coaching_notes[:300]
+            players = []
+            if m.player_stats_json:
+                try:
+                    p_stats = json.loads(m.player_stats_json)
+                    players = [
+                        p_info.get("name", p_id)
+                        for p_id, p_info in p_stats.items()
+                        if p_id != "nan"
+                    ]
+                except Exception:
+                    pass
+            players_str = ", ".join(players) if players else "Unknown players"
+            match_context.append(
+                f"- Match {idx + 1}: ID {m.match_id} | Map: {m.map_name} | Name: {m.match_name or 'Uploaded Scrim'} | Created: {m.created_at.isoformat() if m.created_at else ''}\n"
+                f"  Roster: {players_str}\n"
+                f"  Coaching Summary: {summary}"
+            )
+
+        # 4. Assemble prompt context
         context_parts = []
+        if match_context:
+            context_parts.append("Recent Team Matches:\n" + "\n".join(match_context))
         if strat_context:
             context_parts.append("Team Custom Strategies:\n" + "\n".join(strat_context))
         if rules_chunks:
@@ -618,9 +659,16 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
         Do NOT engage in any thematic, historical, warlord, or "Khan" roleplay. Respond in an objective, helpful, and professional coaching manner.
         You are talking with players from a competitive team to refine and analyze their strategies, and compare them against professional match data.
         You have access to:
-        1. Custom team strategies (retrieved from their Discord channel).
-        2. Official CS2 tactical guidelines.
-        3. Professional match data & round-by-round summaries of recent pro matches (last 6 months) for top teams like Vitality, NAVI, Spirit, Falcons, FURIA, and The MongolZ.
+        1. Recent team matches and their coaching summaries (retrieved from the database). Use this when players ask about their recent Mirage or other map uploads.
+        2. Custom team strategies (retrieved from their Discord channel).
+        3. Official CS2 tactical guidelines.
+        4. Professional match data & round-by-round summaries of recent pro matches (last 6 months) for top teams like Vitality, NAVI, Spirit, Falcons, FURIA, and The MongolZ.
+
+        CRITICAL RECENT MATCH INSTRUCTIONS:
+        - In the RAG Context under 'Recent Team Matches', you have direct access to the details of up to 5 recently completed user matches (including map names like de_mirage, player rosters, and coaching summaries).
+        - If the user asks about their recent games, uploads, or a match on a specific map (e.g., 'can you see my most recent game uploaded on mirage?'), you MUST search the 'Recent Team Matches' section in the context first.
+        - NEVER ask the user to provide a match ID or direct link if that match is already listed in the 'Recent Team Matches' context!
+        - Directly answer their question based on the roster and coaching summary of that match. If they ask about 'Mirage', find the match with Map: de_mirage and use those details to reply.
 
         RAG Context:
         \"\"\"{context_str}\"\"\"
