@@ -597,8 +597,9 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
         )
 
         # 3. Fetch the team's completed matches and their summaries
-        from db.models import Match, MatchStatus  # noqa: PLC0415
         from sqlalchemy import desc  # noqa: PLC0415
+
+        from db.models import Match, MatchStatus  # noqa: PLC0415
 
         recent_matches = (
             db.query(Match)
