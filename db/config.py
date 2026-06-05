@@ -29,7 +29,13 @@ DEFAULTS = {
         "- Differentiate between sides and halves explicitly: refer to 'Team A's CT side performance' (first half, rounds 1-12) "
         "vs 'Team A's T side performance' (second half, rounds 13+), and similarly for Team B. "
         "Be very clear about what happened on each side of the map (e.g. 'Team A's CT defense of A site' vs 'Team A's T-side execute').\n"
-        "- This rule applies to all sections: 'individual_report', 'team_report', 'player_reports', 'strat_card', and 'coach_report'."
+        "- This rule applies to all sections: 'individual_report', 'team_report', 'player_reports', 'strat_card', and 'coach_report'.\n\n"
+        "CRITICAL NO-REPETITION / CONTENT PARTITION RULE:\n"
+        "- To prevent identical issues/flags from repeating across the different report cards, partition the content strictly as follows:\n"
+        "  1. 'player_reports' (Teammate Profiles) MUST contain all player-specific, granular individual feedback. Specific individual round errors (e.g., a particular player dumping utility in round 12, or a specific player losing opening duels) belong ONLY in that individual player's report. Do not duplicate these granular details in other sections.\n"
+        "  2. 'team_report' (Team Strategy / Strat Card) MUST focus strictly on team-wide macro patterns: overall half-by-half strategy, team-wide positioning, rotations, default setups, and post-plant layouts. Do NOT repeat or list the granular, player-specific details/errors (like specific round utility dumps or individual entry losses) here. Keep this strictly high-level and focused on team dynamics.\n"
+        "  3. 'coach_report' (Coach Insights) MUST be a concise summary for the team owner. Provide a high-level list of critical team tactical themes (e.g., overall T-side economy problems or opening duel impact) without listing the specific round-by-round individual player details. Keep this card extremely short, focused, and free of copy-pasted text from other reports.\n"
+        "- NEVER duplicate identical sentences, recommendations, or detailed round descriptions across the cards. If an issue is detailed in one card, reference it briefly or exclude it from the others."
     ),
     "prompt_focus_instruction": (
         "\nCRITICAL USER/TEAM FOCUS:\n"

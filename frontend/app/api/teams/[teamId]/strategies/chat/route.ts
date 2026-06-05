@@ -20,7 +20,10 @@ export async function POST(
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        ...body,
+        user_id: userId,
+      }),
     });
 
     if (!res.ok) {
