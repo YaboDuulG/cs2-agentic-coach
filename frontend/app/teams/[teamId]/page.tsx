@@ -12,6 +12,7 @@ import { CloudMotifBg } from "@/components/patterns/mongolian";
 import { TeamIcon, getDevilFruit } from "@/components/TeamIcon";
 import { UploadModal } from "@/components/UploadModal";
 import { AddStrategyModal } from "@/components/AddStrategyModal";
+import CS2PlanningBoard from "@/components/CS2PlanningBoard";
 
 interface TeamDetail {
   team_id: string;
@@ -89,7 +90,7 @@ export default function TeamDetailPage() {
   const [showWebhookGuide, setShowWebhookGuide] = useState(false);
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<"overview" | "stratbook" | "settings">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "stratbook" | "coach" | "settings">("overview");
   const [settingsTab, setSettingsTab] = useState<"profile" | "password" | "members" | "subscription" | "danger">("profile");
 
   const [strategies, setStrategies] = useState<Strategy[]>([]);
@@ -99,6 +100,8 @@ export default function TeamDetailPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const [stratSearch, setStratSearch] = useState("");
   const [expandedStrats, setExpandedStrats] = useState<Record<string, boolean>>({});
+  const [individualAnalyses, setIndividualAnalyses] = useState<any[]>([]);
+  const [activeStratMap, setActiveStratMap] = useState<string | undefined>(undefined);
 
   const fetchStrategies = useCallback(() => {
     setStrategiesLoading(true);
@@ -127,6 +130,52 @@ export default function TeamDetailPage() {
     setTimeout(() => setInviteCopied(false), 3000);
   };
 
+  const parseChatBold = (text: string) => {
+    const parts = text.split(/\*\*([^\*]+)\*\*/g);
+    return parts.map((part, i) => {
+      if (i % 2 === 1) {
+        return <strong key={i} className="text-white font-bold">{part}</strong>;
+      }
+      return part;
+    });
+  };
+
+  const renderChatMarkdown = (text?: string) => {
+    if (!text) return null;
+    const lines = text.split("\n");
+    return (
+      <div className="space-y-1.5 text-left">
+        {lines.map((line, idx) => {
+          const trimmed = line.trim();
+          if (!trimmed) {
+            return <div key={idx} className="h-1.5" />;
+          }
+
+          // Headers
+          if (trimmed.startsWith("###")) {
+            return <h4 key={idx} className="text-xs font-bold text-[#C9A227] mt-3 mb-1">{trimmed.replace(/^###\s*/, "")}</h4>;
+          }
+          if (trimmed.startsWith("##")) {
+            return <h3 key={idx} className="text-sm font-extrabold text-[#C9A227] mt-4 mb-2">{trimmed.replace(/^##\s*/, "")}</h3>;
+          }
+
+          // Bullet list
+          if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
+            const content = trimmed.replace(/^[\*\-]\s+/, "");
+            return (
+              <div key={idx} className="flex gap-2 pl-3 py-0.5 animate-fadeIn">
+                <span className="text-amber-500">•</span>
+                <span>{parseChatBold(content)}</span>
+              </div>
+            );
+          }
+
+          return <p key={idx}>{parseChatBold(trimmed)}</p>;
+        })}
+      </div>
+    );
+  };
+
   // Profile Edit fields
   const [editName, setEditName] = useState("");
   const [updatingName, setUpdatingName] = useState(false);
@@ -145,13 +194,15 @@ export default function TeamDetailPage() {
       fetch(`/api/teams/${teamId}`).then(r => r.json().catch(() => null)),
       fetch(`/api/teams/${teamId}?view=analyses`).then(r => r.json().catch(() => [])),
       fetch(`/api/teams/${teamId}/servers`).then(r => r.json().catch(() => [])),
-    ]).then(([teamData, analysisData, serverData]) => {
+      fetch("/api/analyses").then(r => r.json().catch(() => [])),
+    ]).then(([teamData, analysisData, serverData, individualData]) => {
       setTeam(teamData);
       if (teamData) {
         setEditName(teamData.name);
       }
       setAnalyses(Array.isArray(analysisData) ? analysisData : []);
       setServers(Array.isArray(serverData) ? serverData : []);
+      setIndividualAnalyses(Array.isArray(individualData) ? individualData : []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [teamId, user, isLoaded]);
@@ -355,6 +406,16 @@ export default function TeamDetailPage() {
                 }`}
               >
                 <BookOpen size={14} /> Stratbook
+              </button>
+              <button
+                onClick={() => setActiveTab("coach")}
+                className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 select-none ${
+                  activeTab === "coach"
+                    ? "border-[#2D7DD2] text-white"
+                    : "border-transparent text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <MessageSquare size={14} /> AI Coach
               </button>
               <button
                 onClick={() => setActiveTab("settings")}
@@ -713,8 +774,11 @@ export default function TeamDetailPage() {
                                 </div>
                               ) : (
                                 <button
-                                  onClick={() => setExpandedStrats({ ...expandedStrats, [s.id]: true })}
-                                  className="text-[10px] text-[#2D7DD2] hover:text-[#2D7DD2]/80 font-mono block"
+                                  onClick={() => {
+                                    setExpandedStrats({ ...expandedStrats, [s.id]: true });
+                                    setActiveStratMap(s.map_name);
+                                  }}
+                                  className="text-[10px] text-[#2D7DD2] hover:text-[#2D7DD2]/80 font-mono block cursor-pointer"
                                 >
                                   <ChevronDown size={10} className="inline mr-1" /> View execution
                                 </button>
@@ -726,10 +790,76 @@ export default function TeamDetailPage() {
                   </div>
                 </div>
 
+                {/* Right panel: CS2 Planning Whiteboard (col-span-3) */}
+                <div className="lg:col-span-3 flex">
+                  <CS2PlanningBoard selectedMap={activeStratMap} />
+                </div>
+              </div>
+            )}
+
+            {activeTab === "coach" && (
+              /* ── AI COACH VIEW ── */
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                {/* Left panel: Recent Matches List (col-span-2) */}
+                <div className="lg:col-span-2 flex flex-col gap-4">
+                  <div className="card p-5 flex flex-col gap-4" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                    <h2 className="heading-display text-sm font-bold uppercase tracking-wider text-slate-200">
+                      <Clock size={14} className="inline mr-2 text-[#2D7DD2]" />
+                      Uploaded Match History
+                    </h2>
+                    
+                    <div className="space-y-4 overflow-y-auto max-h-[530px] pr-1.5 text-left select-none">
+                      {/* Team matches */}
+                      <div>
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Team Scrims ({analyses.length})</h4>
+                        {analyses.length === 0 ? (
+                          <p className="text-xs text-slate-500 italic pl-1.5">No team matches found.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {analyses.map(m => (
+                              <div key={m.match_id} className="p-3 bg-slate-950/40 border border-slate-900 rounded-xl flex items-center justify-between">
+                                <div>
+                                  <h4 className="text-xs font-bold text-slate-200 uppercase">{m.map.replace("de_", "")}</h4>
+                                  <p className="text-[9px] text-slate-500 font-mono mt-0.5">{m.match_id.slice(0, 8)} • {m.created_at ? new Date(m.created_at).toLocaleDateString() : ""}</p>
+                                </div>
+                                <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border ${m.status === "COMPLETE" || m.status === "complete" ? "bg-[#22D3A0]/10 text-[#22D3A0] border-[#22D3A0]/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"}`}>
+                                  {m.status.toUpperCase()}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Individual matches */}
+                      <div className="border-t border-[#1E3A5F]/20 pt-3.5">
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Individual Matches ({individualAnalyses.length})</h4>
+                        {individualAnalyses.length === 0 ? (
+                          <p className="text-xs text-slate-500 italic pl-1.5">No individual matches found.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {individualAnalyses.map(m => (
+                              <div key={m.match_id} className="p-3 bg-slate-950/40 border border-slate-900 rounded-xl flex items-center justify-between">
+                                <div>
+                                  <h4 className="text-xs font-bold text-slate-200 uppercase">{m.map ? m.map.replace("de_", "") : "UNKNOWN"}</h4>
+                                  <p className="text-[9px] text-slate-500 font-mono mt-0.5">{m.match_id.slice(0, 8)} • {m.created_at ? new Date(m.created_at).toLocaleDateString() : ""}</p>
+                                </div>
+                                <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border ${m.status === "COMPLETE" || m.status === "complete" ? "bg-[#22D3A0]/10 text-[#22D3A0] border-[#22D3A0]/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"}`}>
+                                  {m.status.toUpperCase()}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Right panel: AI Chat Board (col-span-3) */}
                 <div className="lg:col-span-3 flex flex-col h-[650px] card" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
                   {/* Chat header */}
-                  <div className="p-4 border-b border-[#1E3A5F] flex items-center justify-between">
+                  <div className="p-4 border-b border-[#1E3A5F] flex items-center justify-between select-none">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-lg bg-[#2D7DD2]/10 border border-[#2D7DD2]/20 flex items-center justify-center text-white">
                         ⚔️
@@ -741,7 +871,7 @@ export default function TeamDetailPage() {
                     </div>
                     <button
                       onClick={() => setChatHistory([])}
-                      className="text-[10px] text-slate-500 hover:text-slate-300 font-mono uppercase"
+                      className="text-[10px] text-slate-500 hover:text-slate-300 font-mono uppercase cursor-pointer"
                     >
                       Clear Chat
                     </button>
@@ -750,24 +880,24 @@ export default function TeamDetailPage() {
                   {/* Chat logs */}
                   <div className="flex-1 overflow-y-auto p-4 space-y-3.5 pr-2">
                     {chatHistory.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                      <div className="h-full flex flex-col items-center justify-center text-center p-8 select-none">
                         <MessageSquare size={32} className="text-[#1E3A5F] mb-3" />
                         <p className="text-xs font-bold text-slate-400 mb-1">Ask the Great Khan</p>
                         <p className="text-[11px] text-slate-500 max-w-xs leading-relaxed mb-4">
-                          {"Ask about your team's playbook or compare your rounds against professional matches in the last 6 months."}
+                          {"Ask about your team's playbook, recent uploads (including individual games), or compare against pro stats."}
                         </p>
                         <div className="flex flex-col gap-2 w-full max-w-xs">
                           <button
                             type="button"
                             onClick={() => setChatMessage("How does Vitality play pistol rounds on Nuke?")}
-                            className="text-[10px] text-slate-400 hover:text-white bg-slate-900/60 border border-[#1E3A5F]/40 rounded-lg p-2 text-left transition-all hover:bg-[#1E3A5F]/20 font-mono"
+                            className="text-[10px] text-slate-400 hover:text-white bg-slate-900/60 border border-[#1E3A5F]/40 rounded-lg p-2 text-left transition-all hover:bg-[#1E3A5F]/20 font-mono cursor-pointer"
                           >
                             {"💡 \"How does Vitality play pistol rounds on Nuke?\""}
                           </button>
                           <button
                             type="button"
                             onClick={() => setChatMessage("Compare our Round 1 buy value vs Team Spirit on Nuke.")}
-                            className="text-[10px] text-slate-400 hover:text-white bg-slate-900/60 border border-[#1E3A5F]/40 rounded-lg p-2 text-left transition-all hover:bg-[#1E3A5F]/20 font-mono"
+                            className="text-[10px] text-slate-400 hover:text-white bg-slate-900/60 border border-[#1E3A5F]/40 rounded-lg p-2 text-left transition-all hover:bg-[#1E3A5F]/20 font-mono cursor-pointer"
                           >
                             {"💡 \"Compare our Round 1 buy value vs Team Spirit on Nuke.\""}
                           </button>
@@ -781,12 +911,16 @@ export default function TeamDetailPage() {
                             <div 
                               className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed border ${
                                 isUser 
-                                  ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/20 text-white"
-                                  : "bg-slate-900/50 border-slate-800 text-slate-300"
+                                  ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/20 text-white animate-fadeIn"
+                                  : "bg-slate-900/50 border-slate-800 text-slate-300 animate-fadeIn"
                               }`}
                             >
-                              {!isUser && <span className="font-bold text-[10px] block text-amber-500 font-mono mb-1">GREAT KHAN:</span>}
-                              <p className="whitespace-pre-line">{msg.content}</p>
+                              {!isUser && <span className="font-bold text-[10px] block text-amber-500 font-mono mb-1 select-none">GREAT KHAN:</span>}
+                              {isUser ? (
+                                <p className="whitespace-pre-line text-left">{msg.content}</p>
+                              ) : (
+                                renderChatMarkdown(msg.content)
+                              )}
                             </div>
                           </div>
                         );
@@ -854,7 +988,7 @@ export default function TeamDetailPage() {
                     <button
                       type="submit"
                       disabled={chatLoading || !chatMessage.trim()}
-                      className="rounded-lg bg-[#2D7DD2] hover:bg-[#2D7DD2]/85 disabled:opacity-40 px-4 py-2 text-xs font-bold text-white transition-all flex items-center justify-center"
+                      className="rounded-lg bg-[#2D7DD2] hover:bg-[#2D7DD2]/85 disabled:opacity-40 px-4 py-2 text-xs font-bold text-white transition-all flex items-center justify-center cursor-pointer"
                     >
                       <Send size={12} />
                     </button>

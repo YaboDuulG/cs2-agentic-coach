@@ -490,6 +490,7 @@ class StrategyChatRequest(BaseModel):
     message: str
     history: list[dict[str, str]] = []
     map_name: str | None = None
+    user_id: str | None = None
 
 
 @router.get("/{team_id}/strategies", summary="Get all strategies for a team")
@@ -596,16 +597,22 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
             db, query=body.message, limit=5, source="hltv_pro_match", team_id=team_id
         )
 
-        # 3. Fetch the team's completed matches and their summaries
-        from sqlalchemy import desc  # noqa: PLC0415
+        # 3. Fetch completed matches (both team and individual user games)
+        from sqlalchemy import desc, or_  # noqa: PLC0415
 
         from db.models import Match, MatchStatus  # noqa: PLC0415
 
+        filters = [Match.status == MatchStatus.COMPLETE]
+        if body.user_id:
+            filters.append(or_(Match.team_id == team_id, Match.user_id == body.user_id))
+        else:
+            filters.append(Match.team_id == team_id)
+
         recent_matches = (
             db.query(Match)
-            .filter(Match.team_id == team_id, Match.status == MatchStatus.COMPLETE)
+            .filter(*filters)
             .order_by(desc(Match.created_at))
-            .limit(5)
+            .limit(10)
             .all()
         )
 
@@ -615,9 +622,15 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
             if m.coaching_notes:
                 try:
                     notes_dict = json.loads(m.coaching_notes)
-                    summary = notes_dict.get("summary", summary)
+                    summary = (
+                        notes_dict.get("team_report")
+                        or notes_dict.get("strat_card")
+                        or notes_dict.get("coach_report")
+                        or notes_dict.get("summary")
+                        or summary
+                    )
                 except Exception:
-                    summary = m.coaching_notes[:300]
+                    summary = m.coaching_notes[:1000]
             players = []
             if m.player_stats_json:
                 try:
@@ -630,10 +643,11 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
                 except Exception:
                     pass
             players_str = ", ".join(players) if players else "Unknown players"
+            match_type = "Team Match" if m.team_id == team_id else "Individual Match"
             match_context.append(
-                f"- Match {idx + 1}: ID {m.match_id} | Map: {m.map_name} | Name: {m.match_name or 'Uploaded Scrim'} | Created: {m.created_at.isoformat() if m.created_at else ''}\n"
+                f"- Match {idx + 1} ({match_type}): ID {m.match_id} | Map: {m.map_name} | Name: {m.match_name or 'Uploaded Demo'} | Created: {m.created_at.isoformat() if m.created_at else ''}\n"
                 f"  Roster: {players_str}\n"
-                f"  Coaching Summary: {summary}"
+                f"  Coaching Summary: {summary[:1200]}"
             )
 
         # 4. Assemble prompt context
