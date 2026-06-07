@@ -1,0 +1,56 @@
+name: Deploy — Cloud Run (Production)
+on:
+  push:
+    branches: [main]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION }}
+  CLOUD_SQL_INSTANCE: ${{ secrets.GCP_PROJECT_ID }}:${{ secrets.GCP_REGION }}:demosage-db
+  SA_EMAIL: demosage-dev@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+jobs:
+  deploy-prod:
+    name: Build & deploy to production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Sanitize env vars
+        run: |
+          echo "PROJECT_ID=$(echo "$PROJECT_ID" | tr -d '\r')" >> $GITHUB_ENV
+          echo "REGION=$(echo "$REGION" | tr -d '\r')" >> $GITHUB_ENV
+          echo "CLOUD_SQL_INSTANCE=$(echo "$CLOUD_SQL_INSTANCE" | tr -d '\r')" >> $GITHUB_ENV
+          echo "SA_EMAIL=$(echo "$SA_EMAIL" | tr -d '\r')" >> $GITHUB_ENV
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker gcr.io --quiet
+
+      - name: Build & push API image
+        run: |
+          docker build -f infra/Dockerfile.api -t gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} -t gcr.io/${{ env.PROJECT_ID }}/demosage-api:latest .
+          docker push gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }}
+          docker push gcr.io/${{ env.PROJECT_ID }}/demosage-api:latest
+
+      - name: Deploy API to Cloud Run (production)
+        run: |
+          gcloud run deploy demosage-api-prod --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} --platform managed --region ${{ env.REGION }} --allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=production,LOCAL_MODE=false,LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=demosage-production,LANGCHAIN_ENDPOINT=https://api.smith.langchain.com --set-secrets DATABASE_URL=DATABASE_URL_PROD:latest,GCS_BUCKET=GCS_BUCKET_PROD:latest,API_SECRET_KEY=API_SECRET_KEY:latest,VULTR_API_KEY=VULTR_API_KEY:latest,GCP_SA_KEY=GCP_SA_KEY:latest,DATHOST_EMAIL=DATHOST_EMAIL:latest,DATHOST_PASSWORD=DATHOST_PASSWORD:latest,API_SHARED_SECRET=API_SHARED_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest --quiet
+
+      - name: Build & push Scout image
+        run: |
+          docker build -f services/scout/Dockerfile -t gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} -t gcr.io/${{ env.PROJECT_ID }}/demosage-scout:latest .
+          docker push gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }}
+          docker push gcr.io/${{ env.PROJECT_ID }}/demosage-scout:latest
+
+      - name: Deploy Scout to Cloud Run (production)
+        run: |
+          gcloud run deploy demosage-scout-prod --image gcr.io/${{ env.PROJECT_ID }}/demosage-scout:${{ github.sha }} --platform managed --region ${{ env.REGION }} --no-allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --set-env-vars APP_ENV=production,LOCAL_MODE=false --set-secrets DATABASE_URL=DATABASE_URL_PROD:latest,GCS_BUCKET=GCS_BUCKET_PROD:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest --memory 4Gi --cpu 2 --quiet
