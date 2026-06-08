@@ -378,11 +378,11 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
             "player_blind", player=["team_name"], other=["total_rounds_played"]
         )
 
-        ticks_df_all = parser.parse_ticks(["team_name"])
+        ticks_df_all = parser.parse_ticks(["team_name", "clan_name"])
 
         raw_players = {}
 
-        def get_stat_player(steamid, name, team=None):
+        def get_stat_player(steamid, name, team=None, clan=None):
             if not steamid or steamid in ("0", "nan", None):
                 return None
             steamid = str(steamid)
@@ -391,6 +391,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                     "name": name,
                     "steamid": steamid,
                     "team": team or "",
+                    "clan": clan or "",
                     "kills": 0,
                     "deaths": 0,
                     "assists": 0,
@@ -420,6 +421,8 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 }
             if team and not raw_players[steamid]["team"]:
                 raw_players[steamid]["team"] = team
+            if clan and not raw_players[steamid].get("clan"):
+                raw_players[steamid]["clan"] = clan
             return raw_players[steamid]
 
         if freeze_df is not None and not freeze_df.empty:
@@ -438,7 +441,7 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 rn = tick_to_round_local.get(tick, -1)
                 if rn not in valid_round_nums:
                     continue  # skip invalid/warmup rounds
-                p = get_stat_player(row.get("steamid"), row.get("name"), row.get("team_name"))
+                p = get_stat_player(row.get("steamid"), row.get("name"), row.get("team_name"), row.get("clan_name"))
                 if p:
                     p["rounds_played"] += 1
 
