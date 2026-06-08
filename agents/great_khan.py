@@ -154,7 +154,7 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
                         p_name = p_info.get("name", p_id)
                         p_side = p_info.get("team")
                         p_clan = p_info.get("clan", "")
-                        
+
                         if p_side == "CT":
                             starting_ct_players.append(p_name)
                             if p_clan:
