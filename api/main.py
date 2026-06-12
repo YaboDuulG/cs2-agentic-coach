@@ -22,6 +22,7 @@ from api.routes import (
     jobs,
     presign,
     servers,
+    stratbook,
     teams,
     training_sessions,
     upload,
@@ -106,6 +107,12 @@ app.include_router(
 app.include_router(discord.router, prefix="/api/discord", tags=["Discord"])
 app.include_router(
     chat.router, prefix="/api/chat", tags=["Chat"], dependencies=[Depends(verify_shared_secret)]
+)
+app.include_router(
+    stratbook.router,
+    prefix="/api/stratbook",
+    tags=["Stratbook"],
+    dependencies=[Depends(verify_shared_secret)],
 )
 
 

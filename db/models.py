@@ -477,3 +477,47 @@ class SystemConfig(Base):
 
     def __repr__(self) -> str:
         return f"<SystemConfig {self.key}>"
+
+
+class UserStrategy(Base):
+    """
+    User-drawn custom strategies from the interactive Stratbook.
+    """
+
+    __tablename__ = "user_strategies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    map_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(128), nullable=False)
+    strategy_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    def __repr__(self) -> str:
+        return f"<UserStrategy {self.title} map={self.map_name}>"
+
+
+class TeamPlaybook(Base):
+    """
+    Team-specific custom playbooks from the interactive Stratbook.
+    """
+
+    __tablename__ = "team_playbooks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    map_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(128), nullable=False)
+    playbook_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    team: Mapped["Team"] = relationship("Team")
+
+    def __repr__(self) -> str:
+        return f"<TeamPlaybook {self.title} map={self.map_name}>"
