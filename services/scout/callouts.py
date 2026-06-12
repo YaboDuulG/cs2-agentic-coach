@@ -19,13 +19,14 @@ MAP_ZONES = {
     ]
 }
 
+
 def get_zone_for_coordinate(map_name: str, x: float, y: float) -> str:
     """
     Given an X/Y coordinate and map name, returns the semantic zone name with aliases.
     Example output: "A-Site Default (Aliases: Firebox, Ninja, Triple)"
     """
     zones = MAP_ZONES.get(map_name, [])
-    
+
     for zone in zones:
         xmin, xmax, ymin, ymax, standard_name, aliases = zone
         if xmin <= x <= xmax and ymin <= y <= ymax:
@@ -33,7 +34,7 @@ def get_zone_for_coordinate(map_name: str, x: float, y: float) -> str:
                 alias_str = ", ".join(aliases)
                 return f"{standard_name} (Aliases: {alias_str})"
             return standard_name
-            
+
     # Fallback to generic quadrant if we don't have a specific bounding box
     if x < 0 and y < 0:
         return "Bottom-Left Quadrant"

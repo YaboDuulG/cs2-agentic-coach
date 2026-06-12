@@ -30,8 +30,10 @@ except ImportError:
     try:
         from callouts import get_zone_for_coordinate
     except ImportError:
+
         def get_zone_for_coordinate(m, x, y):
             return "Unknown Zone"
+
 
 from demoparser2 import DemoParser
 from dotenv import load_dotenv
@@ -166,8 +168,12 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                     "victim_y": _safe_float(row.get("user_Y", row.get("user_y"))),
                     "victim_z": _safe_float(row.get("user_Z", row.get("user_z"))),
                 }
-                kill["attacker_zone"] = get_zone_for_coordinate(map_name, kill["attacker_x"], kill["attacker_y"])
-                kill["victim_zone"] = get_zone_for_coordinate(map_name, kill["victim_x"], kill["victim_y"])
+                kill["attacker_zone"] = get_zone_for_coordinate(
+                    map_name, kill["attacker_x"], kill["attacker_y"]
+                )
+                kill["victim_zone"] = get_zone_for_coordinate(
+                    map_name, kill["victim_x"], kill["victim_y"]
+                )
 
                 output["kills"].append(kill)
     except Exception as e:
@@ -452,7 +458,9 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                 rn = tick_to_round_local.get(tick, -1)
                 if rn not in valid_round_nums:
                     continue  # skip invalid/warmup rounds
-                p = get_stat_player(row.get("steamid"), row.get("name"), row.get("team_name"), row.get("clan_name"))
+                p = get_stat_player(
+                    row.get("steamid"), row.get("name"), row.get("team_name"), row.get("clan_name")
+                )
                 if p:
                     p["rounds_played"] += 1
 

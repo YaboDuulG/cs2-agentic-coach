@@ -609,11 +609,7 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest):
             filters.append(Match.team_id == team_id)
 
         recent_matches = (
-            db.query(Match)
-            .filter(*filters)
-            .order_by(desc(Match.created_at))
-            .limit(10)
-            .all()
+            db.query(Match).filter(*filters).order_by(desc(Match.created_at)).limit(10).all()
         )
 
         match_context = []
