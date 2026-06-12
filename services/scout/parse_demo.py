@@ -24,6 +24,15 @@ import os
 from pathlib import Path
 from typing import Any
 
+try:
+    from .callouts import get_zone_for_coordinate
+except ImportError:
+    try:
+        from callouts import get_zone_for_coordinate
+    except ImportError:
+        def get_zone_for_coordinate(m, x, y):
+            return "Unknown Zone"
+
 from demoparser2 import DemoParser
 from dotenv import load_dotenv
 
@@ -157,6 +166,8 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
                     "victim_y": _safe_float(row.get("user_Y", row.get("user_y"))),
                     "victim_z": _safe_float(row.get("user_Z", row.get("user_z"))),
                 }
+                kill["attacker_zone"] = get_zone_for_coordinate(map_name, kill["attacker_x"], kill["attacker_y"])
+                kill["victim_zone"] = get_zone_for_coordinate(map_name, kill["victim_x"], kill["victim_y"])
 
                 output["kills"].append(kill)
     except Exception as e:

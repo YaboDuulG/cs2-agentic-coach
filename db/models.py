@@ -446,6 +446,25 @@ class KnowledgeEmbedding(Base):
         return f"<KnowledgeEmbedding {self.id} source={self.source}>"
 
 
+class MapPlaybook(Base):
+    """
+    Map Playbooks for CS2.
+    Stores default high-level tactical setups and baseline JSON configurations for a map.
+    """
+
+    __tablename__ = "map_playbooks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    map_name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    playbook_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    def __repr__(self) -> str:
+        return f"<MapPlaybook map={self.map_name}>"
+
+
 class SystemConfig(Base):
     """
     Key-Value System Configurations for LLM Prompts and settings.
