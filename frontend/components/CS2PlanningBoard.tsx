@@ -1,5 +1,10 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Trash2, Undo, Palette, HelpCircle, Map } from "lucide-react";
+
+export interface CS2PlanningBoardRef {
+  exportStrategy: () => { map: string; lines: Line[]; markers: Marker[] };
+  loadStrategy: (state: { map: string; lines: Line[]; markers: Marker[] }) => void;
+}
 
 interface CS2PlanningBoardProps {
   selectedMap?: string;
@@ -41,23 +46,34 @@ const MARKER_COLORS: Record<string, string> = {
   Molotov: "bg-red-600 text-white border-red-400",
 };
 
-export default function CS2PlanningBoard({ selectedMap }: CS2PlanningBoardProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  
-  const [map, setMap] = useState<string>("de_mirage");
-  const [tool, setTool] = useState<"pen" | "CT" | "T" | "Smoke" | "Flash" | "HE" | "Molotov">("pen");
-  const [color, setColor] = useState<string>("#C9A227");
-  const [lineWidth, setLineWidth] = useState<number>(3);
-  
-  const [lines, setLines] = useState<Line[]>([]);
-  const [markers, setMarkers] = useState<Marker[]>([]);
-  const [history, setHistory] = useState<{ lines: Line[]; markers: Marker[] }[]>([]);
-  const [isDrawing, setIsDrawing] = useState<boolean>(false);
-  const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
+const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
+  ({ selectedMap }, ref) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    
+    const [map, setMap] = useState<string>("de_mirage");
+    const [tool, setTool] = useState<"pen" | "CT" | "T" | "Smoke" | "Flash" | "HE" | "Molotov">("pen");
+    const [color, setColor] = useState<string>("#C9A227");
+    const [lineWidth, setLineWidth] = useState<number>(3);
+    
+    const [lines, setLines] = useState<Line[]>([]);
+    const [markers, setMarkers] = useState<Marker[]>([]);
+    const [history, setHistory] = useState<{ lines: Line[]; markers: Marker[] }[]>([]);
+    const [isDrawing, setIsDrawing] = useState<boolean>(false);
+    const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
 
-  // Sync with prop from parent strategy list selection
-  useEffect(() => {
+    useImperativeHandle(ref, () => ({
+      exportStrategy: () => ({ map, lines, markers }),
+      loadStrategy: (state) => {
+        setMap(state.map);
+        setLines(state.lines || []);
+        setMarkers(state.markers || []);
+        setHistory([]);
+      }
+    }));
+
+    // Sync with prop from parent strategy list selection
+    useEffect(() => {
     if (selectedMap) {
       const normalized = selectedMap.toLowerCase().replace("de_", "");
       const matched = MAPS.find(m => m.id === selectedMap || m.id === `de_${normalized}`);
@@ -325,4 +341,6 @@ export default function CS2PlanningBoard({ selectedMap }: CS2PlanningBoardProps)
       </div>
     </div>
   );
-}
+});
+
+export default CS2PlanningBoard;
