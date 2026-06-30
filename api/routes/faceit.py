@@ -1,3 +1,6 @@
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from db.database import get_session
 """
 FACEIT Webhook Receiver
 ========================
@@ -94,24 +97,19 @@ def _queue_demo_analysis(
         from sqlalchemy.orm import sessionmaker
 
         SessionLocal = sessionmaker(bind=engine)
-        db: Session = SessionLocal()
-
-        try:
-            match = Match(
-                match_id=match_id,
-                team_id=team_id,
-                demo_filename=f"faceit_{faceit_match_id}.dem",
-                map_name="unknown",  # will be updated after parse
-                status=MatchStatus.PENDING,
-                gcs_demo_uri=demo_url,  # Store FACEIT URL temporarily
-                created_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC),
-            )
-            db.add(match)
-            db.commit()
-            logger.info(f"[FACEIT] Match record created: {match_id}")
-        finally:
-            db.close()
+        match = Match(
+            match_id=match_id,
+            team_id=team_id,
+            demo_filename=f"faceit_{faceit_match_id}.dem",
+            map_name="unknown",  # will be updated after parse
+            status=MatchStatus.PENDING,
+            gcs_demo_uri=demo_url,  # Store FACEIT URL temporarily
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        db.add(match)
+        db.commit()
+        logger.info(f"[FACEIT] Match record created: {match_id}")
 
         if local_mode:
             # Direct Scout call (dev only)
@@ -140,7 +138,7 @@ def _queue_demo_analysis(
 
 
 @router.post("/webhook")
-async def faceit_webhook(request: Request, background_tasks: BackgroundTasks) -> Response:
+async def faceit_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_session)) -> Response:
     """
     Receives FACEIT webhook events.
     Currently handled events:
@@ -238,7 +236,7 @@ def _fetch_demo_url(faceit_match_id: str) -> str | None:
 
 
 @router.get("/status")
-def faceit_connection_status() -> dict:
+def faceit_connection_status(db: Session = Depends(get_session)) -> dict:
     """Returns FACEIT integration config status (for the Settings UI)."""
     return {
         "webhook_configured": bool(FACEIT_WEBHOOK_SECRET),

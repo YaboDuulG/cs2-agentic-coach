@@ -1,3 +1,6 @@
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from db.database import get_session
 """
 Discord Webhook Ingestion Route
 ===============================
@@ -93,6 +96,7 @@ def parse_strategy_with_gemini(raw_text: str) -> dict:
 async def discord_webhook(
     request: Request,
     team_id: str = Query(...),
+    db: Session = Depends(get_session)
 ):
     body = await request.body()
     
@@ -148,32 +152,26 @@ async def discord_webhook(
         vector = get_query_embedding(structured_content.strip(), api_key)
 
         # Save to DB
-        from db.database import SessionLocal  # noqa: PLC0415
+        meta = {
+            "team_id": team_id,
+            "map_name": parsed.get("map_name", "All Maps"),
+            "side": parsed.get("side", "Both"),
+            "title": parsed.get("title", "Ingested Tactic"),
+            "author": author,
+            "summary": parsed.get("summary", ""),
+            "steps": parsed.get("steps", []),
+            "raw_content": content,
+        }
 
-        db = SessionLocal()
-        try:
-            meta = {
-                "team_id": team_id,
-                "map_name": parsed.get("map_name", "All Maps"),
-                "side": parsed.get("side", "Both"),
-                "title": parsed.get("title", "Ingested Tactic"),
-                "author": author,
-                "summary": parsed.get("summary", ""),
-                "steps": parsed.get("steps", []),
-                "raw_content": content,
-            }
-
-            db.add(
-                KnowledgeEmbedding(
-                    content=structured_content.strip(),
-                    embedding=vector,
-                    source="team_strategy",
-                    metadata_json=json.dumps(meta),
-                )
+        db.add(
+            KnowledgeEmbedding(
+                content=structured_content.strip(),
+                embedding=vector,
+                source="team_strategy",
+                metadata_json=json.dumps(meta),
             )
-            db.commit()
-        finally:
-            db.close()
+        )
+        db.commit()
 
         return {"status": "ingested", "title": parsed.get("title", "Ingested Tactic")}
     except Exception as e:

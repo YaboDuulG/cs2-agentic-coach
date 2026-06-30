@@ -1,3 +1,6 @@
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from db.database import get_session
 """
 Job status endpoint — returns parse status and results for a given match_id.
 Queries the DB for the match record populated by the Scout service.
@@ -13,14 +16,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _get_db():
-    from db.database import SessionLocal  # noqa: PLC0415
-
-    return SessionLocal()
-
-
 @router.get("/{match_id}", summary="Get demo parse job status and results")
-async def get_job_status(match_id: str, user_id: str | None = None):
+async def get_job_status(match_id: str, user_id: str | None = None, db: Session = Depends(get_session)):
     """
     Poll this endpoint after uploading a demo.
     Returns status: queued | processing | done | failed
@@ -42,257 +39,253 @@ async def get_job_status(match_id: str, user_id: str | None = None):
         }
 
     try:
-        db = _get_db()
-        try:
-            # Check if match record exists and has been parsed
-            result = db.execute(
+        # Check if match record exists and has been parsed
+        result = db.execute(
+            text(
+                "SELECT match_id, map_name, status, error_message, player_stats_json, created_at, parse_duration_seconds, user_id, team_id, is_recon FROM matches WHERE match_id = :id"
+            ),
+            {"id": match_id},
+        ).fetchone()
+
+        if result is None:
+            # Not in DB yet — still queued or Scout hasn't started
+            return {"status": "queued", "match_id": match_id, "is_recon": False}
+
+        match_user_id = result[7]
+        match_team_id = result[8]
+        is_recon = result[9] if len(result) > 9 else False
+
+        # Access check
+        if match_team_id:
+            if not user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: Team match requires user authentication.",
+                )
+            member_check = db.execute(
                 text(
-                    "SELECT match_id, map_name, status, error_message, player_stats_json, created_at, parse_duration_seconds, user_id, team_id, is_recon FROM matches WHERE match_id = :id"
+                    "SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"
                 ),
-                {"id": match_id},
+                {"team_id": match_team_id, "user_id": user_id},
             ).fetchone()
+            if not member_check:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: You are not a member of this team.",
+                )
+        else:
+            if match_user_id and match_user_id != user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: This match belongs to another user.",
+                )
 
-            if result is None:
-                # Not in DB yet — still queued or Scout hasn't started
-                return {"status": "queued", "match_id": match_id, "is_recon": False}
+        match_status = result[2].lower() if result[2] else "processing"
+        error_message = result[3]
+        player_stats_raw = result[4]
+        created_at = result[5] if len(result) > 5 else None
+        parse_duration_seconds = result[6] if len(result) > 6 else None
 
-            match_user_id = result[7]
-            match_team_id = result[8]
-            is_recon = result[9] if len(result) > 9 else False
+        from datetime import UTC, datetime, timezone
 
-            # Access check
-            if match_team_id:
-                if not user_id:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Access denied: Team match requires user authentication.",
-                    )
-                member_check = db.execute(
+        elapsed_seconds = 0
+        if created_at:
+            now_utc = datetime.now(UTC)
+            # Normalise created_at: if the DB returns a naive datetime,
+            # assume it was stored in UTC (Cloud SQL default) and attach tzinfo.
+            ca = created_at
+            if ca.tzinfo is None:
+                ca = ca.replace(tzinfo=timezone.utc)
+            elapsed_seconds = max(0, int((now_utc - ca).total_seconds()))
+
+        if match_status == "failed":
+            return {
+                "status": "failed",
+                "match_id": match_id,
+                "error": error_message,
+                "is_recon": is_recon,
+            }
+
+        # If the job has been stuck in pending/processing for >15 minutes (900s), consider it failed
+        if match_status not in ("done", "complete", "parsed") and elapsed_seconds > 900:
+            # Update DB to failed to avoid repeated logic
+            try:
+                db.execute(
                     text(
-                        "SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"
+                        "UPDATE matches SET status = 'FAILED', error_message = 'Job timed out after 15 minutes' WHERE match_id = :id"
                     ),
-                    {"team_id": match_team_id, "user_id": user_id},
-                ).fetchone()
-                if not member_check:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Access denied: You are not a member of this team.",
-                    )
-            else:
-                if match_user_id and match_user_id != user_id:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Access denied: This match belongs to another user.",
-                    )
+                    {"id": match_id},
+                )
+                db.commit()
+            except Exception as e:
+                logger.error(f"Failed to mark stuck job as failed: {e}")
+            return {
+                "status": "failed",
+                "match_id": match_id,
+                "error": "Job timed out after 15 minutes",
+                "is_recon": is_recon,
+            }
 
-            match_status = result[2].lower() if result[2] else "processing"
-            error_message = result[3]
-            player_stats_raw = result[4]
-            created_at = result[5] if len(result) > 5 else None
-            parse_duration_seconds = result[6] if len(result) > 6 else None
+        if match_status in ("pending", "queued"):
+            return {
+                "status": "queued",
+                "match_id": match_id,
+                "created_at": created_at.isoformat() if created_at else None,
+                "elapsed_seconds": elapsed_seconds,
+                "is_recon": is_recon,
+            }
 
-            from datetime import UTC, datetime, timezone
+        if match_status not in ("done", "complete", "parsed"):
+            return {
+                "status": "processing",
+                "match_id": match_id,
+                "map": result[1],
+                "created_at": created_at.isoformat() if created_at else None,
+                "elapsed_seconds": elapsed_seconds,
+                "is_recon": is_recon,
+            }
 
-            elapsed_seconds = 0
-            if created_at:
-                now_utc = datetime.now(UTC)
-                # Normalise created_at: if the DB returns a naive datetime,
-                # assume it was stored in UTC (Cloud SQL default) and attach tzinfo.
-                ca = created_at
-                if ca.tzinfo is None:
-                    ca = ca.replace(tzinfo=timezone.utc)
-                elapsed_seconds = max(0, int((now_utc - ca).total_seconds()))
-
-            if match_status == "failed":
-                return {
-                    "status": "failed",
-                    "match_id": match_id,
-                    "error": error_message,
-                    "is_recon": is_recon,
-                }
-
-            # If the job has been stuck in pending/processing for >15 minutes (900s), consider it failed
-            if match_status not in ("done", "complete", "parsed") and elapsed_seconds > 900:
-                # Update DB to failed to avoid repeated logic
-                try:
-                    db.execute(
-                        text(
-                            "UPDATE matches SET status = 'FAILED', error_message = 'Job timed out after 15 minutes' WHERE match_id = :id"
-                        ),
-                        {"id": match_id},
-                    )
-                    db.commit()
-                except Exception as e:
-                    logger.error(f"Failed to mark stuck job as failed: {e}")
-                return {
-                    "status": "failed",
-                    "match_id": match_id,
-                    "error": "Job timed out after 15 minutes",
-                    "is_recon": is_recon,
-                }
-
-            if match_status in ("pending", "queued"):
-                return {
-                    "status": "queued",
-                    "match_id": match_id,
-                    "created_at": created_at.isoformat() if created_at else None,
-                    "elapsed_seconds": elapsed_seconds,
-                    "is_recon": is_recon,
-                }
-
-            if match_status not in ("done", "complete", "parsed"):
-                return {
-                    "status": "processing",
-                    "match_id": match_id,
-                    "map": result[1],
-                    "created_at": created_at.isoformat() if created_at else None,
-                    "elapsed_seconds": elapsed_seconds,
-                    "is_recon": is_recon,
-                }
-
-            # Fetch kills
-            kills = db.execute(
-                text("""
+        # Fetch kills
+        kills = db.execute(
+            text("""
                     SELECT attacker, victim, weapon, round_num, attacker_team, attacker_x, attacker_y, victim_x, victim_y, attacker_steamid, victim_steamid, tick, headshot, victim_team
                     FROM kills WHERE match_id = :id
                     ORDER BY tick
                     LIMIT 200
                 """),
-                {"id": match_id},
-            ).fetchall()
+            {"id": match_id},
+        ).fetchall()
 
-            # Fetch rounds sorted by DB primary key (chronological order)
-            rounds = db.execute(
-                text("""
+        # Fetch rounds sorted by DB primary key (chronological order)
+        rounds = db.execute(
+            text("""
                     SELECT id, round_num, winner_side, ct_eq_val, t_eq_val
                     FROM rounds WHERE match_id = :id
                     ORDER BY id
                 """),
+            {"id": match_id},
+        ).fetchall()
+
+        # Fetch total grenades count
+        total_grenades = (
+            db.execute(
+                text("SELECT COUNT(*) FROM grenades WHERE match_id = :id"),
                 {"id": match_id},
-            ).fetchall()
+            ).scalar()
+            or 0
+        )
 
-            # Fetch total grenades count
-            total_grenades = (
-                db.execute(
-                    text("SELECT COUNT(*) FROM grenades WHERE match_id = :id"),
-                    {"id": match_id},
-                ).scalar()
-                or 0
-            )
+        import json
+        import math
 
-            import json
-            import math
+        player_stats = {}
+        if player_stats_raw:
+            try:
+                player_stats = json.loads(player_stats_raw)
+            except Exception:
+                pass
 
-            player_stats = {}
-            if player_stats_raw:
-                try:
-                    player_stats = json.loads(player_stats_raw)
-                except Exception:
-                    pass
+        # Filter warmup/knife rounds (where winner_side is empty or invalid)
+        # and map them to clean sequential indices 1 to N
+        clean_rounds = []
+        orig_idx_to_seq_num = {}
 
-            # Filter warmup/knife rounds (where winner_side is empty or invalid)
-            # and map them to clean sequential indices 1 to N
-            clean_rounds = []
-            orig_idx_to_seq_num = {}
+        for r in rounds:
+            db_round_num = r[1]
+            winner_side = r[2]
+            if winner_side in ("CT", "T"):
+                seq_num = len(clean_rounds) + 1
+                clean_rounds.append(
+                    {
+                        "round": seq_num,
+                        "winner": winner_side,
+                        "ct_spend": r[3] or 0,
+                        "t_spend": r[4] or 0,
+                    }
+                )
+                orig_idx_to_seq_num[db_round_num] = seq_num
 
-            for r in rounds:
-                db_round_num = r[1]
-                winner_side = r[2]
-                if winner_side in ("CT", "T"):
-                    seq_num = len(clean_rounds) + 1
-                    clean_rounds.append(
+        # Map kills to the new sequential round indices
+        mapped_kills = []
+        if clean_rounds:
+            for k in kills:
+                db_round_num = k[3]
+                if db_round_num in orig_idx_to_seq_num:
+                    mapped_kills.append(
                         {
-                            "round": seq_num,
-                            "winner": winner_side,
-                            "ct_spend": r[3] or 0,
-                            "t_spend": r[4] or 0,
+                            "killer": k[0],
+                            "victim": k[1],
+                            "weapon": k[2],
+                            "round": orig_idx_to_seq_num[db_round_num],
+                            "killer_team": k[4],
+                            "attacker_x": k[5],
+                            "attacker_y": k[6],
+                            "victim_x": k[7],
+                            "victim_y": k[8],
+                            "attacker_steamid": k[9],
+                            "victim_steamid": k[10],
+                            "tick": k[11],
+                            "headshot": k[12],
+                            "victim_team": k[13],
                         }
                     )
-                    orig_idx_to_seq_num[db_round_num] = seq_num
+        else:
+            # Fallback to raw DB round numbers if no clean rounds are resolved
+            clean_rounds = [
+                {"round": r[1], "winner": r[2], "ct_spend": r[3] or 0, "t_spend": r[4] or 0}
+                for r in rounds
+            ]
+            mapped_kills = [
+                {
+                    "killer": k[0],
+                    "victim": k[1],
+                    "weapon": k[2],
+                    "round": k[3],
+                    "killer_team": k[4],
+                    "attacker_x": k[5],
+                    "attacker_y": k[6],
+                    "victim_x": k[7],
+                    "victim_y": k[8],
+                    "attacker_steamid": k[9],
+                    "victim_steamid": k[10],
+                    "tick": k[11],
+                    "headshot": k[12],
+                    "victim_team": k[13],
+                }
+                for k in kills
+            ]
 
-            # Map kills to the new sequential round indices
-            mapped_kills = []
-            if clean_rounds:
-                for k in kills:
-                    db_round_num = k[3]
-                    if db_round_num in orig_idx_to_seq_num:
-                        mapped_kills.append(
-                            {
-                                "killer": k[0],
-                                "victim": k[1],
-                                "weapon": k[2],
-                                "round": orig_idx_to_seq_num[db_round_num],
-                                "killer_team": k[4],
-                                "attacker_x": k[5],
-                                "attacker_y": k[6],
-                                "victim_x": k[7],
-                                "victim_y": k[8],
-                                "attacker_steamid": k[9],
-                                "victim_steamid": k[10],
-                                "tick": k[11],
-                                "headshot": k[12],
-                                "victim_team": k[13],
-                            }
-                        )
-            else:
-                # Fallback to raw DB round numbers if no clean rounds are resolved
-                clean_rounds = [
-                    {"round": r[1], "winner": r[2], "ct_spend": r[3] or 0, "t_spend": r[4] or 0}
-                    for r in rounds
-                ]
-                mapped_kills = [
-                    {
-                        "killer": k[0],
-                        "victim": k[1],
-                        "weapon": k[2],
-                        "round": k[3],
-                        "killer_team": k[4],
-                        "attacker_x": k[5],
-                        "attacker_y": k[6],
-                        "victim_x": k[7],
-                        "victim_y": k[8],
-                        "attacker_steamid": k[9],
-                        "victim_steamid": k[10],
-                        "tick": k[11],
-                        "headshot": k[12],
-                        "victim_team": k[13],
-                    }
-                    for k in kills
-                ]
+        def sanitize_nan(val):
+            if isinstance(val, float):
+                return None if (math.isnan(val) or math.isinf(val)) else val
+            elif isinstance(val, dict):
+                return {k: sanitize_nan(v) for k, v in val.items()}
+            elif isinstance(val, list):
+                return [sanitize_nan(x) for x in val]
+            elif hasattr(val, "__float__") and not isinstance(val, (int, str, bool)):
+                try:
+                    fval = float(val)
+                    return None if (math.isnan(fval) or math.isinf(fval)) else fval
+                except Exception:
+                    pass
+            return val
 
-            def sanitize_nan(val):
-                if isinstance(val, float):
-                    return None if (math.isnan(val) or math.isinf(val)) else val
-                elif isinstance(val, dict):
-                    return {k: sanitize_nan(v) for k, v in val.items()}
-                elif isinstance(val, list):
-                    return [sanitize_nan(x) for x in val]
-                elif hasattr(val, "__float__") and not isinstance(val, (int, str, bool)):
-                    try:
-                        fval = float(val)
-                        return None if (math.isnan(fval) or math.isinf(fval)) else fval
-                    except Exception:
-                        pass
-                return val
+        player_stats = sanitize_nan(player_stats)
 
-            player_stats = sanitize_nan(player_stats)
-
-            response_data = {
-                "status": "done",
-                "match_id": match_id,
-                "map": result[1],
-                "total_rounds": len(clean_rounds),
-                "total_kills": len(mapped_kills),
-                "total_grenades": total_grenades,
-                "player_stats": player_stats,
-                "kills": mapped_kills,
-                "rounds": clean_rounds,
-                "parse_duration_seconds": parse_duration_seconds,
-                "is_recon": is_recon,
-            }
-            return sanitize_nan(response_data)
-        finally:
-            db.close()
+        response_data = {
+            "status": "done",
+            "match_id": match_id,
+            "map": result[1],
+            "total_rounds": len(clean_rounds),
+            "total_kills": len(mapped_kills),
+            "total_grenades": total_grenades,
+            "player_stats": player_stats,
+            "kills": mapped_kills,
+            "rounds": clean_rounds,
+            "parse_duration_seconds": parse_duration_seconds,
+            "is_recon": is_recon,
+        }
+        return sanitize_nan(response_data)
 
     except Exception as e:
         logger.error(f"Job status query failed for {match_id}: {e}")
