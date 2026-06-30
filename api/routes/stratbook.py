@@ -1,3 +1,6 @@
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from db.database import get_session
 """
 Stratbook endpoints — create, list, and view user/team strategies.
 """
@@ -26,14 +29,12 @@ class SaveTeamPlaybookRequest(BaseModel):
 
 
 @router.post("/user", summary="Save a custom user strategy")
-async def save_user_strategy(body: SaveUserStrategyRequest):
+async def save_user_strategy(body: SaveUserStrategyRequest, db: Session = Depends(get_session)):
     if not body.title.strip() or not body.user_id.strip():
         raise HTTPException(status_code=400, detail="Title and user_id cannot be empty")
 
     from db.database import SessionLocal
     from db.models import UserStrategy
-
-    db = SessionLocal()
     try:
         new_strat = UserStrategy(
             user_id=body.user_id,
@@ -48,16 +49,12 @@ async def save_user_strategy(body: SaveUserStrategyRequest):
     except Exception as e:
         logger.error(f"Failed to save user strategy: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
-    finally:
-        db.close()
 
 
 @router.get("/user/{user_id}", summary="Get all strategies for a user")
-async def get_user_strategies(user_id: str):
+async def get_user_strategies(user_id: str, db: Session = Depends(get_session)):
     from db.database import SessionLocal
     from db.models import UserStrategy
-
-    db = SessionLocal()
     try:
         strats = db.query(UserStrategy).filter(UserStrategy.user_id == user_id).all()
         return {
@@ -75,19 +72,15 @@ async def get_user_strategies(user_id: str):
     except Exception as e:
         logger.error(f"Failed to load user strategies: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
-    finally:
-        db.close()
 
 
 @router.post("/team", summary="Save a team playbook")
-async def save_team_playbook(body: SaveTeamPlaybookRequest):
+async def save_team_playbook(body: SaveTeamPlaybookRequest, db: Session = Depends(get_session)):
     if not body.title.strip() or not body.team_id.strip():
         raise HTTPException(status_code=400, detail="Title and team_id cannot be empty")
 
     from db.database import SessionLocal
     from db.models import TeamPlaybook
-
-    db = SessionLocal()
     try:
         new_pb = TeamPlaybook(
             team_id=body.team_id,
@@ -102,16 +95,12 @@ async def save_team_playbook(body: SaveTeamPlaybookRequest):
     except Exception as e:
         logger.error(f"Failed to save team playbook: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
-    finally:
-        db.close()
 
 
 @router.get("/team/{team_id}", summary="Get all playbooks for a team")
-async def get_team_playbooks(team_id: str):
+async def get_team_playbooks(team_id: str, db: Session = Depends(get_session)):
     from db.database import SessionLocal
     from db.models import TeamPlaybook
-
-    db = SessionLocal()
     try:
         playbooks = db.query(TeamPlaybook).filter(TeamPlaybook.team_id == team_id).all()
         return {
@@ -129,8 +118,6 @@ async def get_team_playbooks(team_id: str):
     except Exception as e:
         logger.error(f"Failed to load team playbooks: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
-    finally:
-        db.close()
 
 
 class CritiqueStrategyRequest(BaseModel):
@@ -139,7 +126,7 @@ class CritiqueStrategyRequest(BaseModel):
 
 
 @router.post("/critique", summary="Get AI critique of a drawn strategy")
-async def get_strategy_critique(body: CritiqueStrategyRequest):
+async def get_strategy_critique(body: CritiqueStrategyRequest, db: Session = Depends(get_session)):
     if not body.map_name.strip() or not body.strategy_json.strip():
         raise HTTPException(status_code=400, detail="map_name and strategy_json cannot be empty")
 

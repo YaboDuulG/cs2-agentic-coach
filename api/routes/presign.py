@@ -1,3 +1,6 @@
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from db.database import get_session
 """
 Presigned GCS upload URL endpoint.
 Browser uploads .dem files directly to GCS — bypasses Vercel's 4.5MB body limit.
@@ -26,7 +29,7 @@ class PresignRequest(BaseModel):
 
 
 @router.post("/presign", summary="Get a presigned GCS URL for direct browser upload")
-async def presign_demo_upload(body: PresignRequest, request: Request):
+async def presign_demo_upload(body: PresignRequest, request: Request, db: Session = Depends(get_session)):
     """
     Returns a short-lived presigned PUT URL (or list of URLs for chunked upload)
     so the browser can upload directly to GCS.
@@ -53,17 +56,12 @@ async def presign_demo_upload(body: PresignRequest, request: Request):
         from sqlalchemy import text  # noqa: PLC0415
 
         from db.database import SessionLocal  # noqa: PLC0415
-
-        db = SessionLocal()
-        try:
-            member_check = db.execute(
-                text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
-                {"team_id": body.team_id, "user_id": user_id},
-            ).fetchone()
-            if not member_check:
-                raise HTTPException(status_code=403, detail="You are not a member of this team.")
-        finally:
-            db.close()
+        member_check = db.execute(
+            text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
+            {"team_id": body.team_id, "user_id": user_id},
+        ).fetchone()
+        if not member_check:
+            raise HTTPException(status_code=403, detail="You are not a member of this team.")
 
     # Create match record in DB immediately so jobs endpoint returns 'queued'
     _create_match_record(
@@ -160,7 +158,7 @@ class ComposeRequest(BaseModel):
 
 
 @router.post("/compose", summary="Compose uploaded GCS chunks into a single demo file")
-async def compose_chunks(body: ComposeRequest, request: Request):
+async def compose_chunks(body: ComposeRequest, request: Request, db: Session = Depends(get_session)):
     """
     Stitches multiple temporary parts of a chunked upload into a single GCS object
     using GCS compose operation, then deletes the temporary parts.
@@ -178,17 +176,12 @@ async def compose_chunks(body: ComposeRequest, request: Request):
         from sqlalchemy import text  # noqa: PLC0415
 
         from db.database import SessionLocal  # noqa: PLC0415
-
-        db = SessionLocal()
-        try:
-            member_check = db.execute(
-                text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
-                {"team_id": body.team_id, "user_id": user_id},
-            ).fetchone()
-            if not member_check:
-                raise HTTPException(status_code=403, detail="You are not a member of this team.")
-        finally:
-            db.close()
+        member_check = db.execute(
+            text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
+            {"team_id": body.team_id, "user_id": user_id},
+        ).fetchone()
+        if not member_check:
+            raise HTTPException(status_code=403, detail="You are not a member of this team.")
 
     if local_mode or not bucket_name:
         logger.info(f"LOCAL_MODE mock composition for match_id: {body.match_id}")
@@ -271,7 +264,7 @@ async def compose_chunks(body: ComposeRequest, request: Request):
 
 @router.put("/stub/{match_id}", include_in_schema=False)
 @router.put("/stub/{match_id}/{part_name}", include_in_schema=False)
-async def stub_upload(match_id: str, part_name: str | None = None):
+async def stub_upload(match_id: str, part_name: str | None = None, db: Session = Depends(get_session)):
     """Local dev stub — accepts the PUT from the browser in LOCAL_MODE."""
     return {"ok": True, "match_id": match_id, "part_name": part_name}
 
@@ -289,11 +282,8 @@ def _create_match_record(
         from sqlalchemy import text  # noqa: PLC0415
 
         from db.database import SessionLocal  # noqa: PLC0415
-
-        db = SessionLocal()
-        try:
-            db.execute(
-                text("""
+        db.execute(
+            text("""
                     INSERT INTO matches (
                         match_id, map_name, tickrate, total_rounds,
                         demo_filename, status, user_id, team_id, uploader_steam_id, is_recon, created_at, updated_at
@@ -301,18 +291,16 @@ def _create_match_record(
                     VALUES (:id, 'unknown', 64, 0, :filename, 'PENDING', :user_id, :team_id, :uploader_steam_id, :is_recon, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT (match_id) DO NOTHING
                 """),
-                {
-                    "id": match_id,
-                    "filename": filename,
-                    "user_id": user_id,
-                    "team_id": team_id,
-                    "uploader_steam_id": uploader_steam_id,
-                    "is_recon": is_recon,
-                },
-            )
-            db.commit()
-        finally:
-            db.close()
+            {
+                "id": match_id,
+                "filename": filename,
+                "user_id": user_id,
+                "team_id": team_id,
+                "uploader_steam_id": uploader_steam_id,
+                "is_recon": is_recon,
+            },
+        )
+        db.commit()
     except Exception as e:
         # Non-fatal — DB might not have tables yet (first deploy)
         logger.warning(f"Could not create match record for {match_id}: {e}")
