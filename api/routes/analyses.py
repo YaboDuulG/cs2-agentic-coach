@@ -97,9 +97,6 @@ async def get_match_notes(match_id: str, user_id: str | None = None):
 @router.post("/{match_id}/notes", summary="Update custom notes and trigger analysis re-run")
 async def update_match_notes(match_id: str, body: UpdateNotesRequest, user_id: str | None = None):
     """Save user-submitted coach notes for a match and run Great Khan analysis in background to refresh coaching."""
-    import threading  # noqa: PLC0415
-
-    from api.routes.coaching import _run_coaching  # noqa: PLC0415
     from db.database import SessionLocal  # noqa: PLC0415
     from db.models import Match  # noqa: PLC0415
 
@@ -136,7 +133,15 @@ async def update_match_notes(match_id: str, body: UpdateNotesRequest, user_id: s
         db.commit()
 
         # Trigger re-analysis in the background so that Scribe/Great Khan can parse these new notes
-        threading.Thread(target=_run_coaching, args=(match_id,), daemon=True).start()
+        import os  # noqa: PLC0415
+        from api.queue import enqueue_task  # noqa: PLC0415
+        queue = os.environ.get("CLOUD_TASKS_QUEUE", "default")
+        api_url = os.getenv("API_INTERNAL_URL", "http://localhost:8000")
+        enqueue_task(
+            queue_name=queue,
+            url=f"{api_url}/api/coaching/{match_id}",
+            payload={}
+        )
 
         return {"status": "success", "notes": match.notes}
     finally:
