@@ -846,7 +846,7 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 | **Auth** | Clerk JWT validated server-side | Never trust client-supplied user_id |
 | **API Sessions** | `Depends(get_db)` with yield | Prevents session leaks |
 | **Themes** | 3 CSS token sets (Khan, Purple Void, Tactical) | User-selectable in /profile |
-| **Default Theme** | TBD (pending user decision) | — |
+| **Default Theme** | **The Great Khan** | Eternal Blue Sky, gold authority — applied on first sign-up |
 | **Design Tool** | v0.dev + shadcn/ui | AI-generated React components; no Figma export needed |
 | **Polyglot** | Go (parsing) + Python (AI) | Best tool per job; avoid full rewrite |
 | **App Infrastructure** | Google Cloud Platform | Unified billing with Gemini API |
