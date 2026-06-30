@@ -280,24 +280,21 @@ def _download_from_gcs(gcs_uri: str, match_id: str) -> str:
 
 def _trigger_coaching(match_id: str) -> None:
     """Fire-and-forget: ask the API to run Great Khan coaching for this match."""
-    import threading  # noqa: PLC0415
-
-    def _call():
-        try:
-            import httpx  # noqa: PLC0415
-
-            api_url = os.getenv("API_INTERNAL_URL", "http://localhost:8000")
-            shared_secret = os.getenv("API_SHARED_SECRET", "")
-            headers = {}
-            if shared_secret:
-                headers["Authorization"] = f"Bearer {shared_secret}"
-
-            httpx.post(f"{api_url}/api/coaching/{match_id}", headers=headers, timeout=5)
-            logger.info(f"[Scout] Coaching triggered for {match_id}")
-        except Exception as e:
-            logger.warning(f"[Scout] Coaching trigger failed (non-fatal): {e}")
-
-    threading.Thread(target=_call, daemon=True).start()
+    try:
+        from api.queue import enqueue_task  # noqa: PLC0415
+        
+        queue = os.environ.get("CLOUD_TASKS_QUEUE", "default")
+        api_url = os.getenv("API_INTERNAL_URL", "http://localhost:8000")
+        
+        # Enqueue the task
+        enqueue_task(
+            queue_name=queue,
+            url=f"{api_url}/api/coaching/{match_id}",
+            payload={}
+        )
+        logger.info(f"[Scout] Coaching queued for {match_id}")
+    except Exception as e:
+        logger.warning(f"[Scout] Coaching trigger failed (non-fatal): {e}")
 
 
 def _mark_failed(match_id: str, error: str) -> None:

@@ -47,3 +47,37 @@ def enqueue_scout_job(match_id: str, gcs_uri: str) -> None:
 
     response = client.create_task(request={"parent": parent, "task": task})
     logger.info(f"Cloud Task created: {response.name} for match {match_id}")
+
+
+def enqueue_task(queue_name: str, url: str, payload: dict) -> None:
+    """
+    Generic function to enqueue a task to Google Cloud Tasks.
+    """
+    if os.getenv("LOCAL_MODE", "false").lower() == "true":
+        logger.info(f"LOCAL_MODE — skipping Cloud Tasks enqueue for {url}")
+        return
+
+    from google.cloud import tasks_v2  # noqa: PLC0415
+
+    project = os.environ["GCP_PROJECT_ID"]
+    location = os.environ["GCP_REGION"]
+
+    client = tasks_v2.CloudTasksClient()
+    parent = client.queue_path(project, location, queue_name)
+
+    body = json.dumps(payload).encode()
+
+    task = {
+        "http_request": {
+            "http_method": tasks_v2.HttpMethod.POST,
+            "url": url,
+            "headers": {"Content-Type": "application/json"},
+            "body": body,
+            "oidc_token": {
+                "service_account_email": os.environ.get("GCP_SERVICE_ACCOUNT", ""),
+            },
+        }
+    }
+
+    response = client.create_task(request={"parent": parent, "task": task})
+    logger.info(f"Cloud Task created: {response.name} for {url}")
