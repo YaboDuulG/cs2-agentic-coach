@@ -53,3 +53,8 @@ playwright==1.49.0
 
 
 
+
+# --- Auth ---
+python-jose[cryptography]>=3.3.0
+alembic>=1.13.0
+

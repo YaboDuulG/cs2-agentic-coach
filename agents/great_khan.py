@@ -11,12 +11,20 @@ import json
 import logging
 from typing import Any
 
-from langchain_community.cache import SQLiteCache
+from langchain_community.cache import SQLAlchemyCache
 from langchain_core.globals import set_llm_cache
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
-set_llm_cache(SQLiteCache(database_path=".langchain.db"))
+import os
+from sqlalchemy import create_engine
+
+db_url = os.environ.get("DATABASE_URL", "sqlite:///./demosage.db")
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+_engine = create_engine(db_url)
+set_llm_cache(SQLAlchemyCache(_engine, "llm_cache"))
 
 from agents.state import MatchState
 

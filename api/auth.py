@@ -3,28 +3,47 @@ Authorization dependencies for FastAPI.
 """
 
 import os
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import jwt, JWTError
 
 security = HTTPBearer()
 
-
-def verify_shared_secret(credentials: HTTPAuthorizationCredentials = Depends(security)):
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     """
-    Verifies that the provided Bearer token matches the API_SHARED_SECRET.
-    This ensures only our Next.js frontend (or authorized services) can call these endpoints.
+    Verifies the Clerk JWT token.
+    Returns the user_id from the token subject.
     """
-    expected_secret = os.getenv("API_SHARED_SECRET")
-    if not expected_secret:
+    token = credentials.credentials
+    
+    pem_key = os.getenv("CLERK_PEM_PUBLIC_KEY")
+    if not pem_key:
+        expected_secret = os.getenv("API_SHARED_SECRET")
+        if expected_secret and token == expected_secret:
+            return "internal_service_user"
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="API_SHARED_SECRET is not configured on the server.",
+            detail="CLERK_PEM_PUBLIC_KEY is not configured on the server."
         )
 
-    if credentials.credentials != expected_secret:
+    try:
+        if "-----BEGIN PUBLIC KEY-----" not in pem_key:
+            pem_key = f"-----BEGIN PUBLIC KEY-----\n{pem_key}\n-----END PUBLIC KEY-----"
+            
+        payload = jwt.decode(
+            token, 
+            pem_key, 
+            algorithms=["RS256"], 
+            options={"verify_aud": False}
+        )
+        return payload.get("sub", "")
+    except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing API shared secret.",
+            detail="Token expired",
         )
-    return credentials.credentials
+    except JWTError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {str(e)}",
+        )
