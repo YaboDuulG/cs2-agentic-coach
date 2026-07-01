@@ -794,12 +794,14 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 - [ ] Demo deduplication (is_cached check)
 - [ ] Match source badge in UI
 
-### Phase V2-2: Go Microservices
-- [ ] `demo-resolver` Go service (FACEIT + Steam GC)
-- [ ] Steam GC bot account setup
-- [ ] `demo-parser` Go service (`demoinfocs-golang`)
+### Phase V2-2: Go Microservices (Scaffolded ✅)
+- [x] `services/demo-resolver/` — FACEIT + Steam GC resolver (stub)
+- [x] `services/demo-parser/` — `demoinfocs-golang` parser
+- [x] Dockerfiles for both services
+- [x] `.github/workflows/go-build.yml` CI
+- [ ] Steam GC bot integration (requires Steam bot account)
+- [ ] GCS download implementation in `parse.go`
 - [ ] Replace Python Scout parser with Go HTTP call
-- [ ] Benchmark: <2s parse for 100MB demo
 
 ### Phase V2-3: Qdrant Cloud + Dual-RAG (Complete ✅)
 - [x] `db/qdrant_client.py` — singleton client, `@lru_cache`
@@ -816,15 +818,18 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 - [x] `demosage-mcp` launcher in `pyproject.toml`
 - [x] `docs/mcp_setup.md` — Antigravity + Claude Desktop config
 
-### Phase V2-5: Frontend Redesign
-- [ ] shadcn/ui setup
-- [ ] 3-theme CSS token system (Khan / Purple Void / Tactical)
-- [ ] Theme switcher in `/profile`
-- [ ] `/onboarding` flow
-- [ ] All 14 routes implemented with dependency gates
-- [ ] WebSocket parse progress bar
-- [ ] SSE streaming coaching output
-- [ ] Match source badges
+### Phase V2-5: Frontend Redesign (Foundation Complete ✅)
+- [x] 3-theme CSS token system (Khan / Purple Void / Tactical) in `globals.css`
+- [x] `ThemeSwitcher` component
+- [x] `/onboarding` page with Steam + FACEIT connect flow
+- [x] `suppressHydrationWarning` on `<body>` for theme SSR safety
+- [ ] shadcn/ui `components.json` init
+- [ ] Theme switcher wired into `/profile` page
+- [ ] `/matches/[id]` with WebSocket progress bar
+- [ ] `/coach` AI chat page (SSE streaming)
+- [ ] `/team/[id]` hub page
+- [ ] `/admin` dashboard with Qdrant quota widget
+- [ ] Match source badges (`⚡ FACEIT` / `⚡ Steam MM` / `📤 Manual`)
 
 ### Phase V2-6: Great Khan Refactor
 - [ ] Extract `agents/khan/` submodule (graph / nodes / prompts / rag / stats)
