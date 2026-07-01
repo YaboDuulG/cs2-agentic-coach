@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YaboDuulG/cs2-agentic-coach/demo-resolver/resolver"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -16,6 +16,12 @@ func main() {
 	if port == "" {
 		port = "8081"
 	}
+
+	// Initialize the Steam bot
+	resolver.InitBot()
+
+	// Start the cron job for GC messages
+	resolver.StartCron()
 
 	r := gin.Default()
 
@@ -29,6 +35,9 @@ func main() {
 
 	// Resolve a Steam match demo via sharecode
 	r.GET("/resolve/steam/:sharecode", resolver.ResolveSteam)
+
+	// SteamGuard code endpoint
+	r.POST("/auth/steamguard", resolver.HandleSteamGuard)
 
 	log.Printf("demo-resolver listening on :%s", port)
 	if err := r.Run(":" + port); err != nil {
