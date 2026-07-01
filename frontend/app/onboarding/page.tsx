@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { CheckCircle, ExternalLink, Loader2, AlertCircle } from "lucide-react";
 
@@ -15,7 +15,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoaded } = useUser();
-
+  const { getToken } = useAuth();
   const [status, setStatus] = useState<LinkedStatus>({ steam: null, faceit: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +25,7 @@ export default function OnboardingPage() {
     if (!isLoaded || !user) return;
     const fetchStatus = async () => {
       try {
-        const token = await user.getToken();
+        const token = await getToken();
         const res = await fetch("/api/proxy/oauth/status", {
           headers: { Authorization: `Bearer ${token}` },
         });
