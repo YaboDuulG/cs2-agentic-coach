@@ -56,9 +56,8 @@ def retrieve_similar_chunks(
     team_id: str | None = None,
 ) -> list[dict]:
     """
-    Retrieve top K most similar text chunks from the knowledge_embeddings table.
+    Retrieve top K most similar text chunks using Qdrant.
     Enforces namespace isolation walls using user_id, team_id, and scope tags.
-    Automatically detects if backend is PostgreSQL (uses pgvector) or SQLite (uses Python fallback).
     """
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
@@ -71,101 +70,69 @@ def retrieve_similar_chunks(
         logger.error(f"Failed to generate query embedding: {e}")
         return []
 
-    dialect = db_session.bind.dialect.name
     logger.info(
-        f"RAG query: '{query}' | dialect: {dialect} | limit: {limit} | source: {source} | user_id: {user_id} | team_id: {team_id}"
+        f"RAG query: '{query}' | limit: {limit} | source: {source} | user_id: {user_id} | team_id: {team_id}"
     )
 
-    from sqlalchemy import or_
+    from db.qdrant_client import search_pro_tactics, search_player_tendencies
 
-    # 1. Build Namespace Walls (Scope isolation filter)
-    # - "public": Seeded pro matches or guidelines (backward-compatible: if metadata_json doesn't contain 'scope' or is null)
-    # - "team": Custom team plays (accessible only if team_id matches)
-    # - "individual": Private player sessions (accessible only if user_id matches)
-    public_filter = or_(
-        KnowledgeEmbedding.metadata_json.is_(None),
-        ~KnowledgeEmbedding.metadata_json.like('%"scope":%'),
-        KnowledgeEmbedding.metadata_json.like('%"scope": "public"%'),
-    )
+    results = []
 
-    scope_filters = [public_filter]
+    # 1. Search pro tactics (public scope)
+    try:
+        pro_results = search_pro_tactics(
+            query_vector=query_vector,
+            limit=limit,
+        )
+        results.extend(pro_results)
+    except Exception as e:
+        logger.error(f"Failed to search Qdrant pro tactics: {e}")
 
+    # 2. Search player tendencies if team_id provided
     if team_id:
-        scope_filters.append(
-            KnowledgeEmbedding.metadata_json.like('%"scope": "team"%')
-            & KnowledgeEmbedding.metadata_json.like(f'%"team_id": "{team_id}"%')
-        )
+        try:
+            team_results = search_player_tendencies(
+                query_vector=query_vector,
+                team_id=team_id,
+                limit=limit,
+            )
+            results.extend(team_results)
+        except Exception as e:
+            logger.error(f"Failed to search Qdrant team tendencies: {e}")
 
+    # 3. Search player tendencies if user_id provided
     if user_id:
-        scope_filters.append(
-            KnowledgeEmbedding.metadata_json.like('%"scope": "individual"%')
-            & KnowledgeEmbedding.metadata_json.like(f'%"user_id": "{user_id}"%')
-        )
-
-    scope_isolation_filter = or_(*scope_filters)
-
-    if dialect == "sqlite":
-        # SQLite Fallback: Fetch candidate rows and compute cosine similarity in Python
-        candidate_query = db_session.query(KnowledgeEmbedding).filter(scope_isolation_filter)
-        if source:
-            candidate_query = candidate_query.filter(KnowledgeEmbedding.source == source)
-        candidates = candidate_query.all()
-
-        scored_candidates = []
-        for cand in candidates:
-            # Deserialized list from SQLiteVectorType
-            cand_vector = cand.embedding
-            if isinstance(cand_vector, str):
-                try:
-                    cand_vector = json.loads(cand_vector)
-                except Exception:
-                    continue
-
-            if not isinstance(cand_vector, list):
-                continue
-
-            similarity = cosine_similarity(query_vector, cand_vector)
-            scored_candidates.append((cand, similarity))
-
-        # Sort by similarity descending
-        scored_candidates.sort(key=lambda x: x[1], reverse=True)
-        top_candidates = scored_candidates[:limit]
-
-        results = []
-        for cand, score in top_candidates:
-            results.append(
-                {
-                    "content": cand.content,
-                    "source": cand.source,
-                    "score": score,
-                    "metadata": json.loads(cand.metadata_json) if cand.metadata_json else {},
-                }
+        try:
+            user_results = search_player_tendencies(
+                query_vector=query_vector,
+                user_id=user_id,
+                limit=limit,
             )
-        return results
+            results.extend(user_results)
+        except Exception as e:
+            logger.error(f"Failed to search Qdrant user tendencies: {e}")
 
-    else:
-        # PostgreSQL (pgvector): Use native <-> cosine distance operator
-        postgres_query = db_session.query(KnowledgeEmbedding).filter(scope_isolation_filter)
-        if source:
-            postgres_query = postgres_query.filter(KnowledgeEmbedding.source == source)
+    # Filter by source if provided
+    if source:
+        results = [r for r in results if r.get("source") == source]
 
-        # Cosine distance ranges from 0 (perfect match) to 2.
-        # Order by distance ascending to get closest matches first.
-        db_results = (
-            postgres_query.order_by(KnowledgeEmbedding.embedding.cosine_distance(query_vector))
-            .limit(limit)
-            .all()
-        )
+    # Sort by score descending
+    results.sort(key=lambda x: x.get("score", 0), reverse=True)
+    results = results[:limit]
 
-        results = []
-        for cand in db_results:
-            # pgvector distance is 1 - cosine_similarity. We can approximate a score for matching output format.
-            results.append(
-                {
-                    "content": cand.content,
-                    "source": cand.source,
-                    "score": None,  # pgvector order handles sorting natively
-                    "metadata": json.loads(cand.metadata_json) if cand.metadata_json else {},
-                }
-            )
-        return results
+    final_results = []
+    for r in results:
+        # Create a copy to avoid mutating the original if it's cached
+        r_copy = r.copy()
+        content = r_copy.pop("content", "")
+        src = r_copy.pop("source", None)
+        score = r_copy.pop("score", None)
+        r_copy.pop("scope", None) # Remove 'scope' added by qdrant_client
+        final_results.append({
+            "content": content,
+            "source": src,
+            "score": score,
+            "metadata": r_copy,
+        })
+
+    return final_results

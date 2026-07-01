@@ -170,7 +170,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
 
             try:
                 from db.rag import retrieve_similar_chunks
-                results = retrieve_similar_chunks(query_text, top_k=limit, source_filter="hltv_pro_match")
+                results = retrieve_similar_chunks(db, query=query_text, limit=limit, source="hltv_pro_match")
                 return CallToolResult(content=[TextContent(type="text", text=json.dumps(results, indent=2))])
             except Exception as e:
                 return CallToolResult(content=[TextContent(type="text", text=f"RAG search error: {e}")])
