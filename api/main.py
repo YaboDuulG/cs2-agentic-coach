@@ -27,6 +27,7 @@ from api.routes import (
     teams,
     training_sessions,
     upload,
+    webhooks,
 )
 
 load_dotenv()
@@ -112,6 +113,7 @@ app.include_router(
 app.include_router(
     fcr.router, prefix="/api", tags=["FCR"], dependencies=[Depends(get_current_user)]
 )
+app.include_router(webhooks.router, prefix="/api/webhooks", tags=["Webhooks"])
 app.include_router(discord.router, prefix="/api/discord", tags=["Discord"])
 app.include_router(
     chat.router, prefix="/api/chat", tags=["Chat"], dependencies=[Depends(get_current_user)]

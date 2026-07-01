@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
 import { PLAN_LIMITS } from "@/lib/flags";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { UploadModal } from "@/components/UploadModal";
-
 interface Analysis {
   match_id: string;
   map: string;
@@ -21,6 +21,15 @@ interface Analysis {
   created_at: string;
   total_rounds: number;
   total_kills: number;
+  source?: string;
+}
+
+function getSourceBadge(source?: string) {
+  if (!source) return null;
+  const s = source.toLowerCase();
+  if (s.includes("faceit")) return <span className="bg-[#FF5500]/10 text-[#FF5500] px-2 py-0.5 rounded-full text-[10px] font-bold border border-[#FF5500]/30 ml-2 whitespace-nowrap">⚡ FACEIT</span>;
+  if (s.includes("steam") || s.includes("mm") || s.includes("matchmaking")) return <span className="bg-[#00adee]/10 text-[#00adee] px-2 py-0.5 rounded-full text-[10px] font-bold border border-[#00adee]/30 ml-2 whitespace-nowrap">⚡ Steam MM</span>;
+  return <span className="bg-slate-700/30 text-slate-300 px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-600/50 ml-2 whitespace-nowrap">📤 {source}</span>;
 }
 
 interface Team {
@@ -532,6 +541,11 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
+
+            {/* Theme Switcher Card */}
+            <div className="card p-5 mt-6" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+              <ThemeSwitcher />
+            </div>
           </div>
 
           {/* ── Analyses feed ── */}
@@ -581,7 +595,10 @@ export default function ProfilePage() {
                         <MapPin size={18} color="#2D7DD2" />
                       </div>
                       <div>
-                        <p style={{ color: "#F0F4FF", fontWeight: 600 }}>{a.map || "Unknown Map"}</p>
+                        <div className="flex items-center">
+                          <p style={{ color: "#F0F4FF", fontWeight: 600 }}>{a.map || "Unknown Map"}</p>
+                          {getSourceBadge(a.source)}
+                        </div>
                         <div className="flex items-center gap-3 mt-0.5">
                           {a.total_rounds > 0 && (
                             <span style={{ color: "#4A6A8A", fontSize: "0.72rem" }}>{a.total_rounds} rounds</span>

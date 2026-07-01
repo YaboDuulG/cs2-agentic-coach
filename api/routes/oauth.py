@@ -13,6 +13,7 @@ import secrets
 from urllib.parse import urlencode
 
 import httpx
+import redis
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -29,7 +30,7 @@ FACEIT_AUTH_URL = "https://accounts.faceit.com/accounts"
 FACEIT_TOKEN_URL = "https://api.faceit.com/auth/v1/oauth/token"
 FACEIT_API_BASE = "https://api.faceit.com/core/v1"
 
-_pkce_state_store: dict[str, str] = {}  # state -> code_verifier (in-memory; use Redis in prod)
+redis_client = redis.Redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379"))
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +113,7 @@ async def faceit_login():
     code_challenge_b64 = base64.urlsafe_b64encode(code_challenge).rstrip(b"=").decode()
 
     state = secrets.token_urlsafe(16)
-    _pkce_state_store[state] = code_verifier
+    redis_client.setex(state, 600, code_verifier)
 
     base_url = os.environ.get("API_BASE_URL", "http://localhost:8000")
     redirect_uri = f"{base_url}/api/oauth/faceit/callback"
@@ -137,9 +138,11 @@ async def faceit_callback(
     db: Session = Depends(get_session),
 ):
     """Exchanges FACEIT authorization code for tokens and links account."""
-    code_verifier = _pkce_state_store.pop(state, None)
-    if not code_verifier:
+    code_verifier_bytes = redis_client.get(state)
+    if not code_verifier_bytes:
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
+    redis_client.delete(state)
+    code_verifier = code_verifier_bytes.decode()
 
     client_id = os.environ.get("FACEIT_CLIENT_ID")
     client_secret = os.environ.get("FACEIT_CLIENT_SECRET")
