@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { Suspense, useState, useRef, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { CloudMotifBg } from "@/components/patterns/mongolian";
 import { Send, Bot, User, Sparkles } from "lucide-react";
@@ -11,7 +11,7 @@ interface Message {
   content: string;
 }
 
-export default function CoachPage() {
+function CoachContent() {
   const searchParams = useSearchParams();
   const matchId = searchParams?.get("match");
   
@@ -169,5 +169,13 @@ export default function CoachPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CoachPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <CoachContent />
+    </Suspense>
   );
 }

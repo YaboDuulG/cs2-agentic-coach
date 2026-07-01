@@ -53,11 +53,10 @@ export function ThemeSwitcher() {
             }}
           >
             <div
-              className="w-5 h-5 rounded-full flex-shrink-0 ring-2 ring-offset-2"
+              className="w-5 h-5 rounded-full flex-shrink-0"
               style={{
                 background: t.color,
-                ringColor: theme === t.id ? t.color : "transparent",
-                ringOffsetColor: "var(--color-bg-primary)",
+                boxShadow: theme === t.id ? `0 0 0 2px var(--color-bg-primary), 0 0 0 4px ${t.color}` : 'none',
               }}
             />
             <div>
