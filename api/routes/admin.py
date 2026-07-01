@@ -54,3 +54,13 @@ async def update_admin_configs(body: UpdateConfigsRequest, db: Session = Depends
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to save system configs: {e}")
+
+
+@router.get("/qdrant-quota", summary="Check Qdrant vector quota")
+def get_qdrant_quota():
+    """Returns Qdrant vector count and warns if approaching 8M limit."""
+    try:
+        from db.qdrant_client import check_vector_quota  # noqa: PLC0415
+        return check_vector_quota()
+    except Exception as e:
+        return {"error": str(e), "warning": False}
