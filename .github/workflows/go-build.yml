@@ -1,0 +1,42 @@
+name: Go Microservices Build
+
+on:
+  push:
+    paths:
+      - 'services/demo-resolver/**'
+      - 'services/demo-parser/**'
+  pull_request:
+    paths:
+      - 'services/demo-resolver/**'
+      - 'services/demo-parser/**'
+
+jobs:
+  build-resolver:
+    name: Build demo-resolver
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/demo-resolver
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - run: go mod tidy
+      - run: go build ./...
+      - run: go vet ./...
+
+  build-parser:
+    name: Build demo-parser
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/demo-parser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - run: go mod tidy
+      - run: go build ./...
+      - run: go vet ./...
