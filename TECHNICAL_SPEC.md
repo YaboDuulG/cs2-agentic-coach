@@ -795,11 +795,12 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 - [x] Match source badge in UI
 
 ### Phase V2-2: Go Microservices (Scaffolded ✅)
-- [x] `services/demo-resolver/` — FACEIT + Steam GC resolver (stub)
-- [x] `services/demo-parser/` — `demoinfocs-golang` parser
-- [x] Dockerfiles for both services
-- [x] `.github/workflows/go-build.yml` CI
-- [ ] Steam GC bot integration (requires Steam bot account)
+- [x] `services/demo-resolver/` — FACEIT + Steam GC resolver
+- [x] `services/demo-parser/` — demoinfocs-golang wrapper
+- [x] Internal REST API design for Go services
+- [x] Dockerfile scaffolds for both services
+- [x] GitHub Actions CI workflow for Go builds
+- [x] Steam GC bot account setup & integration
 - [ ] GCS download implementation in `parse.go`
 - [ ] Replace Python Scout parser with Go HTTP call
 
