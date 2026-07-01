@@ -1,5 +1,5 @@
 """
-Cloud Tasks queue integration — enqueue Scout parse jobs.
+Cloud Tasks queue integration — enqueue demo-parser jobs.
 Lazy-imported so CI tests work without google-cloud-tasks installed.
 """
 
@@ -10,12 +10,12 @@ import os
 logger = logging.getLogger(__name__)
 
 
-def enqueue_scout_job(match_id: str, gcs_uri: str) -> None:
+def enqueue_parse_job(match_id: str, gcs_uri: str) -> None:
     """
-    Create a Cloud Tasks HTTP target task that calls the Scout service.
+    Create a Cloud Tasks HTTP target task that calls the Go demo-parser service.
 
     In LOCAL_MODE the task is skipped and the caller is expected to
-    invoke the Scout service directly for testing.
+    invoke the parser service directly for testing.
     """
     if os.getenv("LOCAL_MODE", "false").lower() == "true":
         logger.info(f"LOCAL_MODE — skipping Cloud Tasks enqueue for {match_id}")
@@ -26,7 +26,7 @@ def enqueue_scout_job(match_id: str, gcs_uri: str) -> None:
     project = os.environ["GCP_PROJECT_ID"]
     location = os.environ["GCP_REGION"]
     queue = os.environ["CLOUD_TASKS_QUEUE"]
-    scout_url = os.environ["SCOUT_SERVICE_URL"]  # Cloud Run URL of the Scout service
+    parser_url = os.environ["PARSER_SERVICE_URL"]  # Cloud Run URL of the demo-parser service
 
     client = tasks_v2.CloudTasksClient()
     parent = client.queue_path(project, location, queue)
@@ -36,7 +36,7 @@ def enqueue_scout_job(match_id: str, gcs_uri: str) -> None:
     task = {
         "http_request": {
             "http_method": tasks_v2.HttpMethod.POST,
-            "url": f"{scout_url}/internal/scout/parse",
+            "url": f"{parser_url}/parse",
             "headers": {"Content-Type": "application/json"},
             "body": payload,
             "oidc_token": {

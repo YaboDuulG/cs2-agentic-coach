@@ -8,13 +8,15 @@ import (
 	"net/http"
 	"strings"
 
+	"cloud.google.com/go/storage"
+	"github.com/gin-gonic/gin"
 	dem "github.com/markus-wa/demoinfocs-golang/v4/pkg/demoinfocs"
 	events "github.com/markus-wa/demoinfocs-golang/v4/pkg/demoinfocs/events"
-	"github.com/gin-gonic/gin"
 )
 
 type ParseRequest struct {
-	GCSURI  string `json:"gcs_uri" binding:"required"`
+	GCSURI  string `json:"gcs_uri"`
+	DemoURL string `json:"demo_url"`
 	MatchID string `json:"match_id" binding:"required"`
 }
 
@@ -27,10 +29,22 @@ func ParseDemo(c *gin.Context) {
 		return
 	}
 
-	// Download demo from GCS (using signed URL or GOOGLE_APPLICATION_CREDENTIALS)
-	demoReader, err := downloadFromGCS(c.Request.Context(), req.GCSURI)
+	if req.GCSURI == "" && req.DemoURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "either gcs_uri or demo_url must be provided"})
+		return
+	}
+
+	var demoReader io.ReadCloser
+	var err error
+
+	if req.GCSURI != "" {
+		demoReader, err = downloadFromGCS(c.Request.Context(), req.GCSURI)
+	} else {
+		demoReader, err = downloadFromHTTP(req.DemoURL)
+	}
+
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("GCS download failed: %v", err)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("download failed: %v", err)})
 		return
 	}
 	defer demoReader.Close()
@@ -44,8 +58,19 @@ func ParseDemo(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+func downloadFromHTTP(url string) (io.ReadCloser, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, fmt.Errorf("unexpected status code %d fetching demo", resp.StatusCode)
+	}
+	return resp.Body, nil
+}
+
 // downloadFromGCS returns a ReadCloser for the demo file.
-// Supports gs:// URIs. Requires GOOGLE_APPLICATION_CREDENTIALS.
 func downloadFromGCS(ctx context.Context, gcsURI string) (io.ReadCloser, error) {
 	// Strip gs:// prefix and split into bucket/object
 	path := strings.TrimPrefix(gcsURI, "gs://")
@@ -54,15 +79,13 @@ func downloadFromGCS(ctx context.Context, gcsURI string) (io.ReadCloser, error) 
 		return nil, fmt.Errorf("invalid GCS URI: %s", gcsURI)
 	}
 
-	// In production, replace this stub with:
-	// client, _ := storage.NewClient(ctx)
-	// obj := client.Bucket(parts[0]).Object(parts[1])
-	// return obj.NewReader(ctx)
-	_ = ctx
-	return nil, fmt.Errorf(
-		"GCS download stub: implement with cloud.google.com/go/storage. Bucket=%s Object=%s",
-		parts[0], parts[1],
-	)
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCS client: %w", err)
+	}
+	
+	obj := client.Bucket(parts[0]).Object(parts[1])
+	return obj.NewReader(ctx)
 }
 
 // parseDemoStream runs demoinfocs-golang on the reader and returns ParseResult.

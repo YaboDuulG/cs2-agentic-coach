@@ -794,15 +794,15 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 - [x] Demo deduplication (`is_cached` check)
 - [x] Match source badge in UI
 
-### Phase V2-2: Go Microservices (Scaffolded ✅)
+### Phase V2-2: Go Microservices (Complete ✅)
 - [x] `services/demo-resolver/` — FACEIT + Steam GC resolver
 - [x] `services/demo-parser/` — demoinfocs-golang wrapper
 - [x] Internal REST API design for Go services
 - [x] Dockerfile scaffolds for both services
 - [x] GitHub Actions CI workflow for Go builds
 - [x] Steam GC bot account setup & integration
-- [ ] GCS download implementation in `parse.go`
-- [ ] Replace Python Scout parser with Go HTTP call
+- [x] GCS download implementation in `parse.go`
+- [x] Replace Python Scout parser with Go HTTP call
 
 ### Phase V2-3: Qdrant Cloud + Dual-RAG (Complete ✅)
 - [x] `db/qdrant_client.py` — singleton client, `@lru_cache`

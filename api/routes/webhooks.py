@@ -79,10 +79,10 @@ async def faceit_webhook(request: Request, db: Session = Depends(get_session)):
     db.add(match)
     db.commit()
 
-    scout_url = os.environ.get("SCOUT_SERVICE_URL", "http://localhost:8001")
+    parser_url = os.environ.get("PARSER_SERVICE_URL", "http://localhost:8082")
     queue = os.environ.get("CLOUD_TASKS_QUEUE", "demo-parse-queue")
     try:
-        enqueue_task(queue, f"{scout_url}/parse-from-url", {"match_id": internal_match_id, "demo_url": demo_url})
+        enqueue_task(queue, f"{parser_url}/parse", {"match_id": internal_match_id, "demo_url": demo_url})
     except Exception as e:
         logger.error(f"Failed to enqueue task: {e}")
 

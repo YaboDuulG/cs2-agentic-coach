@@ -1,6 +1,6 @@
 """
 Upload endpoints for demo (.dem) and audio files.
-Validates → uploads to GCS → queues a Scout parse job via Cloud Tasks.
+Validates → uploads to GCS → queues a demo-parser parse job via Cloud Tasks.
 """
 
 import logging
@@ -37,7 +37,7 @@ def _upload_to_gcs(file_bytes: bytes, gcs_path: str, content_type: str) -> str:
 @router.post("/demo", summary="Upload a CS2 .dem file for analysis")
 async def upload_demo(file: UploadFile = File(...)):
     """
-    Accept a .dem file, upload to GCS, and queue a Scout parse job.
+    Accept a .dem file, upload to GCS, and queue a demo-parser parse job.
     Returns a match_id for tracking.
 
     In LOCAL_MODE (LOCAL_MODE=true env var):
@@ -65,11 +65,11 @@ async def upload_demo(file: UploadFile = File(...)):
             logger.error(f"GCS upload failed: {e}")
             raise HTTPException(status_code=500, detail="File upload failed.")
 
-        # Enqueue Scout parse job via Cloud Tasks
+        # Enqueue demo-parser parse job via Cloud Tasks
         try:
-            from api.queue import enqueue_scout_job
+            from api.queue import enqueue_parse_job
 
-            enqueue_scout_job(match_id, gcs_uri)
+            enqueue_parse_job(match_id, gcs_uri)
         except Exception as e:
             logger.error(f"Cloud Tasks enqueue failed: {e}")
             # Don't fail the upload — log and continue. Operator can re-queue.
@@ -80,7 +80,7 @@ async def upload_demo(file: UploadFile = File(...)):
         "gcs_uri": gcs_uri,
         "local_mode": local_mode,
         "message": (
-            "Demo uploaded. Scout parse job queued."
+            "Demo uploaded. Parser job queued."
             if not local_mode
             else f"LOCAL_MODE: run `python scripts/run_local.py --demo <path> --match-id {match_id}`"
         ),
