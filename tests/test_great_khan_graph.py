@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import agents.khan.graph as great_khan_module
-from agents.khan.main import analyse_match
 from agents.khan.graph import build_graph
+from agents.khan.main import analyse_match
 
 
 @pytest.fixture(autouse=True)

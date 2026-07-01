@@ -1,19 +1,21 @@
 from typing import Any
+
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
-from agents.state import MatchState
 from agents.khan.nodes import (
-    supervisor_node,
-    scout_node,
-    rag_node,
-    tactician_node,
-    scribe_node,
-    general_node,
-    warlord_node,
     cache_node,
+    general_node,
+    rag_node,
+    scout_node,
+    scribe_node,
+    supervisor_node,
+    tactician_node,
+    warlord_node,
 )
+from agents.state import MatchState
+
 
 def route_after_supervisor(state: MatchState) -> Any:
     intent = state.get("intent", "tactical_analysis")

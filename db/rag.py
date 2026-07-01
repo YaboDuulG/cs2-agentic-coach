@@ -5,7 +5,6 @@ Provides functions to retrieve relevant chunks from the Knowledge Base
 using vector search (pgvector in Postgres, Python-based fallback in SQLite).
 """
 
-import json
 import logging
 import math
 import os
@@ -13,7 +12,6 @@ import os
 # Configure logging
 logger = logging.getLogger("rag")
 
-from db.models import KnowledgeEmbedding
 
 
 def get_query_embedding(text: str, api_key: str) -> list[float]:
@@ -74,7 +72,7 @@ def retrieve_similar_chunks(
         f"RAG query: '{query}' | limit: {limit} | source: {source} | user_id: {user_id} | team_id: {team_id}"
     )
 
-    from db.qdrant_client import search_pro_tactics, search_player_tendencies
+    from db.qdrant_client import search_player_tendencies, search_pro_tactics
 
     results = []
 

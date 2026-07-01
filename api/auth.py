@@ -3,9 +3,10 @@ Authorization dependencies for FastAPI.
 """
 
 import os
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import jwt, JWTError
+from jose import JWTError, jwt
 
 security = HTTPBearer()
 
@@ -15,7 +16,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     Returns the user_id from the token subject.
     """
     token = credentials.credentials
-    
+
     pem_key = os.getenv("CLERK_PEM_PUBLIC_KEY")
     if not pem_key:
         expected_secret = os.getenv("API_SHARED_SECRET")
@@ -29,11 +30,11 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     try:
         if "-----BEGIN PUBLIC KEY-----" not in pem_key:
             pem_key = f"-----BEGIN PUBLIC KEY-----\n{pem_key}\n-----END PUBLIC KEY-----"
-            
+
         payload = jwt.decode(
-            token, 
-            pem_key, 
-            algorithms=["RS256"], 
+            token,
+            pem_key,
+            algorithms=["RS256"],
             options={"verify_aud": False}
         )
         return payload.get("sub", "")

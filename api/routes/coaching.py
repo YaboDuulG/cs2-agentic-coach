@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
+
 from db.database import get_session
+
 """
 Coaching endpoint — triggers Great Khan AI analysis and returns cached results.
 """
@@ -37,7 +39,6 @@ db: Session = Depends(get_session)):
     try:
         from sqlalchemy import text  # noqa: PLC0415
 
-        from db.database import SessionLocal  # noqa: PLC0415
         from db.models import Match, MatchStatus  # noqa: PLC0415
         match = db.query(Match).filter(Match.match_id == match_id).first()
         if not match:
@@ -123,7 +124,6 @@ db: Session = Depends(get_session)):
 async def get_player_coaching(match_id: str, player_name: str, user_id: str | None = None, db: Session = Depends(get_session)):
     """Return only the Player Report section for a specific player."""
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         from db.models import Match  # noqa: PLC0415
         match = db.query(Match).filter(Match.match_id == match_id).first()
         if not match:

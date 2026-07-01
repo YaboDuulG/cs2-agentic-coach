@@ -1,17 +1,17 @@
+from datetime import UTC, datetime
+import hashlib
+import hmac
 import logging
 import os
-import hmac
-import hashlib
 import uuid
-from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Request, Response, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
+from api.queue import enqueue_task
 from db.database import get_session
 from db.models import Match, MatchStatus
 from services.ingestion.faceit_crawler import _fetch_demo_url
-from api.queue import enqueue_task
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -32,7 +32,7 @@ def verify_faceit_signature(raw_body: bytes, signature: str) -> bool:
 async def faceit_webhook(request: Request, db: Session = Depends(get_session)):
     raw_body = await request.body()
     sig_header = request.headers.get("X-FACEIT-Signature", "")
-    
+
     if not verify_faceit_signature(raw_body, sig_header):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
@@ -55,7 +55,7 @@ async def faceit_webhook(request: Request, db: Session = Depends(get_session)):
         headers["Authorization"] = f"Bearer {faceit_api_key}"
 
     demo_url = _fetch_demo_url(faceit_match_id, headers=headers)
-    
+
     if not demo_url:
         logger.warning(f"No demo URL for match {faceit_match_id}")
         return Response(content="no_demo", status_code=200)

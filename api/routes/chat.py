@@ -38,9 +38,11 @@ async def submit_chat(req: ChatRequest):
         logger.error(f"Chat API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-from typing import AsyncGenerator
 import json
+from typing import AsyncGenerator
+
 from fastapi.responses import StreamingResponse
+
 
 async def stream_generator(req: ChatRequest, db) -> AsyncGenerator[str, None]:
     try:
@@ -50,10 +52,10 @@ async def stream_generator(req: ChatRequest, db) -> AsyncGenerator[str, None]:
         # Fallback to the old monolith if refactor isn't completely wired
         from agents.great_khan import _get_app
         app = _get_app()
-        
+
     import uuid
     run_session = req.match_id or str(uuid.uuid4())
-    
+
     initial_state = {
         "match_id": req.match_id or "",
         "user_query": req.query,

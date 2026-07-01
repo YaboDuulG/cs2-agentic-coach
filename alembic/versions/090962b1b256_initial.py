@@ -7,9 +7,9 @@ Create Date: 2026-06-30 18:15:38.168287
 """
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '090962b1b256'
@@ -24,7 +24,7 @@ def upgrade() -> None:
     op.create_table('knowledge_embeddings',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('content', sa.Text(), nullable=False),
-    sa.Column('embedding', db.models.SQLiteVectorType(), nullable=False),
+    sa.Column('embedding', sa.String(), nullable=False),
     sa.Column('source', sa.String(length=100), nullable=True),
     sa.Column('metadata_json', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),

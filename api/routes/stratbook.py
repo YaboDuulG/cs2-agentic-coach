@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
+
 from db.database import get_session
+
 """
 Stratbook endpoints — create, list, and view user/team strategies.
 """
@@ -33,7 +35,6 @@ async def save_user_strategy(body: SaveUserStrategyRequest, db: Session = Depend
     if not body.title.strip() or not body.user_id.strip():
         raise HTTPException(status_code=400, detail="Title and user_id cannot be empty")
 
-    from db.database import SessionLocal
     from db.models import UserStrategy
     try:
         new_strat = UserStrategy(
@@ -53,7 +54,6 @@ async def save_user_strategy(body: SaveUserStrategyRequest, db: Session = Depend
 
 @router.get("/user/{user_id}", summary="Get all strategies for a user")
 async def get_user_strategies(user_id: str, db: Session = Depends(get_session)):
-    from db.database import SessionLocal
     from db.models import UserStrategy
     try:
         strats = db.query(UserStrategy).filter(UserStrategy.user_id == user_id).all()
@@ -79,7 +79,6 @@ async def save_team_playbook(body: SaveTeamPlaybookRequest, db: Session = Depend
     if not body.title.strip() or not body.team_id.strip():
         raise HTTPException(status_code=400, detail="Title and team_id cannot be empty")
 
-    from db.database import SessionLocal
     from db.models import TeamPlaybook
     try:
         new_pb = TeamPlaybook(
@@ -99,7 +98,6 @@ async def save_team_playbook(body: SaveTeamPlaybookRequest, db: Session = Depend
 
 @router.get("/team/{team_id}", summary="Get all playbooks for a team")
 async def get_team_playbooks(team_id: str, db: Session = Depends(get_session)):
-    from db.database import SessionLocal
     from db.models import TeamPlaybook
     try:
         playbooks = db.query(TeamPlaybook).filter(TeamPlaybook.team_id == team_id).all()

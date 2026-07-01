@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
+
 from db.database import get_session
+
 """
 Presigned GCS upload URL endpoint.
 Browser uploads .dem files directly to GCS — bypasses Vercel's 4.5MB body limit.
@@ -55,7 +57,6 @@ async def presign_demo_upload(body: PresignRequest, request: Request, db: Sessio
             )
         from sqlalchemy import text  # noqa: PLC0415
 
-        from db.database import SessionLocal  # noqa: PLC0415
         member_check = db.execute(
             text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
             {"team_id": body.team_id, "user_id": user_id},
@@ -175,7 +176,6 @@ async def compose_chunks(body: ComposeRequest, request: Request, db: Session = D
             )
         from sqlalchemy import text  # noqa: PLC0415
 
-        from db.database import SessionLocal  # noqa: PLC0415
         member_check = db.execute(
             text("SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"),
             {"team_id": body.team_id, "user_id": user_id},
@@ -281,8 +281,9 @@ def _create_match_record(
     try:
         from sqlalchemy import text  # noqa: PLC0415
 
-        from db.database import SessionLocal  # noqa: PLC0415
-        db.execute(
+        from db.database import SessionLocal
+        with SessionLocal() as db:
+            db.execute(
             text("""
                     INSERT INTO matches (
                         match_id, map_name, tickrate, total_rounds,
@@ -300,7 +301,7 @@ def _create_match_record(
                 "is_recon": is_recon,
             },
         )
-        db.commit()
+            db.commit()
     except Exception as e:
         # Non-fatal — DB might not have tables yet (first deploy)
         logger.warning(f"Could not create match record for {match_id}: {e}")

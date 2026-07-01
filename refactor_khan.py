@@ -13,16 +13,16 @@ def get_section(start_marker, end_marker=None):
         if start_marker in line:
             start_idx = i
             break
-            
+
     if start_idx == -1: return []
-    
+
     end_idx = len(lines)
     if end_marker:
         for i in range(start_idx + 1, len(lines)):
             if end_marker in line:
                 end_idx = i
                 break
-    
+
     return lines[start_idx:end_idx]
 
 # Since splitting via AST or markers is risky, let's just make smaller files manually by chunking the text

@@ -12,10 +12,10 @@ import os
 import secrets
 from urllib.parse import urlencode
 
-import httpx
-import redis
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
+import httpx
+import redis
 from sqlalchemy.orm import Session
 
 from api.auth import get_current_user

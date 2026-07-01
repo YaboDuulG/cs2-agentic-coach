@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
+
 from db.database import get_session
+
 """
 Teams endpoints — create, join, list, and view team analyses.
 """
@@ -43,7 +45,6 @@ async def create_team(body: CreateTeamRequest, db: Session = Depends(get_session
     invite_code = uuid.uuid4().hex[:8].upper()
 
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         db.execute(
             text("""
                     INSERT INTO teams (id, name, owner_user_id, invite_code, created_at)
@@ -75,7 +76,6 @@ async def create_team(body: CreateTeamRequest, db: Session = Depends(get_session
 async def join_team(body: JoinTeamRequest, db: Session = Depends(get_session)):
     code = body.invite_code.strip().upper()
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         row = db.execute(
             text("SELECT id, name FROM teams WHERE invite_code = :code"),
             {"code": code},
@@ -115,7 +115,6 @@ async def list_teams(user_id: str = "", db: Session = Depends(get_session)):
     if not user_id:
         return []
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         rows = db.execute(
             text("""
                     SELECT t.id, t.name, t.invite_code, t.owner_user_id, t.created_at,
@@ -151,7 +150,6 @@ async def list_teams(user_id: str = "", db: Session = Depends(get_session)):
 async def team_analyses(team_id: str, user_id: str = "", db: Session = Depends(get_session)):
     """Return matches from all team members, for any member of the team."""
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         # Verify requester is a member
         if user_id:
             member = db.execute(
@@ -194,7 +192,6 @@ async def team_analyses(team_id: str, user_id: str = "", db: Session = Depends(g
 @router.get("/{team_id}", summary="Get team details and members")
 async def get_team(team_id: str, db: Session = Depends(get_session)):
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         team = db.execute(
             text(
                 "SELECT id, name, invite_code, owner_user_id, created_at, logo_url FROM teams WHERE id = :id"
@@ -233,7 +230,6 @@ async def get_team(team_id: str, db: Session = Depends(get_session)):
 @router.patch("/{team_id}", summary="Update team name")
 async def update_team(team_id: str, body: UpdateTeamRequest, db: Session = Depends(get_session)):
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         team = db.execute(
             text("SELECT owner_user_id FROM teams WHERE id = :id"),
             {"id": team_id},
@@ -275,7 +271,6 @@ async def upload_team_logo(team_id: str, user_id: str = "", file: UploadFile = F
         raise HTTPException(status_code=400, detail="User ID is required")
 
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         team = db.execute(
             text("SELECT owner_user_id FROM teams WHERE id = :id"),
             {"id": team_id},
@@ -350,7 +345,6 @@ async def delete_team(team_id: str, user_id: str = "", db: Session = Depends(get
         raise HTTPException(status_code=400, detail="User ID is required")
 
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         team = db.execute(
             text("SELECT owner_user_id FROM teams WHERE id = :id"),
             {"id": team_id},
@@ -383,7 +377,6 @@ class CreateStrategyRequest(BaseModel):
 async def create_team_strategy(team_id: str, body: CreateStrategyRequest, db: Session = Depends(get_session)):
     import json  # noqa: PLC0415
 
-    from db.database import SessionLocal  # noqa: PLC0415
     from db.models import KnowledgeEmbedding  # noqa: PLC0415
     from db.rag import get_query_embedding  # noqa: PLC0415
 
@@ -456,7 +449,6 @@ class StrategyChatRequest(BaseModel):
 async def get_team_strategies(team_id: str, db: Session = Depends(get_session)):
     import json  # noqa: PLC0415
 
-    from db.database import SessionLocal  # noqa: PLC0415
     from db.models import KnowledgeEmbedding  # noqa: PLC0415
     try:
         team_match = f'%"team_id": "{team_id}"%'
@@ -498,7 +490,6 @@ async def chat_team_strategies(team_id: str, body: StrategyChatRequest, db: Sess
     import json  # noqa: PLC0415
 
     from api.routes.discord import call_gemini_text  # noqa: PLC0415
-    from db.database import SessionLocal  # noqa: PLC0415
     from db.models import KnowledgeEmbedding  # noqa: PLC0415
     from db.rag import (  # noqa: PLC0415
         cosine_similarity,

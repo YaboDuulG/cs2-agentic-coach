@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
+
 from db.database import get_session
+
 """
 Job status endpoint — returns parse status and results for a given match_id.
 Queries the DB for the match record populated by the Scout service.

@@ -1,13 +1,13 @@
+from datetime import UTC, datetime
 import logging
 import os
-import requests
 import uuid
-from datetime import UTC, datetime
 
+import requests
 from sqlalchemy.orm import Session
 
-from db.models import Match, MatchStatus
 from api.queue import enqueue_task
+from db.models import Match, MatchStatus
 
 logger = logging.getLogger(__name__)
 
@@ -53,22 +53,22 @@ def fetch_recent_matches(faceit_id: str, access_token: str | None, db: Session, 
         resp.raise_for_status()
         data = resp.json()
         items = data.get("items", [])
-        
+
         new_matches = []
         for item in items:
             faceit_match_id = item.get("match_id")
             if not faceit_match_id:
                 continue
-            
+
             # Deduplication
             existing = db.query(Match).filter(Match.demo_filename == f"faceit_{faceit_match_id}.dem").first()
             if existing:
                 continue
-                
+
             demo_url = _fetch_demo_url(faceit_match_id, headers)
             if not demo_url:
                 continue
-                
+
             internal_match_id = str(uuid.uuid4())
             match = Match(
                 match_id=internal_match_id,
@@ -82,7 +82,7 @@ def fetch_recent_matches(faceit_id: str, access_token: str | None, db: Session, 
             )
             db.add(match)
             db.commit()
-            
+
             scout_url = os.environ.get("SCOUT_SERVICE_URL", "http://localhost:8001")
             queue = os.environ.get("CLOUD_TASKS_QUEUE", "demo-parse-queue")
             payload = {"match_id": internal_match_id, "demo_url": demo_url}
@@ -90,9 +90,9 @@ def fetch_recent_matches(faceit_id: str, access_token: str | None, db: Session, 
                 enqueue_task(queue, f"{scout_url}/parse-from-url", payload)
             except Exception as e:
                 logger.error(f"Failed to enqueue task for {faceit_match_id}: {e}")
-                
+
             new_matches.append(internal_match_id)
-            
+
         return new_matches
     except Exception as e:
         logger.error(f"Error fetching FACEIT history for {faceit_id}: {e}")

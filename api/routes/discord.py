@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
+
 from db.database import get_session
+
 """
 Discord Webhook Ingestion Route
 ===============================
@@ -8,14 +10,13 @@ Handles incoming webhooks from Discord, parsing unstructured messages into
 structured team strategies using Gemini, generating embeddings, and storing them in DB.
 """
 
+import hashlib
+import hmac
 import json
 import logging
 import os
-import hmac
-import hashlib
-from typing import Any, Dict
 
-from fastapi import APIRouter, Body, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from db.models import KnowledgeEmbedding
 from db.rag import get_query_embedding
@@ -99,17 +100,17 @@ async def discord_webhook(
     db: Session = Depends(get_session)
 ):
     body = await request.body()
-    
+
     secret = os.environ.get("DISCORD_WEBHOOK_SECRET")
     if secret:
         signature = request.headers.get("X-Webhook-Signature")
         if not signature:
             raise HTTPException(status_code=401, detail="Missing X-Webhook-Signature header")
-            
+
         expected_sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(signature, expected_sig):
             raise HTTPException(status_code=401, detail="Invalid signature")
-            
+
     try:
         payload = json.loads(body)
     except json.JSONDecodeError:

@@ -11,7 +11,6 @@ Launch: python -m agents.mcp_server
 import asyncio
 import json
 import logging
-import os
 from typing import Any
 
 from mcp.server import Server
@@ -102,9 +101,10 @@ async def list_tools() -> ListToolsResult:
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
-    from db.database import SessionLocal
-    from db.models import Match, Kill, Round, FirstContact
     from sqlalchemy import text
+
+    from db.database import SessionLocal
+    from db.models import Match, Round
 
     db = SessionLocal()
     try:
@@ -115,7 +115,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
                 return CallToolResult(content=[TextContent(type="text", text=f"Match {match_id} not found.")])
 
             kill_count = db.execute(text("SELECT COUNT(*) FROM kills WHERE match_id = :mid"), {"mid": match_id}).scalar()
-            round_count = db.execute(text("SELECT COUNT(*) FROM rounds WHERE match_id = :mid"), {"mid": match_id}).scalar()
+            db.execute(text("SELECT COUNT(*) FROM rounds WHERE match_id = :mid"), {"mid": match_id}).scalar()
 
             summary = {
                 "match_id": match_id,
@@ -209,8 +209,9 @@ async def list_resources() -> ListResourcesResult:
 
 @app.read_resource()
 async def read_resource(uri: str) -> ReadResourceResult:
-    from db.database import SessionLocal
     from sqlalchemy import text
+
+    from db.database import SessionLocal
 
     if uri == "demosage://meta/status":
         db = SessionLocal()

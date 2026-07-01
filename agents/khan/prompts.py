@@ -1,6 +1,7 @@
 import json
 from typing import Any
 
+
 def _build_prompt(
     match_id: str, stats: dict[str, Any], rag_context: list[dict[str, Any]] | None = None
 ) -> str:

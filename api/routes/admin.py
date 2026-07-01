@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
+
 from db.database import get_session
+
 """
 DemoSage — Admin configurations endpoints
 ==========================================
@@ -11,7 +13,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from db.config import DEFAULTS
-from db.database import SessionLocal
 from db.models import SystemConfig
 
 router = APIRouter()

@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
+
 from db.database import get_session
+
 """
 FACEIT Webhook Receiver
 ========================
@@ -31,8 +33,8 @@ import os
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
+import httpx
 import requests
-from sqlalchemy.orm import Session
 
 from db.models import Match, MatchStatus
 

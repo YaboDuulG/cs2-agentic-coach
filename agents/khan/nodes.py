@@ -2,9 +2,9 @@ import json
 import logging
 from typing import Any
 
-from agents.state import MatchState
-from agents.khan.stats import _compute_stats
 from agents.khan.llm import _call_gemini, _stub_coaching
+from agents.khan.stats import _compute_stats
+from agents.state import MatchState
 
 logger = logging.getLogger("great_khan")
 

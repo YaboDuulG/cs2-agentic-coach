@@ -9,14 +9,14 @@ Vector size: 768 (text-embedding-004)
 Distance: Cosine
 """
 
-import os
-import logging
 from functools import lru_cache
+import logging
+import os
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
     VectorParams,
-    PayloadSchemaType,
 )
 
 logger = logging.getLogger(__name__)

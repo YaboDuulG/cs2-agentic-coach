@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
+
 from db.database import get_session
+
 """
 Analyses list endpoint — returns a user's match history.
 """
@@ -22,7 +24,6 @@ async def list_analyses(user_id: str = "", db: Session = Depends(get_session)):
         return []
 
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         rows = db.execute(
             text("""
                     SELECT match_id, map_name, status, created_at
@@ -55,7 +56,6 @@ class UpdateNotesRequest(BaseModel):
 @router.get("/{match_id}/notes", summary="Get custom notes for a match")
 async def get_match_notes(match_id: str, user_id: str | None = None, db: Session = Depends(get_session)):
     """Retrieve user-submitted coach notes for a specific match."""
-    from db.database import SessionLocal  # noqa: PLC0415
     from db.models import Match  # noqa: PLC0415
     match = db.query(Match).filter(Match.match_id == match_id).first()
     if not match:
@@ -90,7 +90,6 @@ async def get_match_notes(match_id: str, user_id: str | None = None, db: Session
 @router.post("/{match_id}/notes", summary="Update custom notes and trigger analysis re-run")
 async def update_match_notes(match_id: str, body: UpdateNotesRequest, user_id: str | None = None, db: Session = Depends(get_session)):
     """Save user-submitted coach notes for a match and run Great Khan analysis in background to refresh coaching."""
-    from db.database import SessionLocal  # noqa: PLC0415
     from db.models import Match  # noqa: PLC0415
     match = db.query(Match).filter(Match.match_id == match_id).first()
     if not match:
@@ -124,6 +123,7 @@ async def update_match_notes(match_id: str, body: UpdateNotesRequest, user_id: s
 
     # Trigger re-analysis in the background so that Scribe/Great Khan can parse these new notes
     import os  # noqa: PLC0415
+
     from api.queue import enqueue_task  # noqa: PLC0415
     queue = os.environ.get("CLOUD_TASKS_QUEUE", "default")
     api_url = os.getenv("API_INTERNAL_URL", "http://localhost:8000")
