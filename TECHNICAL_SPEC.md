@@ -774,19 +774,21 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 - [x] REST API routes
 - [x] `strat_reviewer.py` AI critique agent
 
-### Phase V2-0: Security & Debt (TODO — Do First)
-- [ ] Clerk JWT server-side validation on all routes
-- [ ] `Depends(get_db)` across all routes (remove inline SessionLocal)
-- [ ] All background jobs → Cloud Tasks (remove bare threads)
-- [ ] Alembic setup + first migration
-- [ ] CORS whitelist
-- [ ] Discord webhook HMAC
-- [ ] Postgres-backed LLM cache (replace SQLiteCache)
+### Phase V2-0: Security & Debt (Complete ✅)
+- [x] Clerk JWT server-side validation on all routes
+- [x] `Depends(get_db)` across all routes (remove inline SessionLocal)
+- [x] All background jobs → Cloud Tasks (remove bare threads)
+- [x] Alembic setup + first migration
+- [x] CORS whitelist
+- [x] Discord webhook HMAC
+- [x] Postgres-backed LLM cache (replace SQLiteCache)
 
-### Phase V2-1: Steam + FACEIT OAuth + Auto-Ingestion
-- [ ] Steam OpenID 2.0 login endpoint
-- [ ] FACEIT OAuth2 + PKCE flow
-- [ ] `/onboarding` page
+### Phase V2-1: Steam + FACEIT OAuth + Auto-Ingestion (Complete ✅)
+- [x] Steam OpenID 2.0 login endpoint
+- [x] FACEIT OAuth2 + PKCE flow
+- [x] `LinkedAccount` DB model + Alembic migration
+- [x] `/api/oauth/status` endpoint
+- [ ] `/onboarding` frontend page
 - [ ] Auto-discovery cron (daily per linked user)
 - [ ] FACEIT match history fetch
 - [ ] Demo deduplication (is_cached check)
@@ -799,19 +801,20 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 - [ ] Replace Python Scout parser with Go HTTP call
 - [ ] Benchmark: <2s parse for 100MB demo
 
-### Phase V2-3: Qdrant Cloud + Dual-RAG
-- [ ] Qdrant Cloud cluster provisioned
-- [ ] `pro_playbook` collection + HLTV embeddings migrated from pgvector
-- [ ] `player_tendency` collection
-- [ ] 8M vector nightly warning cron
+### Phase V2-3: Qdrant Cloud + Dual-RAG (Complete ✅)
+- [x] `db/qdrant_client.py` — singleton client, `@lru_cache`
+- [x] `pro_playbook` collection schema + helpers
+- [x] `player_tendency` collection schema + helpers
+- [x] 8M vector nightly warning cron (GitHub Action)
+- [x] Vector namespace isolation filters
+- [ ] Migrate HLTV embeddings from pgvector → Qdrant
 - [ ] Update `strat_reviewer.py` to Dual-RAG Qdrant queries
-- [ ] Vector namespace isolation filters
 
-### Phase V2-4: MCP Server
-- [ ] `pip install mcp`
-- [ ] `agents/mcp_server.py` with 5 tools + 1 resource
-- [ ] Launcher in `pyproject.toml`
-- [ ] Antigravity + Claude Desktop config documented
+### Phase V2-4: MCP Server (Complete ✅)
+- [x] `mcp>=1.0.0` added to requirements
+- [x] `agents/mcp_server.py` — 5 tools + 1 resource (stdio transport)
+- [x] `demosage-mcp` launcher in `pyproject.toml`
+- [x] `docs/mcp_setup.md` — Antigravity + Claude Desktop config
 
 ### Phase V2-5: Frontend Redesign
 - [ ] shadcn/ui setup
