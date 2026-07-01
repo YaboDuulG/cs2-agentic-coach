@@ -521,3 +521,31 @@ class TeamPlaybook(Base):
 
     def __repr__(self) -> str:
         return f"<TeamPlaybook {self.title} map={self.map_name}>"
+
+
+# ---------------------------------------------------------------------------
+# LinkedAccount — external platform connections (Steam, FACEIT)
+# ---------------------------------------------------------------------------
+
+
+class LinkedAccount(Base):
+    __tablename__ = "linked_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)  # 'steam' | 'faceit'
+    provider_user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    def __repr__(self) -> str:
+        return f"<LinkedAccount user={self.user_id} provider={self.provider} id={self.provider_user_id}>"

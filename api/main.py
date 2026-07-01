@@ -20,6 +20,7 @@ from api.routes import (
     fcr,
     health,
     jobs,
+    oauth,
     presign,
     servers,
     stratbook,
@@ -121,6 +122,10 @@ app.include_router(
     tags=["Stratbook"],
     dependencies=[Depends(get_current_user)],
 )
+
+
+# OAuth routes — no global auth dependency; individual endpoints manage auth where needed
+app.include_router(oauth.router, prefix="/api/oauth", tags=["OAuth"])
 
 
 @app.get("/")
