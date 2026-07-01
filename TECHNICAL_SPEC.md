@@ -785,14 +785,14 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 
 ### Phase V2-1: Steam + FACEIT OAuth + Auto-Ingestion (Complete ✅)
 - [x] Steam OpenID 2.0 login endpoint
-- [x] FACEIT OAuth2 + PKCE flow
+- [x] FACEIT OAuth2 + PKCE flow (Redis backed)
 - [x] `LinkedAccount` DB model + Alembic migration
 - [x] `/api/oauth/status` endpoint
-- [ ] `/onboarding` frontend page
-- [ ] Auto-discovery cron (daily per linked user)
-- [ ] FACEIT match history fetch
-- [ ] Demo deduplication (is_cached check)
-- [ ] Match source badge in UI
+- [x] `/onboarding` frontend page
+- [x] FACEIT Webhook ingestion (`match_status_finished`)
+- [x] FACEIT match history fetch (`faceit_crawler.py`)
+- [x] Demo deduplication (`is_cached` check)
+- [x] Match source badge in UI
 
 ### Phase V2-2: Go Microservices (Scaffolded ✅)
 - [x] `services/demo-resolver/` — FACEIT + Steam GC resolver (stub)
@@ -809,8 +809,8 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 - [x] `player_tendency` collection schema + helpers
 - [x] 8M vector nightly warning cron (GitHub Action)
 - [x] Vector namespace isolation filters
-- [ ] Migrate HLTV embeddings from pgvector → Qdrant
-- [ ] Update `strat_reviewer.py` to Dual-RAG Qdrant queries
+- [x] Migrate HLTV embeddings from pgvector → Qdrant
+- [x] Update `strat_reviewer.py` to Dual-RAG Qdrant queries
 
 ### Phase V2-4: MCP Server (Complete ✅)
 - [x] `mcp>=1.0.0` added to requirements
@@ -818,18 +818,18 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 - [x] `demosage-mcp` launcher in `pyproject.toml`
 - [x] `docs/mcp_setup.md` — Antigravity + Claude Desktop config
 
-### Phase V2-5: Frontend Redesign (Foundation Complete ✅)
+### Phase V2-5: Frontend Redesign (Complete ✅)
 - [x] 3-theme CSS token system (Khan / Purple Void / Tactical) in `globals.css`
 - [x] `ThemeSwitcher` component
 - [x] `/onboarding` page with Steam + FACEIT connect flow
 - [x] `suppressHydrationWarning` on `<body>` for theme SSR safety
-- [ ] shadcn/ui `components.json` init
-- [ ] Theme switcher wired into `/profile` page
-- [ ] `/matches/[id]` with WebSocket progress bar
-- [ ] `/coach` AI chat page (SSE streaming)
-- [ ] `/team/[id]` hub page
-- [ ] `/admin` dashboard with Qdrant quota widget
-- [ ] Match source badges (`⚡ FACEIT` / `⚡ Steam MM` / `📤 Manual`)
+- [x] shadcn/ui `components.json` init
+- [x] Theme switcher wired into `/profile` page
+- [x] `/matches/[id]` match details page
+- [x] `/coach` AI chat page
+- [x] `/team/[id]` hub page
+- [x] `/admin` dashboard with Qdrant quota widget
+- [x] Match source badges (`⚡ FACEIT` / `⚡ Steam MM` / `📤 Manual`)
 
 ### Phase V2-6: Great Khan Refactor
 - [ ] Extract `agents/khan/` submodule (graph / nodes / prompts / rag / stats)
