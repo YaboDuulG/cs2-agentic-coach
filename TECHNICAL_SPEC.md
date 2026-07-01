@@ -59,7 +59,7 @@
 └──────┬───────────────────────────────┬────────────────────┘
        │ HTTP/gRPC                     │ HTTP/gRPC
 ┌──────▼──────────────┐   ┌───────────▼────────────────┐
-│  demo-resolver (Go) │   │  demo-parser (Go)           │
+│  demo-resolver (Node)│   │  demo-parser (Go)           │
 │  FACEIT Data API    │   │  demoinfocs-golang          │
 │  Steam GC Bot       │   │  Streams JSON events        │
 │  HLTV index         │   │  Sub-1s parse (100MB demo)  │
@@ -105,7 +105,7 @@ Auto-Discovery Engine (runs on link + daily cron)
     └────────────────────────────────────────┘
          │
          ▼
-demo-resolver (Go) → fetches + pushes to GCS
+demo-resolver (Node) → fetches + pushes to GCS
          │
          ▼
 demo-parser (Go) → parses → writes Postgres + GCS
@@ -153,7 +153,7 @@ AI Layer → Great Khan → Tactician → Scribe → Report ready
 
 ### 🗺️ The Demo Resolver — Auto-Ingestion (Go Microservice)
 - **Role:** Resolve match identifiers to `.dem` download URLs without user intervention.
-- **Runtime:** Go binary (`demo-resolver` microservice)
+- **Runtime:** Node.js (`demo-resolver` microservice)
 - **Resolution Priority:**
   1. FACEIT Match ID → FACEIT Data API → Downloads API signed URL
   2. CS2 Sharecode → Steam GC Bot → `.dem` URL
@@ -292,17 +292,20 @@ All coaching endpoints use **Server-Sent Events (SSE)** to stream tokens to the 
 ### 5.1 Auto-Ingestion Pipeline (v2 — Zero-Upload Default)
 
 ```
-User submits match identifier (or cron triggers for linked accounts)
-         │
-         ▼
-demo-resolver (Go)
-  ├── FACEIT API → signed .dem URL
-  ├── Steam GC Bot → .dem URL from sharecode
-  ├── Already in DB → skip (return match_id)
-  └── All failed → prompt manual upload
-         │
-         ▼
-Download .dem → upload to GCS
+## System Architecture
+The application runs on Google Cloud Platform with a highly distributed backend:
+
+**User Flow & Processing Pipeline:**
+1. **Upload**: User uploads a `.dem` file directly to Google Cloud Storage (GCS) via a signed URL.
+2. **Task Enqueue**: The FastAPI backend creates a generic Cloud Task targeting the high-performance Go parser.
+3. **Go Parser (Cloud Run)**: `demosage-parser-prod` (Go 1.25) processes the `.dem` stream directly from GCS, extracting positional telemetry, nade throws, and combat logs.
+4. **Storage**: The parsed metrics are stored in PostgreSQL (Neon) and vectorized into Qdrant Cloud.
+5. **AI Inference (Great Khan)**: LangGraph (running on the FastAPI backend) analyzes the match using `gpt-4o` or `gemini-1.5-pro` (via Postgres-backed LangChain cache), generating personalized coaching insights.
+6. **Delivery**: The Coach UI consumes the AI report in real-time via Server-Sent Events (SSE).
+
+**Retired Architecture (V1):**
+*The legacy Python `demoparser2` threading system (`scout`) has been formally deprecated, container deleted, and removed from Cloud Run.*
+
          │
          ▼
 Cloud Tasks → demo-parser (Go) triggered
@@ -605,7 +608,7 @@ SHARED / UTILITY
 | :--- | :--- | :--- |
 | **API Gateway** | FastAPI 0.115 + Uvicorn | Python; routes, auth, orchestration |
 | **Demo Parser** | Go + `demoinfocs-golang` | `demo-parser` microservice |
-| **Demo Resolver** | Go | `demo-resolver` microservice |
+| **Demo Resolver** | Node.js | `demo-resolver` microservice |
 | **Agent Framework** | LangGraph + LangChain | Supervisor pattern, stateful handoffs |
 | **LLM Provider** | Google Gemini API | Unified GCP billing |
 | **Demo Parsing Lib** | `demoinfocs-golang` | Industry standard; used by HLTV + Leetify |

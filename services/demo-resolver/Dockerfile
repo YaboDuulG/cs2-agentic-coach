@@ -1,12 +1,10 @@
-FROM golang:1.22-alpine AS builder
+FROM node:20-alpine
 WORKDIR /app
-COPY go.mod go.sum* ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o demo-resolver .
 
-FROM gcr.io/distroless/static-debian12
-WORKDIR /app
-COPY --from=builder /app/demo-resolver .
+COPY package*.json ./
+RUN npm install --production
+
+COPY . .
+
 EXPOSE 8081
-CMD ["/app/demo-resolver"]
+CMD ["node", "index.js"]
