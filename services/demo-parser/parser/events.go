@@ -36,12 +36,24 @@ type RoundEvent struct {
 	RoundType  string `json:"round_type"` // pistol | eco | force | full
 }
 
+// PositionEvent represents a player's position snapshot.
+type PositionEvent struct {
+	Round    int     `json:"round"`
+	Tick     int64   `json:"tick"`
+	SteamID  string  `json:"steam_id"`
+	X        float32 `json:"x"`
+	Y        float32 `json:"y"`
+	Z        float32 `json:"z"`
+	IsAlive  bool    `json:"is_alive"`
+}
+
 // ParseResult is the full output of parsing one demo.
 type ParseResult struct {
-	MatchID  string         `json:"match_id"`
-	MapName  string         `json:"map_name"`
-	Tickrate int            `json:"tickrate"`
-	Rounds   []RoundEvent   `json:"rounds"`
-	Kills    []KillEvent    `json:"kills"`
-	Grenades []GrenadeEvent `json:"grenades"`
+	MatchID   string          `json:"match_id"`
+	MapName   string          `json:"map_name"`
+	Tickrate  int             `json:"tickrate"`
+	Rounds    []RoundEvent    `json:"rounds"`
+	Kills     []KillEvent     `json:"kills"`
+	Grenades  []GrenadeEvent  `json:"grenades"`
+	Positions []PositionEvent `json:"positions"`
 }

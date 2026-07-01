@@ -169,7 +169,7 @@ def _run_coaching(match_id: str) -> None:
             return
         _running_tasks.add(match_id)
     try:
-        from agents.great_khan import analyse_match  # noqa: PLC0415
+        from agents.khan import analyse_match  # noqa: PLC0415
 
         analyse_match(match_id)
     except Exception as e:

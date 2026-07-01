@@ -48,14 +48,66 @@ export default function CoachPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput("");
 
-    // Mock AI response
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "I have analyzed your request. To secure victory, you must control Mid earlier in the round. Your utility usage indicates hesitation. Strike with conviction.",
-      }]);
-    }, 1500);
+    // Real SSE call
+    const fetchStream = async () => {
+      try {
+        const response = await fetch("/api/chat/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            match_id: matchId || null,
+            query: input,
+          }),
+        });
+
+        if (!response.body) throw new Error("No response body");
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let assistantContent = "";
+
+        // Create empty assistant message
+        const asstId = (Date.now() + 1).toString();
+        setMessages(prev => [...prev, { id: asstId, role: "assistant", content: "" }]);
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const dataStr = line.substring(6);
+              if (dataStr === "[DONE]") {
+                 break;
+              }
+              try {
+                const data = JSON.parse(dataStr);
+                if (data.chunk) {
+                  assistantContent += data.chunk;
+                } else if (data.report && data.report.summary) {
+                  assistantContent += data.report.summary;
+                }
+                
+                setMessages(prev => prev.map(m => m.id === asstId ? { ...m, content: assistantContent } : m));
+              } catch (e) {
+                // Ignore parse errors on incomplete chunks
+              }
+            }
+          }
+        }
+      } catch (err) {
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: "Sorry, I encountered an error communicating with the Great Khan network.",
+        }]);
+      }
+    };
+
+    fetchStream();
   };
 
   return (

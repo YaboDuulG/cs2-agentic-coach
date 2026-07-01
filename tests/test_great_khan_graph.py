@@ -7,8 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import agents.great_khan as great_khan_module
-from agents.great_khan import analyse_match, build_graph
+import agents.khan.graph as great_khan_module
+from agents.khan.main import analyse_match
+from agents.khan.graph import build_graph
 
 
 @pytest.fixture(autouse=True)
@@ -32,7 +33,7 @@ def test_graph_compilation():
 
 # NOTE: @patch decorators are applied bottom-up: the BOTTOM-MOST decorator
 # injects the FIRST argument, the top-most injects the LAST argument.
-@patch("agents.great_khan._compute_stats")  # → mock_stats    (last arg  — top)
+@patch("agents.khan.nodes._compute_stats")  # → mock_stats    (last arg  — top)
 @patch("agents.scribe.report_generator.generate_reports")  # → mock_gemini   (3rd arg)
 @patch("db.database.SessionLocal")  # → mock_session  (2nd arg)
 @patch("db.rag.retrieve_similar_chunks")  # → mock_retrieve (1st arg  — bottom)
@@ -81,7 +82,7 @@ def test_tactical_analysis_pipeline(mock_retrieve, mock_session, mock_gemini, mo
     assert mock_retrieve.call_count >= 1
 
 
-@patch("agents.great_khan._call_gemini")  # → mock_gemini   (last arg  — top)
+@patch("agents.khan.nodes._call_gemini")  # → mock_gemini   (last arg  — top)
 @patch("db.database.SessionLocal")  # → mock_session  (2nd arg)
 @patch("db.rag.retrieve_similar_chunks")  # → mock_retrieve (1st arg  — bottom)
 def test_general_informational_route(mock_retrieve, mock_session, mock_gemini):
@@ -110,8 +111,8 @@ def test_general_informational_route(mock_retrieve, mock_session, mock_gemini):
 
     # Verify _compute_stats is NOT called when routing to general_node
     with (
-        patch("agents.great_khan._compute_stats") as mock_stats,
-        patch("agents.great_khan._call_gemini"),
+        patch("agents.khan.nodes._compute_stats") as mock_stats,
+        patch("agents.khan.nodes._call_gemini"),
         patch("db.database.SessionLocal"),
     ):
         analyse_match("match-123", user_query="Show HLTV meta history")

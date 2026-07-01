@@ -732,12 +732,12 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 - [x] Discord strategy ingestion
 - [x] RAG tactics chatboard
 
-### Phase 4: Tactician (Partial)
+### Phase 4: Tactician (Complete ✅)
 - [x] FCR module
-- [ ] Rotation efficiency
-- [ ] Utility sequencing
-- [ ] Economy coherence
-- [ ] Positional pattern detection
+- [x] Rotation efficiency
+- [x] Utility sequencing
+- [x] Economy coherence
+- [x] Positional pattern detection
 
 ### Phase 5: Comms Analyst
 - [ ] Gemini audio pipeline
@@ -745,10 +745,10 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 - [ ] Round clock alignment
 - [ ] NLP evaluation modules
 
-### Phase 6: Scribe
-- [ ] Report schema
-- [ ] Per-player + coach + strat card generators
-- [ ] SSE streaming delivery
+### Phase 6: Scribe (Complete ✅)
+- [x] Report schema
+- [x] Per-player + coach + strat card generators
+- [x] SSE streaming delivery
 
 ### Phase A: Frontend Beta (Complete ✅)
 - [x] Next.js scaffold
@@ -832,10 +832,10 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 - [x] `/admin` dashboard with Qdrant quota widget
 - [x] Match source badges (`⚡ FACEIT` / `⚡ Steam MM` / `📤 Manual`)
 
-### Phase V2-6: Great Khan Refactor
-- [ ] Extract `agents/khan/` submodule (graph / nodes / prompts / rag / stats)
-- [ ] Unit tests per node
-- [ ] Postgres-backed LangChain cache
+### Phase V2-6: Great Khan Refactor (Complete ✅)
+- [x] Extract `agents/khan/` submodule (graph / nodes / prompts / rag / stats)
+- [x] Unit tests per node
+- [x] Postgres-backed LangChain cache
 
 ---
 

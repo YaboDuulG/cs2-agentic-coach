@@ -90,10 +90,7 @@ func downloadFromGCS(ctx context.Context, gcsURI string) (io.ReadCloser, error) 
 
 // parseDemoStream runs demoinfocs-golang on the reader and returns ParseResult.
 func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
-	p, err := dem.NewParser(r)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create parser: %w", err)
-	}
+	p := dem.NewParser(r)
 	defer p.Close()
 
 	result := &ParseResult{MatchID: matchID}
@@ -119,13 +116,13 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 		}
 		if e.Killer != nil {
 			pos := e.Killer.LastAlivePosition
-			kill.AttackerX = pos.X
-			kill.AttackerY = pos.Y
+			kill.AttackerX = float32(pos.X)
+			kill.AttackerY = float32(pos.Y)
 		}
 		if e.Victim != nil {
 			pos := e.Victim.LastAlivePosition
-			kill.VictimX = pos.X
-			kill.VictimY = pos.Y
+			kill.VictimX = float32(pos.X)
+			kill.VictimY = float32(pos.Y)
 			// Calculate distance
 			dx := kill.AttackerX - kill.VictimX
 			dy := kill.AttackerY - kill.VictimY
@@ -151,7 +148,7 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 		}
 
 		winner := "T"
-		if e.Winner.String() == "CT" {
+		if e.Winner == 3 { // common.TeamCounterTerrorists is 3 in v4
 			winner = "CT"
 		}
 
@@ -162,6 +159,47 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 			CTMoney:    ctEcon,
 			RoundType:  roundType,
 		})
+	})
+
+	p.RegisterEventHandler(func(e events.GrenadeProjectileDestroy) {
+		throwerID := ""
+		if e.Projectile.Thrower != nil {
+			throwerID = fmt.Sprintf("%d", e.Projectile.Thrower.SteamID64)
+		}
+		gType := "Unknown"
+		if e.Projectile.WeaponInstance != nil {
+			gType = e.Projectile.WeaponInstance.String()
+		}
+		result.Grenades = append(result.Grenades, GrenadeEvent{
+			Round:       p.GameState().TotalRoundsPlayed(),
+			Tick:        int64(p.CurrentFrame()),
+			ThrowerID:   throwerID,
+			GrenadeType: gType,
+			LandX:       float32(e.Projectile.Position().X),
+			LandY:       float32(e.Projectile.Position().Y),
+		})
+	})
+
+	lastPosTick := 0
+	p.RegisterEventHandler(func(e events.FrameDone) {
+		if p.GameState().IsMatchStarted() && p.CurrentFrame()-lastPosTick > int(p.TickRate()*2) {
+			lastPosTick = p.CurrentFrame()
+			for _, player := range p.GameState().Participants().Playing() {
+				steamId := ""
+				if player.SteamID64 != 0 {
+					steamId = fmt.Sprintf("%d", player.SteamID64)
+				}
+				result.Positions = append(result.Positions, PositionEvent{
+					Round:   p.GameState().TotalRoundsPlayed(),
+					Tick:    int64(p.CurrentFrame()),
+					SteamID: steamId,
+					X:       float32(player.Position().X),
+					Y:       float32(player.Position().Y),
+					Z:       float32(player.Position().Z),
+					IsAlive: player.IsAlive(),
+				})
+			}
+		}
 	})
 
 	// Parse all frames
