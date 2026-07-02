@@ -33,6 +33,7 @@ from db.models import Match
 
 
 def _get_gcs_client():
+    """Docstring for _get_gcs_client."""
     from google.cloud import storage
 
     return storage.Client()
@@ -128,6 +129,7 @@ def generate_report(db) -> str:
 
 
 def main():
+    """Docstring for main."""
     db = SessionLocal()
     try:
         report_content = generate_report(db)

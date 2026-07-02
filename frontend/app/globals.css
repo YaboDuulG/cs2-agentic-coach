@@ -1,56 +1,120 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
-/* ============================================================
-   DemoSage Design System — Mongol Empire Theme
-   Fonts loaded via next/font/google in layout.tsx:
-     --font-cinzel  → Cinzel (headings)
-     --font-inter   → Inter (body)
-     --font-mono    → JetBrains Mono (stats)
-   ============================================================ */
+@layer base {
+  :root {
+    /* ==========================================
+       THE GREAT KHAN (Default Theme)
+       Eternal Blue Sky, Gold Authority
+    ========================================== */
+    --color-bg-primary: #050C15;
+    --color-bg-secondary: #08152A;
+    --color-bg-card: rgba(8, 20, 40, 0.8);
+    --color-bg-elevated: rgba(13, 30, 60, 0.9);
 
-@theme inline {
-  /* --- Color Palette --- */
-  --color-bg-deep:        #080E1A;
-  --color-bg-surface:     #0D1825;
-  --color-bg-elevated:    #142135;
-  --color-border:         #1E3A5F;
-  --color-border-subtle:  #152A45;
+    --color-accent-primary: #2D7DD2;
+    --color-accent-secondary: #C9A227;
+    --color-accent-electric: #38BDF8;
+    --color-accent-glow: rgba(45, 125, 210, 0.3);
 
-  --color-primary:        #2D7DD2;
-  --color-primary-light:  #5BA3E8;
-  --color-primary-glow:   rgba(45, 125, 210, 0.25);
+    --color-text-primary: #F0F4FF;
+    --color-text-secondary: #8BA7CC;
+    --color-text-muted: #4A6080;
 
-  --color-gold:           #C9A227;
-  --color-gold-light:     #E8C547;
-  --color-gold-subtle:    rgba(201, 162, 39, 0.12);
+    --color-border-primary: rgba(45, 125, 210, 0.2);
+    --color-border-secondary: rgba(201, 162, 39, 0.15);
 
-  --color-white:          #F0F4FF;
-  --color-muted:          #8BA7CC;
-  --color-muted-dark:     #4A6A8A;
+    --color-success: #22D3A0;
+    --color-warning: #F59E0B;
+    --color-danger: #FF4D6D;
 
-  --color-success:        #22D3A0;
-  --color-warning:        #F59E0B;
-  --color-destructive:    #FF4D6D;
+    --gradient-hero: linear-gradient(135deg, #050C15 0%, #0A1628 50%, #0D2040 100%);
+    --gradient-card: linear-gradient(135deg, rgba(13, 28, 52, 0.9), rgba(8, 20, 40, 0.95));
+    --gradient-accent: linear-gradient(135deg, #1B4F8A, #2D7DD2);
+    --gradient-gold: linear-gradient(135deg, #8B6914, #C9A227, #E8B94F);
 
-  /* --- Typography --- */
-  --font-display: var(--font-cinzel), serif;
-  --font-sans:    var(--font-inter), sans-serif;
-  --font-mono:    var(--font-mono), monospace;
+    --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(45, 125, 210, 0.1);
+    --shadow-glow: 0 0 40px rgba(45, 125, 210, 0.15);
+    --shadow-gold: 0 0 20px rgba(201, 162, 39, 0.2);
 
-  /* --- Spacing & Radius --- */
-  --radius-sm:   4px;
-  --radius-md:   8px;
-  --radius-lg:   12px;
-  --radius-xl:   16px;
-  --radius-2xl:  24px;
+    --font-heading: 'Cinzel', serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    --radius-sm: 6px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --radius-xl: 24px;
+  }
+
+  [data-theme='purple-void'] {
+    /* ==========================================
+       PURPLE VOID
+       Deep Space Purple, Electric Violet
+    ========================================== */
+    --color-bg-primary: #0A0612;
+    --color-bg-secondary: #110820;
+    --color-bg-card: rgba(16, 8, 30, 0.85);
+    --color-bg-elevated: rgba(28, 12, 50, 0.95);
+
+    --color-accent-primary: #7C3AED;
+    --color-accent-secondary: #D946EF;
+    --color-accent-electric: #A78BFA;
+    --color-accent-glow: rgba(124, 58, 237, 0.35);
+
+    --color-text-primary: #F5F0FF;
+    --color-text-secondary: #9B8EC4;
+    --color-text-muted: #5B4E7A;
+
+    --color-border-primary: rgba(124, 58, 237, 0.25);
+    --color-border-secondary: rgba(217, 70, 239, 0.15);
+
+    --gradient-hero: linear-gradient(135deg, #0A0612 0%, #150A28 50%, #1E0A3C 100%);
+    --gradient-card: linear-gradient(135deg, rgba(22, 10, 42, 0.9), rgba(16, 8, 30, 0.95));
+    --gradient-accent: linear-gradient(135deg, #5B21B6, #7C3AED);
+    --gradient-gold: linear-gradient(135deg, #A855F7, #D946EF);
+
+    --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(124, 58, 237, 0.15);
+    --shadow-glow: 0 0 40px rgba(124, 58, 237, 0.2);
+    --shadow-gold: 0 0 20px rgba(217, 70, 239, 0.25);
+  }
+
+  [data-theme='tactical'] {
+    /* ==========================================
+       TACTICAL COMMAND
+       Gunmetal, Tactical Green
+    ========================================== */
+    --color-bg-primary: #0E1117;
+    --color-bg-secondary: #1A1F2E;
+    --color-bg-card: rgba(22, 28, 40, 0.85);
+    --color-bg-elevated: rgba(28, 36, 52, 0.95);
+
+    --color-accent-primary: #22C55E;
+    --color-accent-secondary: #84CC16;
+    --color-accent-electric: #4ADE80;
+    --color-accent-glow: rgba(34, 197, 94, 0.25);
+
+    --color-text-primary: #E8EDF5;
+    --color-text-secondary: #7A8FA6;
+    --color-text-muted: #4A5568;
+
+    --color-border-primary: rgba(34, 197, 94, 0.2);
+    --color-border-secondary: rgba(132, 204, 22, 0.15);
+
+    --gradient-hero: linear-gradient(135deg, #0E1117 0%, #141922 50%, #1A2030 100%);
+    --gradient-card: linear-gradient(135deg, rgba(22, 30, 44, 0.9), rgba(18, 24, 36, 0.95));
+    --gradient-accent: linear-gradient(135deg, #15803D, #22C55E);
+    --gradient-gold: linear-gradient(135deg, #65A30D, #84CC16);
+
+    --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(34, 197, 94, 0.1);
+    --shadow-glow: 0 0 40px rgba(34, 197, 94, 0.12);
+    --shadow-gold: 0 0 20px rgba(132, 204, 22, 0.15);
+  }
 }
 
-/* ============================================================
-   Base Styles
-   ============================================================ */
-
-*, *::before, *::after {
+* {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 html {
@@ -58,264 +122,113 @@ html {
 }
 
 body {
-  background-color: #080E1A;
-  color: #F0F4FF;
-  font-family: var(--font-inter), 'Inter', sans-serif;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+code, pre, .font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-accent-primary);
+  border-radius: 3px;
+  opacity: 0.6;
+}
+
+/* Selection */
 ::selection {
-  background: rgba(45, 125, 210, 0.35);
-  color: #F0F4FF;
+  background: var(--color-accent-glow);
+  color: var(--color-text-primary);
 }
 
-/* ============================================================
-   Mongolian Pattern Utilities
-   ============================================================ */
-
-/* Ulzii (endless knot) — section divider pattern */
-.pattern-ulzii {
-  background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23F0F4FF' stroke-width='0.8' opacity='0.08'%3E%3Crect x='2' y='2' width='16' height='16'/%3E%3Crect x='6' y='6' width='8' height='8'/%3E%3Crect x='22' y='2' width='16' height='16'/%3E%3Crect x='26' y='6' width='8' height='8'/%3E%3Crect x='2' y='22' width='16' height='16'/%3E%3Crect x='6' y='26' width='8' height='8'/%3E%3Crect x='22' y='22' width='16' height='16'/%3E%3Crect x='26' y='26' width='8' height='8'/%3E%3Cline x1='10' y1='2' x2='10' y2='0'/%3E%3Cline x1='10' y1='18' x2='10' y2='22'/%3E%3Cline x1='30' y1='2' x2='30' y2='0'/%3E%3Cline x1='30' y1='18' x2='30' y2='22'/%3E%3Cline x1='2' y1='10' x2='0' y2='10'/%3E%3Cline x1='18' y1='10' x2='22' y2='10'/%3E%3Cline x1='2' y1='30' x2='0' y2='30'/%3E%3Cline x1='18' y1='30' x2='22' y2='30'/%3E%3C/g%3E%3C/svg%3E");
-  background-repeat: repeat;
+/* Utility classes using CSS tokens */
+.card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(12px);
 }
 
-/* Step border — top/bottom section separator */
-.border-step-top {
-  border-top: 2px solid;
-  border-image: repeating-linear-gradient(
-    90deg,
-    #1E3A5F 0px, #1E3A5F 8px,
-    #2D7DD2 8px, #2D7DD2 12px,
-    #1E3A5F 12px, #1E3A5F 20px
-  ) 1;
+.card-elevated {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-glow);
+  backdrop-filter: blur(16px);
 }
 
-.border-step-bottom {
-  border-bottom: 2px solid;
-  border-image: repeating-linear-gradient(
-    90deg,
-    #1E3A5F 0px, #1E3A5F 8px,
-    #2D7DD2 8px, #2D7DD2 12px,
-    #1E3A5F 12px, #1E3A5F 20px
-  ) 1;
-}
-
-/* ============================================================
-   Component Layer
-   ============================================================ */
-
-@layer components {
-  /* Glass card */
-  .card {
-    background: #0D1825;
-    border: 1px solid #1E3A5F;
-    border-radius: 12px;
-  }
-
-  .card-elevated {
-    background: #142135;
-    border: 1px solid #1E3A5F;
-    border-radius: 12px;
-  }
-
-  /* Primary button */
-  .btn-primary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    background: #2D7DD2;
-    color: #F0F4FF;
-    font-family: var(--font-inter), sans-serif;
-    font-weight: 600;
-    font-size: 0.875rem;
-    padding: 10px 20px;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-  }
-
-  .btn-primary:hover {
-    background: #5BA3E8;
-    box-shadow: 0 0 20px rgba(45, 125, 210, 0.4);
-    transform: translateY(-1px);
-  }
-
-  .btn-primary:active {
-    transform: translateY(0);
-  }
-
-  /* Ghost button */
-  .btn-ghost {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    background: transparent;
-    color: #8BA7CC;
-    font-family: var(--font-inter), sans-serif;
-    font-weight: 500;
-    font-size: 0.875rem;
-    padding: 10px 20px;
-    border-radius: 8px;
-    border: 1px solid #1E3A5F;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-  }
-
-  .btn-ghost:hover {
-    color: #F0F4FF;
-    border-color: #2D7DD2;
-    background: rgba(45, 125, 210, 0.08);
-  }
-
-  /* Gold badge */
-  .badge-gold {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(201, 162, 39, 0.12);
-    color: #C9A227;
-    border: 1px solid rgba(201, 162, 39, 0.3);
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 3px 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  /* Stat number */
-  .stat-number {
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 600;
-    color: #F0F4FF;
-  }
-
-  /* Section heading */
-  .heading-display {
-    font-family: 'Cinzel', serif;
-    font-weight: 700;
-    color: #F0F4FF;
-    line-height: 1.15;
-    letter-spacing: -0.01em;
-  }
-
-  /* Glow text */
-  .text-glow-blue {
-    color: #5BA3E8;
-    text-shadow: 0 0 30px rgba(45, 125, 210, 0.6);
-  }
-
-  .text-glow-gold {
-    color: #C9A227;
-    text-shadow: 0 0 20px rgba(201, 162, 39, 0.5);
-  }
-}
-
-/* ============================================================
-   Animations
-   ============================================================ */
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 15px rgba(45, 125, 210, 0.3); }
-  50%       { box-shadow: 0 0 30px rgba(45, 125, 210, 0.6); }
-}
-
-@keyframes shimmer {
-  0%   { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-6px); }
-}
-
-@keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.animate-pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
-.animate-float      { animation: float 4s ease-in-out infinite; }
-.animate-fade-in-up { animation: fade-in-up 0.6s ease forwards; }
-
-.shimmer-text {
-  background: linear-gradient(90deg, #F0F4FF 0%, #C9A227 40%, #5BA3E8 60%, #F0F4FF 100%);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: shimmer 4s linear infinite;
-}
-
-/* Stagger children */
-.stagger-children > *:nth-child(1) { animation-delay: 0.1s; }
-.stagger-children > *:nth-child(2) { animation-delay: 0.2s; }
-.stagger-children > *:nth-child(3) { animation-delay: 0.3s; }
-.stagger-children > *:nth-child(4) { animation-delay: 0.4s; }
-
-/* ============================================================
-   Scrollbar
-   ============================================================ */
-
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #080E1A; }
-::-webkit-scrollbar-thumb { background: #1E3A5F; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #2D7DD2; }
-
-/* ============================================================
-   Google I/O Web Features: Anchor Positioning, Popover, Transitions
-   ============================================================ */
-
-/* CSS Anchor Positioning & Popover API */
-@supports (anchor-name: --test) {
-  #tooltip-anchor {
-    anchor-name: --tooltip-anchor;
-  }
-  #tooltip-popover {
-    position-anchor: --tooltip-anchor;
-    left: anchor(center) !important;
-    bottom: anchor(top) !important;
-    transform: translateX(-50%) translateY(-8px) !important;
-    top: auto !important;
-  }
-}
-
-/* Popover reset (since browsers style [popover] default states uniquely) */
-[popover] {
+.btn-primary {
+  background: var(--gradient-accent);
+  color: #fff;
   border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1.4rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.02em;
+}
+.btn-primary:hover {
+  opacity: 0.9;
+  box-shadow: var(--shadow-glow);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
   background: transparent;
-  color: inherit;
-  padding: 0;
-  margin: 0;
-  overflow: visible;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1.4rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-secondary:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent-primary);
+  background: var(--color-accent-glow);
 }
 
-[popover]:popover-open {
-  display: block;
+.accent-text {
+  color: var(--color-accent-primary);
 }
 
-/* Element-Scoped View Transitions */
-@keyframes fade-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
+.gold-text {
+  color: var(--color-accent-secondary);
 }
 
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.glow-border {
+  border: 1px solid var(--color-accent-primary);
+  box-shadow: var(--shadow-glow);
 }
 
-::view-transition-old(tab-content) {
-  animation: 120ms cubic-bezier(0.4, 0, 1, 1) both fade-out;
-}
-
-::view-transition-new(tab-content) {
-  animation: 250ms cubic-bezier(0, 0, 0.2, 1) 90ms both fade-in;
+.section-heading {
+  font-family: var(--font-heading);
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }

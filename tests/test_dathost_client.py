@@ -1,3 +1,4 @@
+"""Module docstring."""
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,6 +8,7 @@ from services.warlord.dathost_client import provision_practice_server
 
 @pytest.fixture(autouse=True)
 def mock_env(monkeypatch):
+    """Docstring for mock_env."""
     monkeypatch.setenv("DATHOST_EMAIL", "test@test.com")
     monkeypatch.setenv("DATHOST_PASSWORD", "test-password")
 

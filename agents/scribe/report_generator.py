@@ -43,6 +43,7 @@ async def analyze_round_flash(
 async def async_generate_reports(
     match_id: str, scout_out: dict, rag_context: list, tactical_analysis: dict, map_playbook: dict
 ) -> dict[str, Any]:
+    """Docstring for async_generate_reports."""
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         logger.warning("No Gemini API key found for report generation.")
@@ -155,6 +156,7 @@ def generate_reports(
 
 
 def _stub_reports() -> dict[str, Any]:
+    """Docstring for _stub_reports."""
     return {
         "individual_report": "### Individual Report\nAI coaching requires GEMINI_API_KEY.",
         "team_report": "### Team Report\nAI coaching requires GEMINI_API_KEY.",

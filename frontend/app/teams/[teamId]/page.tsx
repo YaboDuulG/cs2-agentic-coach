@@ -60,7 +60,7 @@ interface ChatMessage {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  done: "#22D3A0", processing: "#2D7DD2", queued: "#8BA7CC", failed: "#FF4D6D",
+  done: "var(--color-success)", processing: "var(--color-accent-primary)", queued: "var(--color-text-secondary)", failed: "var(--color-danger)",
 };
 
 function timeAgo(iso: string) {
@@ -153,10 +153,10 @@ export default function TeamDetailPage() {
 
           // Headers
           if (trimmed.startsWith("###")) {
-            return <h4 key={idx} className="text-xs font-bold text-[#C9A227] mt-3 mb-1">{trimmed.replace(/^###\s*/, "")}</h4>;
+            return <h4 key={idx} className="text-xs font-bold text-[var(--color-accent-secondary)] mt-3 mb-1">{trimmed.replace(/^###\s*/, "")}</h4>;
           }
           if (trimmed.startsWith("##")) {
-            return <h3 key={idx} className="text-sm font-extrabold text-[#C9A227] mt-4 mb-2">{trimmed.replace(/^##\s*/, "")}</h3>;
+            return <h3 key={idx} className="text-sm font-extrabold text-[var(--color-accent-secondary)] mt-4 mb-2">{trimmed.replace(/^##\s*/, "")}</h3>;
           }
 
           // Bullet list
@@ -346,7 +346,7 @@ export default function TeamDetailPage() {
   const fruit = team ? getDevilFruit(team.team_id) : null;
 
   return (
-    <div className="min-h-screen px-6 py-20 relative" style={{ background: "#080E1A" }}>
+    <div className="min-h-screen px-6 py-20 relative" style={{ background: "var(--color-bg-primary)" }}>
       <CloudMotifBg />
       <div className="relative max-w-5xl mx-auto z-10">
         {/* Back */}
@@ -356,12 +356,12 @@ export default function TeamDetailPage() {
 
         {loading ? (
           <div className="flex items-center gap-3 py-12">
-            <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#2D7DD2", borderTopColor: "transparent" }} />
-            <span style={{ color: "#8BA7CC" }}>Loading team…</span>
+            <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--color-accent-primary)", borderTopColor: "transparent" }} />
+            <span style={{ color: "var(--color-text-secondary)" }}>Loading team…</span>
           </div>
         ) : !team ? (
           <div className="card p-10 text-center">
-            <p style={{ color: "#FF4D6D" }}>Team not found or you are not a member.</p>
+            <p style={{ color: "var(--color-danger)" }}>Team not found or you are not a member.</p>
           </div>
         ) : (
           <>
@@ -373,12 +373,12 @@ export default function TeamDetailPage() {
                   <div className="flex items-center gap-2.5">
                     <h1 className="heading-display text-white" style={{ fontSize: "1.8rem" }}>{team.name}</h1>
                     {isOwner && (
-                      <span className="rounded px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase border bg-yellow-500/10 border-yellow-500/20 text-[#C9A227]">
+                      <span className="rounded px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase border bg-yellow-500/10 border-yellow-500/20 text-[var(--color-accent-secondary)]">
                         Captain
                       </span>
                     )}
                   </div>
-                  <p className="mt-1" style={{ color: "#8BA7CC", fontSize: "0.875rem" }}>
+                  <p className="mt-1" style={{ color: "var(--color-text-secondary)", fontSize: "0.875rem" }}>
                     {team.members.length} member{team.members.length !== 1 ? "s" : ""}
                   </p>
                 </div>
@@ -386,12 +386,12 @@ export default function TeamDetailPage() {
             </div>
 
             {/* Tab switchers */}
-            <div className="flex gap-6 border-b border-[#1E3A5F] mb-8">
+            <div className="flex gap-6 border-b border-[var(--color-border-primary)] mb-8">
               <button
                 onClick={() => setActiveTab("overview")}
                 className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 select-none ${
                   activeTab === "overview"
-                    ? "border-[#2D7DD2] text-white"
+                    ? "border-[var(--color-accent-primary)] text-white"
                     : "border-transparent text-slate-400 hover:text-slate-200"
                 }`}
               >
@@ -401,7 +401,7 @@ export default function TeamDetailPage() {
                 onClick={() => setActiveTab("stratbook")}
                 className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 select-none ${
                   activeTab === "stratbook"
-                    ? "border-[#2D7DD2] text-white"
+                    ? "border-[var(--color-accent-primary)] text-white"
                     : "border-transparent text-slate-400 hover:text-slate-200"
                 }`}
               >
@@ -411,7 +411,7 @@ export default function TeamDetailPage() {
                 onClick={() => setActiveTab("coach")}
                 className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 select-none ${
                   activeTab === "coach"
-                    ? "border-[#2D7DD2] text-white"
+                    ? "border-[var(--color-accent-primary)] text-white"
                     : "border-transparent text-slate-400 hover:text-slate-200"
                 }`}
               >
@@ -421,7 +421,7 @@ export default function TeamDetailPage() {
                 onClick={() => setActiveTab("settings")}
                 className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 select-none ${
                   activeTab === "settings"
-                    ? "border-[#2D7DD2] text-white"
+                    ? "border-[var(--color-accent-primary)] text-white"
                     : "border-transparent text-slate-400 hover:text-slate-200"
                 }`}
               >
@@ -433,7 +433,7 @@ export default function TeamDetailPage() {
               /* ── OVERVIEW VIEW ── */
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Members panel */}
-                <div className="card p-5 h-fit" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                <div className="card p-5 h-fit" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
                   <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>
                     <Users size={14} className="inline mr-2" />Members
                   </h2>
@@ -441,31 +441,31 @@ export default function TeamDetailPage() {
                     {team.members.map(m => (
                       <div key={m.user_id} className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold font-mono" style={{ background: "rgba(45,125,210,0.15)", color: "#2D7DD2", border: "1px solid rgba(45,125,210,0.2)" }}>
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold font-mono" style={{ background: "rgba(45,125,210,0.15)", color: "var(--color-accent-primary)", border: "1px solid rgba(45,125,210,0.2)" }}>
                             {m.user_id.slice(-2).toUpperCase()}
                           </div>
-                          <span style={{ color: "#C4CEDD", fontSize: "0.8rem", fontFamily: "JetBrains Mono" }}>
+                          <span style={{ color: "var(--color-text-primary)", fontSize: "0.8rem", fontFamily: "JetBrains Mono" }}>
                             {m.user_id === user.id ? "You" : `···${m.user_id.slice(-6)}`}
                           </span>
                         </div>
                         <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{
                           background: m.role === "owner" ? "rgba(201,162,39,0.1)" : "rgba(45,125,210,0.08)",
-                          color: m.role === "owner" ? "#C9A227" : "#4A6A8A",
-                          border: `1px solid ${m.role === "owner" ? "rgba(201,162,39,0.2)" : "#1E3A5F"}`,
+                          color: m.role === "owner" ? "var(--color-accent-secondary)" : "#4A6A8A",
+                          border: `1px solid ${m.role === "owner" ? "rgba(201,162,39,0.2)" : "var(--color-border-primary)"}`,
                         }}>{m.role === "owner" ? "captain" : m.role}</span>
                       </div>
                     ))}
 
-                    <div className="border-t border-[#1E3A5F]/40 mt-4 pt-3 flex flex-col">
+                    <div className="border-t border-[var(--color-border-primary)]/40 mt-4 pt-3 flex flex-col">
                       <button
                         onClick={handleInviteClick}
-                        className="text-[11px] text-[#2D7DD2] hover:text-[#2D7DD2]/80 font-bold uppercase tracking-wider text-left flex items-center gap-1.5 transition-colors"
+                        className="text-[11px] text-[var(--color-accent-primary)] hover:text-[var(--color-accent-primary)]/80 font-bold uppercase tracking-wider text-left flex items-center gap-1.5 transition-colors"
                       >
                         + Invite a team member
                       </button>
                       
                       {showInviteBox && (
-                        <div className="mt-2.5 p-3 rounded-lg border border-[#1E3A5F] bg-[#090F1B]/90 text-[11px] flex flex-col gap-1.5 animate-fadeIn relative">
+                        <div className="mt-2.5 p-3 rounded-lg border border-[var(--color-border-primary)] bg-[var(--color-bg-primary)]/90 text-[11px] flex flex-col gap-1.5 animate-fadeIn relative">
                           <button 
                             onClick={() => setShowInviteBox(false)}
                             className="absolute top-2 right-2 text-slate-500 hover:text-slate-300 text-[10px]"
@@ -474,10 +474,10 @@ export default function TeamDetailPage() {
                           </button>
                           <div className="flex justify-between items-center pr-4">
                             <span className="text-slate-500 font-medium">Invite Code:</span>
-                            <span className="font-mono font-bold text-[#F0F4FF] tracking-widest select-all">{team.invite_code}</span>
+                            <span className="font-mono font-bold text-[var(--color-text-primary)] tracking-widest select-all">{team.invite_code}</span>
                           </div>
                           {inviteCopied && (
-                            <p className="text-[10px] text-[#22D3A0] font-semibold">✓ Copied to clipboard!</p>
+                            <p className="text-[10px] text-[var(--color-success)] font-semibold">✓ Copied to clipboard!</p>
                           )}
                         </div>
                       )}
@@ -486,7 +486,7 @@ export default function TeamDetailPage() {
                 </div>
 
                 {/* Training Server panel */}
-                <div className="card p-5 h-fit" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                <div className="card p-5 h-fit" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
                   <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>
                     <Crosshair size={14} className="inline mr-2" /> Training Server
                   </h2>
@@ -496,19 +496,19 @@ export default function TeamDetailPage() {
                     <div key={s.id} className="rounded-lg bg-white/5 p-4 border border-white/10 flex flex-col gap-3 mb-3">
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${s.status === 'active' ? 'bg-[#22D3A0] animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
+                          <div className={`w-2 h-2 rounded-full ${s.status === 'active' ? 'bg-[var(--color-success)] animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
                           <span className="text-xs font-bold uppercase tracking-wider text-slate-200">{s.mode} Server</span>
                         </div>
-                        <span className={`text-xs px-2 py-0.5 rounded font-mono ${s.status === 'active' ? 'bg-[#22D3A0]/10 text-[#22D3A0] border border-[#22D3A0]/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded font-mono ${s.status === 'active' ? 'bg-[var(--color-success)]/10 text-[var(--color-success)] border border-[var(--color-success)]/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
                           {s.status}
                         </span>
                       </div>
                       {s.ip_address ? (
-                        <div className="bg-black/40 p-2.5 rounded text-xs font-mono text-[#C4CEDD] break-all select-all border border-white/5">
+                        <div className="bg-black/40 p-2.5 rounded text-xs font-mono text-[var(--color-text-primary)] break-all select-all border border-white/5">
                           connect {s.ip_address}; password {s.server_password}
                         </div>
                       ) : (
-                        <div className="text-xs text-[#8BA7CC] italic">Provisioning server instance...</div>
+                        <div className="text-xs text-[var(--color-text-secondary)] italic">Provisioning server instance...</div>
                       )}
                     </div>
                   ))}
@@ -524,7 +524,7 @@ export default function TeamDetailPage() {
                       minHeight: "120px",
                       textDecoration: "none",
                       background: "linear-gradient(135deg, #0D1825 0%, #142135 100%)",
-                      border: "1px solid #1E3A5F",
+                      border: "1px solid var(--color-border-primary)",
                       marginTop: servers.filter(s => s.status !== "terminated").length > 0 ? "8px" : "0",
                     }}
                   >
@@ -539,12 +539,12 @@ export default function TeamDetailPage() {
                     <div style={{ padding: "12px 14px", background: "linear-gradient(to top, rgba(8,14,26,0.95) 0%, rgba(8,14,26,0.6) 100%)" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div>
-                          <div style={{ fontSize: "13px", fontWeight: 700, color: "#F0F4FF" }}>Open Training Modes</div>
-                          <div style={{ fontSize: "11px", color: "#8BA7CC", marginTop: "2px" }}>Defense · Prefire · AWP · Grenades · Retake + more</div>
+                          <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-text-primary)" }}>Open Training Modes</div>
+                          <div style={{ fontSize: "11px", color: "var(--color-text-secondary)", marginTop: "2px" }}>Defense · Prefire · AWP · Grenades · Retake + more</div>
                         </div>
                         <div style={{
                           width: "28px", height: "28px", borderRadius: "50%",
-                          backgroundColor: "#2D7DD2",
+                          backgroundColor: "var(--color-accent-primary)",
                           display: "flex", alignItems: "center", justifyContent: "center",
                           flexShrink: 0,
                         }}>
@@ -561,18 +561,18 @@ export default function TeamDetailPage() {
                     <h2 className="heading-display" style={{ fontSize: "0.95rem" }}>Team Analyses</h2>
                     <button
                       onClick={() => setIsUploadModalOpen(true)}
-                      className="rounded-lg bg-[#2D7DD2] hover:bg-[#2D7DD2]/85 px-4 py-2 text-xs font-bold text-white transition-all select-none shadow-md flex items-center gap-1.5 cursor-pointer"
+                      className="rounded-lg bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary)]/85 px-4 py-2 text-xs font-bold text-white transition-all select-none shadow-md flex items-center gap-1.5 cursor-pointer"
                     >
                       <Upload size={13} /> Upload Match
                     </button>
                   </div>
                   {analyses.length === 0 ? (
-                    <div className="card p-8 text-center" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
-                      <MapPin size={32} color="#1E3A5F" className="mx-auto mb-3" />
-                      <p style={{ color: "#8BA7CC", fontSize: "0.875rem", marginBottom: "1rem" }}>No analyses yet. Have a teammate upload a demo!</p>
+                    <div className="card p-8 text-center" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
+                      <MapPin size={32} color="var(--color-border-primary)" className="mx-auto mb-3" />
+                      <p style={{ color: "var(--color-text-secondary)", fontSize: "0.875rem", marginBottom: "1rem" }}>No analyses yet. Have a teammate upload a demo!</p>
                       <button
                         onClick={() => setIsUploadModalOpen(true)}
-                        className="mx-auto rounded-lg bg-[#2D7DD2] hover:bg-[#2D7DD2]/85 px-4 py-2 text-xs font-bold text-white transition-all select-none shadow-md flex items-center gap-1.5 cursor-pointer w-fit"
+                        className="mx-auto rounded-lg bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary)]/85 px-4 py-2 text-xs font-bold text-white transition-all select-none shadow-md flex items-center gap-1.5 cursor-pointer w-fit"
                       >
                         <Upload size={13} /> Upload Match
                       </button>
@@ -583,15 +583,15 @@ export default function TeamDetailPage() {
                         <Link
                           key={a.match_id}
                           href={`/analysis/${a.match_id}`}
-                          className="card p-4 flex items-center justify-between group hover:border-[#2D7DD2]/40 transition-all hover:scale-[1.005]"
-                          style={{ background: "rgba(13,24,37,0.7)", border: "1px solid #1E3A5F" }}
+                          className="card p-4 flex items-center justify-between group hover:border-[var(--color-accent-primary)]/40 transition-all hover:scale-[1.005]"
+                          style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}
                         >
                           <div className="flex items-center gap-4">
                             <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(45,125,210,0.1)", border: "1px solid rgba(45,125,210,0.15)" }}>
-                              <MapPin size={16} color="#2D7DD2" />
+                              <MapPin size={16} color="var(--color-accent-primary)" />
                             </div>
                             <div>
-                              <p style={{ color: "#F0F4FF", fontWeight: 600, fontSize: "0.9rem" }}>{a.map || "Unknown Map"}</p>
+                              <p style={{ color: "var(--color-text-primary)", fontWeight: 600, fontSize: "0.9rem" }}>{a.map || "Unknown Map"}</p>
                               <div className="flex items-center gap-3 mt-0.5">
                                 {a.total_rounds > 0 && (
                                   <span style={{ color: "#4A6A8A", fontSize: "0.72rem" }}>{a.total_rounds} rounds</span>
@@ -610,8 +610,8 @@ export default function TeamDetailPage() {
                           <div className="flex items-center gap-3">
                             <div className="text-right">
                               <div className="flex items-center gap-1.5 justify-end">
-                                <div className="w-2 h-2 rounded-full" style={{ background: STATUS_COLORS[a.status] ?? "#8BA7CC" }} />
-                                <span style={{ fontSize: "0.75rem", color: STATUS_COLORS[a.status] ?? "#8BA7CC", fontWeight: 500 }}>{a.status}</span>
+                                <div className="w-2 h-2 rounded-full" style={{ background: STATUS_COLORS[a.status] ?? "var(--color-text-secondary)" }} />
+                                <span style={{ fontSize: "0.75rem", color: STATUS_COLORS[a.status] ?? "var(--color-text-secondary)", fontWeight: 500 }}>{a.status}</span>
                               </div>
                               <span style={{ color: "#4A6A8A", fontSize: "0.7rem", display: "flex", alignItems: "center", gap: 3, justifySelf: "flex-end" }}>
                                 <Clock size={9} /> {a.created_at ? timeAgo(a.created_at) : "–"}
@@ -631,10 +631,10 @@ export default function TeamDetailPage() {
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* Left panel: Strategies List (col-span-2) */}
                 <div className="lg:col-span-2 flex flex-col gap-4">
-                  <div className="card p-5 flex flex-col gap-4" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                  <div className="card p-5 flex flex-col gap-4" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
                     <div className="flex justify-between items-center">
                       <h2 className="heading-display text-sm font-bold uppercase tracking-wider text-slate-200">
-                        <BookOpen size={14} className="inline mr-2 text-[#2D7DD2]" />
+                        <BookOpen size={14} className="inline mr-2 text-[var(--color-accent-primary)]" />
                         Strategy Library
                       </h2>
                       <div className="flex items-center gap-2">
@@ -643,7 +643,7 @@ export default function TeamDetailPage() {
                         </span>
                         <button
                           onClick={() => setIsAddStratOpen(true)}
-                          className="rounded bg-[#2D7DD2] px-2.5 py-1 text-[10px] font-bold text-white hover:bg-[#1B4F8A] transition-all cursor-pointer"
+                          className="rounded bg-[var(--color-accent-primary)] px-2.5 py-1 text-[10px] font-bold text-white hover:bg-[#1B4F8A] transition-all cursor-pointer"
                         >
                           + Add Strategy
                         </button>
@@ -657,7 +657,7 @@ export default function TeamDetailPage() {
                         onChange={(e) => setStratSearch(e.target.value)}
                         placeholder="Search strategies, maps, or authors..."
                         className="w-full rounded-lg pl-9 pr-4 py-2 text-xs outline-none"
-                        style={{ background: "#070D18", border: "1px solid #1E3A5F", color: "#F0F4FF" }}
+                        style={{ background: "var(--color-bg-primary)", border: "1px solid var(--color-border-primary)", color: "var(--color-text-primary)" }}
                       />
                       <Search size={12} className="absolute left-3 top-3 text-slate-500" />
                     </div>
@@ -693,12 +693,12 @@ export default function TeamDetailPage() {
                           {showWebhookGuide ? "Hide" : "Manual webhook setup instead ↓"}
                         </button>
                         {showWebhookGuide && (
-                          <div className="mt-2 p-2.5 rounded-lg border border-[#1E3A5F] bg-[#070D18]/90 text-[10px] text-left space-y-1">
+                          <div className="mt-2 p-2.5 rounded-lg border border-[var(--color-border-primary)] bg-[var(--color-bg-primary)]/90 text-[10px] text-left space-y-1">
                             <p className="text-slate-300 font-semibold">Webhook URL (manual):</p>
-                            <div className="bg-black/40 p-1.5 rounded text-[9px] font-mono break-all select-all border border-white/5 text-[#8BA7CC]">
+                            <div className="bg-black/40 p-1.5 rounded text-[9px] font-mono break-all select-all border border-white/5 text-[var(--color-text-secondary)]">
                               {typeof window !== 'undefined' ? `${window.location.origin}/api/discord/webhook?team_id=${teamId}` : `/api/discord/webhook?team_id=${teamId}`}
                             </div>
-                            <p className="text-slate-500 leading-relaxed">POST messages as JSON with <code className="text-[#8BA7CC]">content</code> and <code className="text-[#8BA7CC]">author.username</code> fields.</p>
+                            <p className="text-slate-500 leading-relaxed">POST messages as JSON with <code className="text-[var(--color-text-secondary)]">content</code> and <code className="text-[var(--color-text-secondary)]">author.username</code> fields.</p>
                           </div>
                         )}
                       </div>
@@ -709,11 +709,11 @@ export default function TeamDetailPage() {
                   <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
                     {strategiesLoading ? (
                       <div className="card p-8 text-center text-xs text-slate-500">
-                        <div className="w-4 h-4 rounded-full border border-t-transparent animate-spin mx-auto mb-2" style={{ borderColor: "#2D7DD2", borderTopColor: "transparent" }} />
+                        <div className="w-4 h-4 rounded-full border border-t-transparent animate-spin mx-auto mb-2" style={{ borderColor: "var(--color-accent-primary)", borderTopColor: "transparent" }} />
                         Loading playbook...
                       </div>
                     ) : strategies.length === 0 ? (
-                      <div className="card p-8 text-center text-xs text-slate-500" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                      <div className="card p-8 text-center text-xs text-slate-500" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
                         No strategies synced yet. Post a tactic in Discord or configure the webhook above to begin!
                       </div>
                     ) : (
@@ -728,18 +728,18 @@ export default function TeamDetailPage() {
                         .map((s) => {
                           const isCT = s.side === "CT";
                           const isT = s.side === "T";
-                          const sideColor = isCT ? "#2D7DD2" : isT ? "#FF4D6D" : "#8BA7CC";
+                          const sideColor = isCT ? "var(--color-accent-primary)" : isT ? "var(--color-danger)" : "var(--color-text-secondary)";
                           const isExpanded = !!expandedStrats[s.id];
                           
                           return (
                             <div 
                               key={s.id} 
                               className="card p-4 transition-all"
-                              style={{ background: "rgba(13,24,37,0.7)", border: "1px solid #1E3A5F" }}
+                              style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}
                             >
                               <div className="flex justify-between items-start gap-2 mb-2">
                                 <div>
-                                  <h4 className="text-xs font-bold text-[#F0F4FF]">{s.title}</h4>
+                                  <h4 className="text-xs font-bold text-[var(--color-text-primary)]">{s.title}</h4>
                                   <p className="text-[10px] text-slate-500 font-mono mt-0.5">By {s.author} · {timeAgo(s.created_at)}</p>
                                 </div>
                                 <div className="flex gap-1.5 shrink-0">
@@ -758,7 +758,7 @@ export default function TeamDetailPage() {
                               
                               {/* Expand steps */}
                               {isExpanded ? (
-                                <div className="border-t border-[#1E3A5F]/40 pt-3 mt-3 space-y-2">
+                                <div className="border-t border-[var(--color-border-primary)]/40 pt-3 mt-3 space-y-2">
                                   <h5 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tactical Steps:</h5>
                                   <ul className="list-disc pl-4 space-y-1 text-xs text-slate-300">
                                     {s.steps && s.steps.map((step: string, i: number) => (
@@ -778,7 +778,7 @@ export default function TeamDetailPage() {
                                     setExpandedStrats({ ...expandedStrats, [s.id]: true });
                                     setActiveStratMap(s.map_name);
                                   }}
-                                  className="text-[10px] text-[#2D7DD2] hover:text-[#2D7DD2]/80 font-mono block cursor-pointer"
+                                  className="text-[10px] text-[var(--color-accent-primary)] hover:text-[var(--color-accent-primary)]/80 font-mono block cursor-pointer"
                                 >
                                   <ChevronDown size={10} className="inline mr-1" /> View execution
                                 </button>
@@ -802,9 +802,9 @@ export default function TeamDetailPage() {
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* Left panel: Recent Matches List (col-span-2) */}
                 <div className="lg:col-span-2 flex flex-col gap-4">
-                  <div className="card p-5 flex flex-col gap-4" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                  <div className="card p-5 flex flex-col gap-4" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
                     <h2 className="heading-display text-sm font-bold uppercase tracking-wider text-slate-200">
-                      <Clock size={14} className="inline mr-2 text-[#2D7DD2]" />
+                      <Clock size={14} className="inline mr-2 text-[var(--color-accent-primary)]" />
                       Uploaded Match History
                     </h2>
                     
@@ -822,7 +822,7 @@ export default function TeamDetailPage() {
                                   <h4 className="text-xs font-bold text-slate-200 uppercase">{m.map.replace("de_", "")}</h4>
                                   <p className="text-[9px] text-slate-500 font-mono mt-0.5">{m.match_id.slice(0, 8)} • {m.created_at ? new Date(m.created_at).toLocaleDateString() : ""}</p>
                                 </div>
-                                <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border ${m.status === "COMPLETE" || m.status === "complete" ? "bg-[#22D3A0]/10 text-[#22D3A0] border-[#22D3A0]/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"}`}>
+                                <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border ${m.status === "COMPLETE" || m.status === "complete" ? "bg-[var(--color-success)]/10 text-[var(--color-success)] border-[var(--color-success)]/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"}`}>
                                   {m.status.toUpperCase()}
                                 </span>
                               </div>
@@ -832,7 +832,7 @@ export default function TeamDetailPage() {
                       </div>
 
                       {/* Individual matches */}
-                      <div className="border-t border-[#1E3A5F]/20 pt-3.5">
+                      <div className="border-t border-[var(--color-border-primary)]/20 pt-3.5">
                         <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Individual Matches ({individualAnalyses.length})</h4>
                         {individualAnalyses.length === 0 ? (
                           <p className="text-xs text-slate-500 italic pl-1.5">No individual matches found.</p>
@@ -844,7 +844,7 @@ export default function TeamDetailPage() {
                                   <h4 className="text-xs font-bold text-slate-200 uppercase">{m.map ? m.map.replace("de_", "") : "UNKNOWN"}</h4>
                                   <p className="text-[9px] text-slate-500 font-mono mt-0.5">{m.match_id.slice(0, 8)} • {m.created_at ? new Date(m.created_at).toLocaleDateString() : ""}</p>
                                 </div>
-                                <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border ${m.status === "COMPLETE" || m.status === "complete" ? "bg-[#22D3A0]/10 text-[#22D3A0] border-[#22D3A0]/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"}`}>
+                                <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border ${m.status === "COMPLETE" || m.status === "complete" ? "bg-[var(--color-success)]/10 text-[var(--color-success)] border-[var(--color-success)]/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"}`}>
                                   {m.status.toUpperCase()}
                                 </span>
                               </div>
@@ -857,11 +857,11 @@ export default function TeamDetailPage() {
                 </div>
 
                 {/* Right panel: AI Chat Board (col-span-3) */}
-                <div className="lg:col-span-3 flex flex-col h-[650px] card" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                <div className="lg:col-span-3 flex flex-col h-[650px] card" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
                   {/* Chat header */}
-                  <div className="p-4 border-b border-[#1E3A5F] flex items-center justify-between select-none">
+                  <div className="p-4 border-b border-[var(--color-border-primary)] flex items-center justify-between select-none">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-[#2D7DD2]/10 border border-[#2D7DD2]/20 flex items-center justify-center text-white">
+                      <div className="w-8 h-8 rounded-lg bg-[var(--color-accent-primary)]/10 border border-[var(--color-accent-primary)]/20 flex items-center justify-center text-white">
                         ⚔️
                       </div>
                       <div>
@@ -881,7 +881,7 @@ export default function TeamDetailPage() {
                   <div className="flex-1 overflow-y-auto p-4 space-y-3.5 pr-2">
                     {chatHistory.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-center p-8 select-none">
-                        <MessageSquare size={32} className="text-[#1E3A5F] mb-3" />
+                        <MessageSquare size={32} className="text-[var(--color-border-primary)] mb-3" />
                         <p className="text-xs font-bold text-slate-400 mb-1">Ask the Great Khan</p>
                         <p className="text-[11px] text-slate-500 max-w-xs leading-relaxed mb-4">
                           {"Ask about your team's playbook, recent uploads (including individual games), or compare against pro stats."}
@@ -890,14 +890,14 @@ export default function TeamDetailPage() {
                           <button
                             type="button"
                             onClick={() => setChatMessage("How does Vitality play pistol rounds on Nuke?")}
-                            className="text-[10px] text-slate-400 hover:text-white bg-slate-900/60 border border-[#1E3A5F]/40 rounded-lg p-2 text-left transition-all hover:bg-[#1E3A5F]/20 font-mono cursor-pointer"
+                            className="text-[10px] text-slate-400 hover:text-white bg-slate-900/60 border border-[var(--color-border-primary)]/40 rounded-lg p-2 text-left transition-all hover:bg-[var(--color-border-primary)]/20 font-mono cursor-pointer"
                           >
                             {"💡 \"How does Vitality play pistol rounds on Nuke?\""}
                           </button>
                           <button
                             type="button"
                             onClick={() => setChatMessage("Compare our Round 1 buy value vs Team Spirit on Nuke.")}
-                            className="text-[10px] text-slate-400 hover:text-white bg-slate-900/60 border border-[#1E3A5F]/40 rounded-lg p-2 text-left transition-all hover:bg-[#1E3A5F]/20 font-mono cursor-pointer"
+                            className="text-[10px] text-slate-400 hover:text-white bg-slate-900/60 border border-[var(--color-border-primary)]/40 rounded-lg p-2 text-left transition-all hover:bg-[var(--color-border-primary)]/20 font-mono cursor-pointer"
                           >
                             {"💡 \"Compare our Round 1 buy value vs Team Spirit on Nuke.\""}
                           </button>
@@ -911,7 +911,7 @@ export default function TeamDetailPage() {
                             <div 
                               className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed border ${
                                 isUser 
-                                  ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/20 text-white animate-fadeIn"
+                                  ? "bg-[var(--color-accent-primary)]/10 border-[var(--color-accent-primary)]/20 text-white animate-fadeIn"
                                   : "bg-slate-900/50 border-slate-800 text-slate-300 animate-fadeIn"
                               }`}
                             >
@@ -975,7 +975,7 @@ export default function TeamDetailPage() {
                         setChatLoading(false);
                       }
                     }}
-                    className="p-4 border-t border-[#1E3A5F] flex gap-3"
+                    className="p-4 border-t border-[var(--color-border-primary)] flex gap-3"
                   >
                     <input
                       value={chatMessage}
@@ -983,12 +983,12 @@ export default function TeamDetailPage() {
                       placeholder="Ask the coach to refine a strategy..."
                       disabled={chatLoading}
                       className="flex-1 rounded-lg px-4 py-2.5 text-xs outline-none"
-                      style={{ background: "#070D18", border: "1px solid #1E3A5F", color: "#F0F4FF" }}
+                      style={{ background: "var(--color-bg-primary)", border: "1px solid var(--color-border-primary)", color: "var(--color-text-primary)" }}
                     />
                     <button
                       type="submit"
                       disabled={chatLoading || !chatMessage.trim()}
-                      className="rounded-lg bg-[#2D7DD2] hover:bg-[#2D7DD2]/85 disabled:opacity-40 px-4 py-2 text-xs font-bold text-white transition-all flex items-center justify-center cursor-pointer"
+                      className="rounded-lg bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary)]/85 disabled:opacity-40 px-4 py-2 text-xs font-bold text-white transition-all flex items-center justify-center cursor-pointer"
                     >
                       <Send size={12} />
                     </button>
@@ -1006,7 +1006,7 @@ export default function TeamDetailPage() {
                     onClick={() => setSettingsTab("profile")}
                     className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-bold tracking-wide uppercase transition-all duration-200 border text-left select-none ${
                       settingsTab === "profile"
-                        ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/40 text-[#2E86AB]"
+                        ? "bg-[var(--color-accent-primary)]/10 border-[var(--color-accent-primary)]/40 text-[#2E86AB]"
                         : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5"
                     }`}
                   >
@@ -1016,7 +1016,7 @@ export default function TeamDetailPage() {
                     onClick={() => setSettingsTab("password")}
                     className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-bold tracking-wide uppercase transition-all duration-200 border text-left select-none ${
                       settingsTab === "password"
-                        ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/40 text-[#2E86AB]"
+                        ? "bg-[var(--color-accent-primary)]/10 border-[var(--color-accent-primary)]/40 text-[#2E86AB]"
                         : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5"
                     }`}
                   >
@@ -1026,7 +1026,7 @@ export default function TeamDetailPage() {
                     onClick={() => setSettingsTab("members")}
                     className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-bold tracking-wide uppercase transition-all duration-200 border text-left select-none ${
                       settingsTab === "members"
-                        ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/40 text-[#2E86AB]"
+                        ? "bg-[var(--color-accent-primary)]/10 border-[var(--color-accent-primary)]/40 text-[#2E86AB]"
                         : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5"
                     }`}
                   >
@@ -1036,7 +1036,7 @@ export default function TeamDetailPage() {
                     onClick={() => setSettingsTab("subscription")}
                     className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-bold tracking-wide uppercase transition-all duration-200 border text-left select-none ${
                       settingsTab === "subscription"
-                        ? "bg-[#2D7DD2]/10 border-[#2D7DD2]/40 text-[#2E86AB]"
+                        ? "bg-[var(--color-accent-primary)]/10 border-[var(--color-accent-primary)]/40 text-[#2E86AB]"
                         : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5"
                     }`}
                   >
@@ -1058,7 +1058,7 @@ export default function TeamDetailPage() {
                 <div className="col-span-1 md:col-span-3">
                   {!isOwner ? (
                     /* Captain-Only Lock Screen */
-                    <div className="card p-12 text-center flex flex-col items-center justify-center min-h-[340px]" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                    <div className="card p-12 text-center flex flex-col items-center justify-center min-h-[340px]" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
                       <div className="w-16 h-16 rounded-full bg-[#0F172A] flex items-center justify-center mb-5 border border-white/5 shadow-inner">
                         <Lock size={26} className="text-slate-400" />
                       </div>
@@ -1069,7 +1069,7 @@ export default function TeamDetailPage() {
                     </div>
                   ) : (
                     /* Settings Panels for Captain */
-                    <div className="card p-6 min-h-[340px] flex flex-col justify-between" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+                    <div className="card p-6 min-h-[340px] flex flex-col justify-between" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
                       
                       {/* Sub-tab 1: TEAM PROFILE */}
                       {settingsTab === "profile" && (
@@ -1104,7 +1104,7 @@ export default function TeamDetailPage() {
                               <button
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={logoUploading}
-                                className="rounded-lg border border-[#2D7DD2]/40 hover:bg-[#2D7DD2]/10 px-4 py-2 text-xs font-bold text-[#2D7DD2] transition-all duration-200 disabled:opacity-50 select-none shadow"
+                                className="rounded-lg border border-[var(--color-accent-primary)]/40 hover:bg-[var(--color-accent-primary)]/10 px-4 py-2 text-xs font-bold text-[var(--color-accent-primary)] transition-all duration-200 disabled:opacity-50 select-none shadow"
                               >
                                 {logoUploading ? "Uploading..." : "Upload Logo Image"}
                               </button>
@@ -1120,30 +1120,30 @@ export default function TeamDetailPage() {
                                 onChange={(e) => setEditName(e.target.value)}
                                 placeholder="E.g. Team Liquid"
                                 className="flex-1 rounded-lg px-4 py-2.5 text-sm outline-none"
-                                style={{ background: "#070D18", border: "1px solid #1E3A5F", color: "#F0F4FF" }}
+                                style={{ background: "var(--color-bg-primary)", border: "1px solid var(--color-border-primary)", color: "var(--color-text-primary)" }}
                               />
                               <button
                                 onClick={handleUpdateName}
                                 disabled={updatingName || !editName.trim() || editName.trim() === team.name}
-                                className="rounded-lg bg-[#2D7DD2] hover:bg-[#2D7DD2]/85 px-5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 select-none shadow-md"
+                                className="rounded-lg bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary)]/85 px-5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 select-none shadow-md"
                               >
                                 {updatingName ? "Saving..." : "Save Name"}
                               </button>
                             </div>
                             {saveSuccess && (
-                              <p className="text-xs text-[#22D3A0] mt-1 font-semibold flex items-center gap-1">✓ Settings applied successfully!</p>
+                              <p className="text-xs text-[var(--color-success)] mt-1 font-semibold flex items-center gap-1">✓ Settings applied successfully!</p>
                             )}
                           </div>
 
                           {/* Devil Fruit Description Panel */}
                           {fruit && (
-                            <div className="border-t border-[#1E3A5F] pt-6">
+                            <div className="border-t border-[var(--color-border-primary)] pt-6">
                               <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">Deterministic Devil Fruit</h4>
                               <div className="flex items-start gap-4 p-4 rounded-xl border" style={{ background: "rgba(13,24,37,0.4)", borderColor: `${fruit.color}25` }}>
                                 <div className="flex-shrink-0">
                                   <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-bold text-white border text-base"
                                     style={{
-                                      background: `linear-gradient(135deg, ${fruit.color}66 0%, #080E1A 100%)`,
+                                      background: `linear-gradient(135deg, ${fruit.color}66 0%, var(--color-bg-primary) 100%)`,
                                       borderColor: `${fruit.color}33`,
                                     }}>
                                     <span className="font-mono text-slate-200">{team.name.slice(0,2).toUpperCase()}</span>
@@ -1171,8 +1171,8 @@ export default function TeamDetailPage() {
                             <h3 className="heading-display mb-1" style={{ fontSize: "1rem" }}>Credentials</h3>
                             <p className="text-xs text-slate-400">Manage credentials and authentication profiles</p>
                           </div>
-                          <div className="bg-[#070D18] p-5 rounded-xl border border-[#1E3A5F] flex items-center gap-4">
-                            <Key className="text-[#2D7DD2] flex-shrink-0" size={24} />
+                          <div className="bg-[var(--color-bg-primary)] p-5 rounded-xl border border-[var(--color-border-primary)] flex items-center gap-4">
+                            <Key className="text-[var(--color-accent-primary)] flex-shrink-0" size={24} />
                             <div>
                               <h4 className="text-sm font-bold text-white mb-0.5">Managed Provider</h4>
                               <p className="text-xs text-slate-400 leading-relaxed">This team&apos;s security profile is managed by Clerk. Password-free sessions are enabled by default for all captains and members.</p>
@@ -1192,7 +1192,7 @@ export default function TeamDetailPage() {
                             {team.members.map((m) => (
                               <div key={m.user_id} className="flex items-center justify-between bg-white/2 rounded-xl p-3 border border-white/5">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold font-mono" style={{ background: "rgba(45,125,210,0.1)", color: "#2D7DD2", border: "1px solid rgba(45,125,210,0.15)" }}>
+                                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold font-mono" style={{ background: "rgba(45,125,210,0.1)", color: "var(--color-accent-primary)", border: "1px solid rgba(45,125,210,0.15)" }}>
                                     {m.user_id.slice(-2).toUpperCase()}
                                   </div>
                                   <div>
@@ -1202,8 +1202,8 @@ export default function TeamDetailPage() {
                                 </div>
                                 <span className="rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border" style={{
                                   background: m.role === "owner" ? "rgba(201,162,39,0.1)" : "rgba(45,125,210,0.08)",
-                                  color: m.role === "owner" ? "#C9A227" : "#4A6A8A",
-                                  borderColor: m.role === "owner" ? "rgba(201,162,39,0.2)" : "#1E3A5F",
+                                  color: m.role === "owner" ? "var(--color-accent-secondary)" : "#4A6A8A",
+                                  borderColor: m.role === "owner" ? "rgba(201,162,39,0.2)" : "var(--color-border-primary)",
                                 }}>
                                   {m.role === "owner" ? "captain" : m.role}
                                 </span>
@@ -1220,8 +1220,8 @@ export default function TeamDetailPage() {
                             <h3 className="heading-display mb-1" style={{ fontSize: "1rem" }}>Subscription</h3>
                             <p className="text-xs text-slate-400">View team subscription details and platform quotas</p>
                           </div>
-                          <div className="bg-gradient-to-r from-[#070D18] to-[#1E3A5F]/20 p-5 rounded-xl border border-[#1E3A5F] flex items-center gap-4">
-                            <CreditCard className="text-[#2D7DD2] flex-shrink-0" size={24} />
+                          <div className="bg-gradient-to-r from-[var(--color-bg-primary)] to-[var(--color-border-primary)]/20 p-5 rounded-xl border border-[var(--color-border-primary)] flex items-center gap-4">
+                            <CreditCard className="text-[var(--color-accent-primary)] flex-shrink-0" size={24} />
                             <div>
                               <h4 className="text-sm font-bold text-white mb-0.5">Synchronized Plan</h4>
                               <p className="text-xs text-slate-400 leading-relaxed">This team&apos;s subscription is synchronized with your captain account plan. Roster size limit: <b>Unlimited</b>.</p>
@@ -1259,7 +1259,7 @@ export default function TeamDetailPage() {
                                   onChange={(e) => setDeleteConfirm(e.target.value)}
                                   placeholder="Confirm team name"
                                   className="flex-1 rounded-lg px-4 py-2.5 text-xs outline-none"
-                                  style={{ background: "#070D18", border: "1px solid #1E3A5F", color: "#F0F4FF" }}
+                                  style={{ background: "var(--color-bg-primary)", border: "1px solid var(--color-border-primary)", color: "var(--color-text-primary)" }}
                                 />
                                 <button
                                   onClick={handleDeleteTeam}

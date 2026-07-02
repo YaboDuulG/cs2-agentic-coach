@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PositionalTag:
+    """Docstring for PositionalTag."""
     player: str
     tag: str  # e.g., 'Aggressive Peeker', 'Passive Setup'
     severity: str  # 'positive', 'warning', 'critical'
@@ -27,6 +28,7 @@ class PositionalTag:
 
 @dataclass
 class PositionalAnalysis:
+    """Docstring for PositionalAnalysis."""
     tags: list[PositionalTag] = field(default_factory=list)
 
 
@@ -94,6 +96,7 @@ def analyze_positions(match_data: dict) -> PositionalAnalysis:
 
 
 def positions_to_dict(analysis: PositionalAnalysis) -> dict:
+    """Docstring for positions_to_dict."""
     return {
         "tags": [
             {"player": t.player, "tag": t.tag, "severity": t.severity, "description": t.description}

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RotationFlag:
+    """Docstring for RotationFlag."""
     round_num: int
     player: str
     severity: str  # 'warning', 'critical'
@@ -27,6 +28,7 @@ class RotationFlag:
 
 @dataclass
 class PlayerRotationScore:
+    """Docstring for PlayerRotationScore."""
     player: str
     avg_velocity: float
     rotation_score: float
@@ -34,6 +36,7 @@ class PlayerRotationScore:
 
 @dataclass
 class RotationAnalysis:
+    """Docstring for RotationAnalysis."""
     player_scores: list[PlayerRotationScore] = field(default_factory=list)
     flags: list[RotationFlag] = field(default_factory=list)
 
@@ -102,6 +105,7 @@ def analyze_rotations(match_data: dict) -> RotationAnalysis:
 
 
 def rotation_to_dict(analysis: RotationAnalysis) -> dict:
+    """Docstring for rotation_to_dict."""
     return {
         "player_scores": [
             {

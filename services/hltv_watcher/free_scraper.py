@@ -115,6 +115,7 @@ def scrape_recent_matches(limit: int = 5) -> list[dict]:
 
 
 def main():
+    """Docstring for main."""
     logger.info("Executing Free Local HLTV Scraper...")
     matches = scrape_recent_matches(limit=3)
 

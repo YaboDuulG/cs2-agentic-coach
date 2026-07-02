@@ -47,6 +47,7 @@ MOCK_PRO_MATCHES = [
 
 
 def _get_gcs_client():
+    """Docstring for _get_gcs_client."""
     from google.cloud import storage
 
     return storage.Client()
@@ -198,6 +199,7 @@ def fetch_apify_matches(api_token: str, actor_id: str) -> list[dict]:
 
 
 def main(args_list: list[str] | None = None):
+    """Docstring for main."""
     parser = argparse.ArgumentParser(description="DemoSage HLTV Watcher & Crawler")
     parser.add_argument(
         "--mode", choices=["scheduled", "manual"], default="scheduled", help="Ingestion run mode"

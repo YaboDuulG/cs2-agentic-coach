@@ -135,6 +135,7 @@ def print_summary(match_id: str) -> None:
 
 
 def main() -> None:
+    """Docstring for main."""
     parser = argparse.ArgumentParser(description="DemoSage local pipeline runner")
     parser.add_argument("--demo", required=True, help="Path to a CS2 .dem file")
     parser.add_argument("--match-id", default=None, help="Match ID (auto-generated if omitted)")

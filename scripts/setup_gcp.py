@@ -56,6 +56,7 @@ def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
 
 
 def main() -> None:
+    """Docstring for main."""
     if not DB_PASSWORD:
         print("ERROR: DB_PASSWORD must be set in .env before running setup.")
         sys.exit(1)

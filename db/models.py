@@ -38,6 +38,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
+    """Docstring for Base."""
     pass
 
 
@@ -47,6 +48,7 @@ class Base(DeclarativeBase):
 
 
 class MatchStatus(str, enum.Enum):
+    """Docstring for MatchStatus."""
     PENDING = "pending"  # Uploaded, not yet parsed
     PARSING = "parsing"  # Scout is actively parsing
     COMPLETE = "complete"  # Parsing done, data written
@@ -54,6 +56,7 @@ class MatchStatus(str, enum.Enum):
 
 
 class WinnerSide(str, enum.Enum):
+    """Docstring for WinnerSide."""
     CT = "CT"
     T = "T"
     DRAW = "DRAW"
@@ -65,6 +68,7 @@ class WinnerSide(str, enum.Enum):
 
 
 class Match(Base):
+    """Docstring for Match."""
     __tablename__ = "matches"
 
     match_id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -122,6 +126,7 @@ class Match(Base):
     )
 
     def __repr__(self) -> str:
+        """Docstring for __repr__."""
         return f"<Match {self.match_id} map={self.map_name} status={self.status}>"
 
 
@@ -131,6 +136,7 @@ class Match(Base):
 
 
 class Kill(Base):
+    """Docstring for Kill."""
     __tablename__ = "kills"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -163,6 +169,7 @@ class Kill(Base):
 
 
 class Grenade(Base):
+    """Docstring for Grenade."""
     __tablename__ = "grenades"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -186,6 +193,7 @@ class Grenade(Base):
 
 
 class Round(Base):
+    """Docstring for Round."""
     __tablename__ = "rounds"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -209,6 +217,7 @@ class Round(Base):
 
 
 class FirstContact(Base):
+    """Docstring for FirstContact."""
     __tablename__ = "first_contacts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -238,6 +247,7 @@ class FirstContact(Base):
 
 
 class PlayerTrajectory(Base):
+    """Docstring for PlayerTrajectory."""
     __tablename__ = "trajectories"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -260,6 +270,7 @@ class PlayerTrajectory(Base):
 
 
 class Team(Base):
+    """Docstring for Team."""
     __tablename__ = "teams"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -277,6 +288,7 @@ class Team(Base):
     )
 
     def __repr__(self) -> str:
+        """Docstring for __repr__."""
         return f"<Team {self.id} name={self.name}>"
 
 
@@ -286,6 +298,7 @@ class Team(Base):
 
 
 class TeamMember(Base):
+    """Docstring for TeamMember."""
     __tablename__ = "team_members"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -303,6 +316,7 @@ class TeamMember(Base):
     team: Mapped["Team"] = relationship("Team", back_populates="members")
 
     def __repr__(self) -> str:
+        """Docstring for __repr__."""
         return f"<TeamMember team={self.team_id} user={self.user_id} role={self.role}>"
 
 
@@ -312,6 +326,7 @@ class TeamMember(Base):
 
 
 class PracticeServer(Base):
+    """Docstring for PracticeServer."""
     __tablename__ = "practice_servers"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -333,6 +348,7 @@ class PracticeServer(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
     def __repr__(self) -> str:
+        """Docstring for __repr__."""
         return f"<PracticeServer {self.id} status={self.status} ip={self.ip_address}>"
 
 
@@ -372,6 +388,7 @@ class TrainingSession(Base):
     )
 
     def __repr__(self) -> str:
+        """Docstring for __repr__."""
         return f"<TrainingSession {self.id} mode={self.mode} user={self.user_id}>"
 
 
@@ -386,10 +403,12 @@ from sqlalchemy.types import TypeDecorator
 
 
 class SQLiteVectorType(TypeDecorator):
+    """Docstring for SQLiteVectorType."""
     impl = Text
     cache_ok = True
 
     def process_bind_param(self, value, dialect):
+        """Docstring for process_bind_param."""
         if value is not None:
             if isinstance(value, str):
                 return value
@@ -397,6 +416,7 @@ class SQLiteVectorType(TypeDecorator):
         return value
 
     def process_result_value(self, value, dialect):
+        """Docstring for process_result_value."""
         if value is not None:
             try:
                 return json.loads(value)
@@ -443,6 +463,7 @@ class KnowledgeEmbedding(Base):
     )
 
     def __repr__(self) -> str:
+        """Docstring for __repr__."""
         return f"<KnowledgeEmbedding {self.id} source={self.source}>"
 
 
@@ -462,6 +483,7 @@ class MapPlaybook(Base):
     )
 
     def __repr__(self) -> str:
+        """Docstring for __repr__."""
         return f"<MapPlaybook map={self.map_name}>"
 
 
@@ -476,6 +498,7 @@ class SystemConfig(Base):
     value: Mapped[str] = mapped_column(Text, nullable=False)
 
     def __repr__(self) -> str:
+        """Docstring for __repr__."""
         return f"<SystemConfig {self.key}>"
 
 
@@ -496,6 +519,7 @@ class UserStrategy(Base):
     )
 
     def __repr__(self) -> str:
+        """Docstring for __repr__."""
         return f"<UserStrategy {self.title} map={self.map_name}>"
 
 
@@ -520,4 +544,35 @@ class TeamPlaybook(Base):
     team: Mapped["Team"] = relationship("Team")
 
     def __repr__(self) -> str:
+        """Docstring for __repr__."""
         return f"<TeamPlaybook {self.title} map={self.map_name}>"
+
+
+# ---------------------------------------------------------------------------
+# LinkedAccount — external platform connections (Steam, FACEIT)
+# ---------------------------------------------------------------------------
+
+
+class LinkedAccount(Base):
+    """Docstring for LinkedAccount."""
+    __tablename__ = "linked_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)  # 'steam' | 'faceit'
+    provider_user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    def __repr__(self) -> str:
+        """Docstring for __repr__."""
+        return f"<LinkedAccount user={self.user_id} provider={self.provider} id={self.provider_user_id}>"

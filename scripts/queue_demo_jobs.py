@@ -32,6 +32,7 @@ from db.models import Match, MatchStatus
 
 
 def main():
+    """Docstring for main."""
     db = SessionLocal()
     try:
         # Find matches with status PENDING

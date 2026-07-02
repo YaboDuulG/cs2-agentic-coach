@@ -1,3 +1,4 @@
+"""Module docstring."""
 import os
 
 # Force SQLite for tests

@@ -1,3 +1,9 @@
+"""Module docstring."""
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+from db.database import get_session
+
 """
 Discord Webhook Ingestion Route
 ===============================
@@ -5,12 +11,13 @@ Handles incoming webhooks from Discord, parsing unstructured messages into
 structured team strategies using Gemini, generating embeddings, and storing them in DB.
 """
 
+import hashlib
+import hmac
 import json
 import logging
 import os
-from typing import Any, Dict
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from db.models import KnowledgeEmbedding
 from db.rag import get_query_embedding
@@ -89,9 +96,28 @@ def parse_strategy_with_gemini(raw_text: str) -> dict:
 
 @router.post("/webhook", summary="Receive a Discord message webhook")
 async def discord_webhook(
+    request: Request,
     team_id: str = Query(...),
-    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_session)
 ):
+    """Docstring for discord_webhook."""
+    body = await request.body()
+
+    secret = os.environ.get("DISCORD_WEBHOOK_SECRET")
+    if secret:
+        signature = request.headers.get("X-Webhook-Signature")
+        if not signature:
+            raise HTTPException(status_code=401, detail="Missing X-Webhook-Signature header")
+
+        expected_sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected_sig):
+            raise HTTPException(status_code=401, detail="Invalid signature")
+
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
     if not payload:
         raise HTTPException(status_code=400, detail="Empty payload")
 
@@ -129,32 +155,26 @@ async def discord_webhook(
         vector = get_query_embedding(structured_content.strip(), api_key)
 
         # Save to DB
-        from db.database import SessionLocal  # noqa: PLC0415
+        meta = {
+            "team_id": team_id,
+            "map_name": parsed.get("map_name", "All Maps"),
+            "side": parsed.get("side", "Both"),
+            "title": parsed.get("title", "Ingested Tactic"),
+            "author": author,
+            "summary": parsed.get("summary", ""),
+            "steps": parsed.get("steps", []),
+            "raw_content": content,
+        }
 
-        db = SessionLocal()
-        try:
-            meta = {
-                "team_id": team_id,
-                "map_name": parsed.get("map_name", "All Maps"),
-                "side": parsed.get("side", "Both"),
-                "title": parsed.get("title", "Ingested Tactic"),
-                "author": author,
-                "summary": parsed.get("summary", ""),
-                "steps": parsed.get("steps", []),
-                "raw_content": content,
-            }
-
-            db.add(
-                KnowledgeEmbedding(
-                    content=structured_content.strip(),
-                    embedding=vector,
-                    source="team_strategy",
-                    metadata_json=json.dumps(meta),
-                )
+        db.add(
+            KnowledgeEmbedding(
+                content=structured_content.strip(),
+                embedding=vector,
+                source="team_strategy",
+                metadata_json=json.dumps(meta),
             )
-            db.commit()
-        finally:
-            db.close()
+        )
+        db.commit()
 
         return {"status": "ingested", "title": parsed.get("title", "Ingested Tactic")}
     except Exception as e:

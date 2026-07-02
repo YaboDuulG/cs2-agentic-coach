@@ -1,3 +1,4 @@
+"""Module docstring."""
 import pytest
 
 from api.auth import verify_shared_secret

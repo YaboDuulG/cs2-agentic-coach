@@ -53,3 +53,17 @@ playwright==1.49.0
 
 
 
+
+# --- Auth ---
+python-jose[cryptography]>=3.3.0
+alembic>=1.13.0
+
+# --- MCP ---
+mcp>=1.0.0
+
+# --- Vector DB ---
+qdrant-client>=1.9.0
+
+# --- Caching ---
+redis>=5.0.0
+

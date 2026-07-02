@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://coderabbit.ai/export/schema.json
+language: "en-US"
+early_access: false
+reviews:
+  profile: "standard"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: true
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    ignore_title_keywords:
+      - "WIP"
+      - "Draft"
+      - "No Review"
+    drafts: false
+    base_branches:
+      - "main"
+      - "plan-and-cleanup-phases"
+chat:
+  auto_reply: true

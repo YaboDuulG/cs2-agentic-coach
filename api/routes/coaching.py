@@ -1,3 +1,9 @@
+"""Module docstring."""
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+from db.database import get_session
+
 """
 Coaching endpoint — triggers Great Khan AI analysis and returns cached results.
 """
@@ -17,7 +23,7 @@ _running_tasks = set()
 
 
 @router.post("/{match_id}", summary="Trigger AI coaching for a match")
-async def trigger_coaching(match_id: str, background_tasks: BackgroundTasks):
+async def trigger_coaching(match_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_session)):
     """Called by Scout after a successful parse. Runs coaching in background."""
     background_tasks.add_task(_run_coaching, match_id)
     return {"status": "coaching_queued", "match_id": match_id}
@@ -29,91 +35,85 @@ async def get_coaching(
     background_tasks: BackgroundTasks,
     user_id: str | None = None,
     uploader_steam_id: str | None = None,
-):
+db: Session = Depends(get_session)):
     """Return cached AI coaching output, or 202 if not ready yet."""
     try:
         from sqlalchemy import text  # noqa: PLC0415
 
-        from db.database import SessionLocal  # noqa: PLC0415
         from db.models import Match, MatchStatus  # noqa: PLC0415
+        match = db.query(Match).filter(Match.match_id == match_id).first()
+        if not match:
+            raise HTTPException(status_code=404, detail="Match not found")
 
-        db = SessionLocal()
+        # Access check
+        if match.team_id:
+            if not user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: Team match requires user authentication.",
+                )
+            member_check = db.execute(
+                text(
+                    "SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"
+                ),
+                {"team_id": match.team_id, "user_id": user_id},
+            ).fetchone()
+            if not member_check:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: You are not a member of this team.",
+                )
+        else:
+            if match.user_id and match.user_id != user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: This match belongs to another user.",
+                )
+
+        # Self-healing: if uploader_steam_id is provided, match is owned by user,
+        # and match doesn't have this Steam ID mapped, update it and invalidate cached coaching notes!
+        is_owner = match.user_id == user_id
+        if uploader_steam_id and is_owner and match.uploader_steam_id != uploader_steam_id:
+            logger.info(
+                f"[Coaching] Updating uploader_steam_id from {match.uploader_steam_id} to {uploader_steam_id} for match {match_id}. Clearing old coaching notes to force re-run."
+            )
+            match.uploader_steam_id = uploader_steam_id
+            match.coaching_notes = None
+            db.commit()
+
+        if not match.coaching_notes:
+            # Self-healing: trigger coaching in background if match is COMPLETE and coaching is not running
+            if match.status == MatchStatus.COMPLETE:
+                is_running = False
+                with _running_tasks_lock:
+                    if match_id in _running_tasks:
+                        is_running = True
+                if not is_running:
+                    logger.info(
+                        f"Triggering self-healing coaching run for complete match {match_id}"
+                    )
+                    background_tasks.add_task(_run_coaching, match_id)
+
+            return JSONResponse(
+                status_code=202,
+                content={"status": "pending", "match_id": match_id},
+            )
+
         try:
-            match = db.query(Match).filter(Match.match_id == match_id).first()
-            if not match:
-                raise HTTPException(status_code=404, detail="Match not found")
-
-            # Access check
-            if match.team_id:
-                if not user_id:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Access denied: Team match requires user authentication.",
-                    )
-                member_check = db.execute(
-                    text(
-                        "SELECT 1 FROM team_members WHERE team_id = :team_id AND user_id = :user_id"
-                    ),
-                    {"team_id": match.team_id, "user_id": user_id},
-                ).fetchone()
-                if not member_check:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Access denied: You are not a member of this team.",
-                    )
-            else:
-                if match.user_id and match.user_id != user_id:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Access denied: This match belongs to another user.",
-                    )
-
-            # Self-healing: if uploader_steam_id is provided, match is owned by user,
-            # and match doesn't have this Steam ID mapped, update it and invalidate cached coaching notes!
-            is_owner = match.user_id == user_id
-            if uploader_steam_id and is_owner and match.uploader_steam_id != uploader_steam_id:
-                logger.info(
-                    f"[Coaching] Updating uploader_steam_id from {match.uploader_steam_id} to {uploader_steam_id} for match {match_id}. Clearing old coaching notes to force re-run."
-                )
-                match.uploader_steam_id = uploader_steam_id
-                match.coaching_notes = None
-                db.commit()
-
-            if not match.coaching_notes:
-                # Self-healing: trigger coaching in background if match is COMPLETE and coaching is not running
-                if match.status == MatchStatus.COMPLETE:
-                    is_running = False
-                    with _running_tasks_lock:
-                        if match_id in _running_tasks:
-                            is_running = True
-                    if not is_running:
-                        logger.info(
-                            f"Triggering self-healing coaching run for complete match {match_id}"
-                        )
-                        background_tasks.add_task(_run_coaching, match_id)
-
-                return JSONResponse(
-                    status_code=202,
-                    content={"status": "pending", "match_id": match_id},
-                )
-
-            try:
-                coaching_data = json.loads(match.coaching_notes)
-            except (json.JSONDecodeError, TypeError):
-                coaching_data = {
-                    "strat_card": match.coaching_notes,
-                    "player_reports": {},
-                    "coach_report": match.coaching_notes,
-                }
-
-            return {
-                "status": "ready",
-                "match_id": match_id,
-                "coaching": coaching_data,
-                "is_recon": getattr(match, "is_recon", False),
+            coaching_data = json.loads(match.coaching_notes)
+        except (json.JSONDecodeError, TypeError):
+            coaching_data = {
+                "strat_card": match.coaching_notes,
+                "player_reports": {},
+                "coach_report": match.coaching_notes,
             }
-        finally:
-            db.close()
+
+        return {
+            "status": "ready",
+            "match_id": match_id,
+            "coaching": coaching_data,
+            "is_recon": getattr(match, "is_recon", False),
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -122,43 +122,37 @@ async def get_coaching(
 
 
 @router.get("/{match_id}/player/{player_name}", summary="Get coaching notes for a specific player")
-async def get_player_coaching(match_id: str, player_name: str, user_id: str | None = None):
+async def get_player_coaching(match_id: str, player_name: str, user_id: str | None = None, db: Session = Depends(get_session)):
     """Return only the Player Report section for a specific player."""
     try:
-        from db.database import SessionLocal  # noqa: PLC0415
         from db.models import Match  # noqa: PLC0415
+        match = db.query(Match).filter(Match.match_id == match_id).first()
+        if not match:
+            raise HTTPException(status_code=404, detail="Match not found")
 
-        db = SessionLocal()
+        if not match.coaching_notes:
+            return JSONResponse(
+                status_code=202,
+                content={"status": "pending", "match_id": match_id},
+            )
+
         try:
-            match = db.query(Match).filter(Match.match_id == match_id).first()
-            if not match:
-                raise HTTPException(status_code=404, detail="Match not found")
+            coaching_data = json.loads(match.coaching_notes)
+        except (json.JSONDecodeError, TypeError):
+            raise HTTPException(status_code=500, detail="Failed to parse coaching data")
 
-            if not match.coaching_notes:
-                return JSONResponse(
-                    status_code=202,
-                    content={"status": "pending", "match_id": match_id},
-                )
+        player_reports = coaching_data.get("player_reports", {})
+        if player_name not in player_reports:
+            raise HTTPException(
+                status_code=404, detail=f"No report found for player {player_name}"
+            )
 
-            try:
-                coaching_data = json.loads(match.coaching_notes)
-            except (json.JSONDecodeError, TypeError):
-                raise HTTPException(status_code=500, detail="Failed to parse coaching data")
-
-            player_reports = coaching_data.get("player_reports", {})
-            if player_name not in player_reports:
-                raise HTTPException(
-                    status_code=404, detail=f"No report found for player {player_name}"
-                )
-
-            return {
-                "status": "ready",
-                "match_id": match_id,
-                "player": player_name,
-                "report": player_reports[player_name],
-            }
-        finally:
-            db.close()
+        return {
+            "status": "ready",
+            "match_id": match_id,
+            "player": player_name,
+            "report": player_reports[player_name],
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -176,7 +170,7 @@ def _run_coaching(match_id: str) -> None:
             return
         _running_tasks.add(match_id)
     try:
-        from agents.great_khan import analyse_match  # noqa: PLC0415
+        from agents.khan import analyse_match  # noqa: PLC0415
 
         analyse_match(match_id)
     except Exception as e:

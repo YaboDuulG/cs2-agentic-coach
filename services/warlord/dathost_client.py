@@ -1,3 +1,4 @@
+"""Module docstring."""
 from datetime import UTC, datetime
 import logging
 import os
@@ -249,6 +250,7 @@ TRAINING_MODE_CONFIGS: dict[str, dict] = {
 
 
 def get_dathost_auth() -> tuple:
+    """Docstring for get_dathost_auth."""
     email = os.environ.get("DATHOST_EMAIL")
     password = os.environ.get("DATHOST_PASSWORD") or os.environ.get("DATHOST_API_KEY")
     if not email or not password:

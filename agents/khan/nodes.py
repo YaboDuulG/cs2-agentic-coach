@@ -1,0 +1,545 @@
+"""Module docstring."""
+import json
+import logging
+from typing import Any
+
+from agents.khan.llm import _call_gemini, _stub_coaching
+from agents.khan.stats import _compute_stats
+from agents.state import MatchState
+
+logger = logging.getLogger("great_khan")
+
+def supervisor_node(state: MatchState) -> dict[str, Any]:
+    """Classifies the user query and routes to the correct node."""
+    logger.info("[Supervisor] Evaluating user query...")
+    query = state.get("user_query", "").strip()
+
+    if not query:
+        # If no user query, default to tactical analysis on the uploaded match
+        return {"intent": "tactical_analysis"}
+
+    query_lower = query.lower()
+
+    # Route based on key terms
+    if any(
+        k in query_lower for k in ("server", "warlord", "connect", "rcon", "dathost", "spin up")
+    ):
+        intent = "server_request"
+    elif any(
+        k in query_lower
+        for k in ("history", "past", "meta", "trend", "overall", "last game", "hltv")
+    ):
+        intent = "general"
+    else:
+        intent = "tactical_analysis"
+
+    logger.info(f"[Supervisor] Classed intent: {intent}")
+    return {"intent": intent}
+
+
+def scout_node(state: MatchState) -> dict[str, Any]:
+    """Fetches parsed stats from the database for the given match."""
+    match_id = state.get("match_id")
+    logger.info(f"[Scout Node] Fetching match stats for {match_id}...")
+    stats = _compute_stats(match_id)
+    if not stats:
+        return {"errors": ["Scout stats could not be computed for this match."]}
+    return {"scout_output": stats}
+
+
+def rag_node(state: MatchState) -> dict[str, Any]:
+    """Retrieves context from the RAG database based on the map name."""
+    match_id = state.get("match_id")
+
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import Match  # noqa: PLC0415
+    from db.rag import retrieve_similar_chunks  # noqa: PLC0415
+
+    db = SessionLocal()
+    try:
+        match_obj = db.query(Match).filter(Match.match_id == match_id).first()
+        map_name = match_obj.map_name if match_obj else "unknown"
+        user_id = match_obj.user_id if match_obj else None
+        team_id = match_obj.team_id if match_obj else None
+
+        logger.info(f"[Library RAG Node] Querying rules and pro tactics for de_{map_name}...")
+
+        rag_context = []
+        # Query CS2 map rules and guidelines
+        map_chunks = retrieve_similar_chunks(
+            db,
+            query=f"CS2 tactical guidelines map {map_name}",
+            limit=3,
+            source="game_rules",
+            user_id=user_id,
+            team_id=team_id,
+        )
+        rag_context.extend(map_chunks)
+
+        # Query economy save/buy rules
+        econ_chunks = retrieve_similar_chunks(
+            db,
+            query="CS2 economy buy thresholds and save rules",
+            limit=2,
+            source="game_rules",
+            user_id=user_id,
+            team_id=team_id,
+        )
+        rag_context.extend(econ_chunks)
+
+        # Query pro matches
+        pro_chunks = retrieve_similar_chunks(
+            db,
+            query=f"pro match de_{map_name} tactics",
+            limit=2,
+            source="hltv_pro_match",
+            user_id=user_id,
+            team_id=team_id,
+        )
+        rag_context.extend(pro_chunks)
+    except Exception as e:
+        logger.error(f"RAG retrieval failed: {e}")
+    finally:
+        db.close()
+
+    return {"rag_context": rag_context}
+
+
+def tactician_node(state: MatchState) -> dict[str, Any]:
+    """Evaluates duels, economy, utility, and movement via Tactician modules."""
+    match_id = state.get("match_id")
+    logger.info(f"[Tactician Node] Running tactical analysis for match {match_id}...")
+
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import FirstContact, Grenade, PlayerTrajectory, Round  # noqa: PLC0415
+    from services.tactician.economy_coherence import (  # noqa: PLC0415
+        analyze_economy,
+        economy_to_dict,
+    )
+    from services.tactician.fcr import analyze_fcr, fcr_to_dict  # noqa: PLC0415
+    from services.tactician.positional_patterns import (  # noqa: PLC0415
+        analyze_positions,
+        positions_to_dict,
+    )
+    from services.tactician.rotation_efficiency import (  # noqa: PLC0415
+        analyze_rotations,
+        rotation_to_dict,
+    )
+    from services.tactician.utility_sequencing import (  # noqa: PLC0415
+        analyze_utility,
+        utility_to_dict,
+    )
+
+    db = SessionLocal()
+    try:
+        first_contacts = db.query(FirstContact).filter(FirstContact.match_id == match_id).all()
+        rounds = db.query(Round).filter(Round.match_id == match_id).all()
+        grenades = db.query(Grenade).filter(Grenade.match_id == match_id).all()
+        trajectories = (
+            db.query(PlayerTrajectory).filter(PlayerTrajectory.match_id == match_id).all()
+        )
+
+        fc_list = []
+        for fc in first_contacts:
+            fc_list.append(
+                {
+                    "round_num": fc.round_num,
+                    "attacker": fc.attacker,
+                    "attacker_team": fc.attacker_team,
+                    "victim": fc.victim,
+                    "weapon": fc.weapon,
+                    "headshot": fc.headshot,
+                    "tick": fc.tick,
+                }
+            )
+
+        r_list = []
+        for r in rounds:
+            r_list.append(
+                {
+                    "round_num": r.round_num,
+                    "winner_side": r.winner_side,
+                    "ct_eq_val": r.ct_eq_val,
+                    "t_eq_val": r.t_eq_val,
+                }
+            )
+
+        g_list = []
+        for g in grenades:
+            g_list.append(
+                {
+                    "round_num": g.round_num,
+                    "tick": g.tick,
+                    "thrower": g.thrower,
+                    "grenade_type": g.grenade_type,
+                }
+            )
+
+        t_list = []
+        for t in trajectories:
+            t_list.append(
+                {
+                    "round_num": t.round_num,
+                    "player": t.player,
+                    "positions_json": t.positions_json,
+                }
+            )
+
+        match_data = {
+            "metadata": {"match_id": match_id, "total_rounds": len(rounds)},
+            "first_contacts": fc_list,
+            "rounds": r_list,
+            "grenades": g_list,
+            "trajectories": t_list,
+        }
+
+        fcr_data = fcr_to_dict(analyze_fcr(match_data))
+        eco_data = economy_to_dict(analyze_economy(match_data))
+        rot_data = rotation_to_dict(analyze_rotations(match_data))
+        pos_data = positions_to_dict(analyze_positions(match_data))
+        util_data = utility_to_dict(analyze_utility(match_data))
+
+        return {
+            "tactical_analysis": {
+                "fcr": fcr_data,
+                "economy": eco_data,
+                "rotations": rot_data,
+                "positions": pos_data,
+                "utility": util_data,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Tactician analysis failed: {e}")
+        return {"errors": ["Tactician analysis failed."]}
+    finally:
+        db.close()
+
+
+def scribe_node(state: MatchState) -> dict[str, Any]:
+    """Compiles the report by incorporating RAG and Tactician flags into Gemini."""
+    match_id = state.get("match_id")
+    scout_out = state.get("scout_output", {})
+    rag_context = state.get("rag_context", [])
+    tactical_analysis = state.get("tactical_analysis", {})
+
+    logger.info("[Scribe Node] Generating final report...")
+
+    from agents.scribe.report_generator import generate_reports
+
+    report = generate_reports(match_id, scout_out, rag_context, tactical_analysis)
+
+    score = 1.0
+    grounded = True
+    if not scout_out:
+        score = 0.5
+        grounded = False
+
+    return {
+        "final_report": report,
+        "confidence": {"score": score, "grounded": grounded, "flagged": score < 0.6},
+    }
+
+
+def general_node(state: MatchState) -> dict[str, Any]:
+    """Handles informational queries concerning history, meta trends, and rules."""
+    query = state.get("user_query", "")
+    match_id = state.get("match_id")
+    logger.info(f"[General Node] Querying meta and historical games context for query: {query}")
+
+    from sqlalchemy import text  # noqa: PLC0415
+
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.rag import retrieve_similar_chunks  # noqa: PLC0415
+
+    rag_context = []
+    db = SessionLocal()
+    try:
+        # Fetch user_id and team_id first for RAG routing
+        match_row = (
+            db.execute(
+                text("SELECT team_id, user_id FROM matches WHERE match_id = :match_id"),
+                {"match_id": match_id},
+            ).fetchone()
+            if match_id
+            else None
+        )
+
+        team_id = match_row[0] if match_row else None
+        user_id = match_row[1] if match_row else None
+
+        # Retrieve guideline and pro match meta snapshots
+        meta_chunks = retrieve_similar_chunks(
+            db, query=query, limit=4, source="game_rules", user_id=user_id, team_id=team_id
+        )
+        rag_context.extend(meta_chunks)
+
+        pro_chunks = retrieve_similar_chunks(
+            db, query=query, limit=4, source="hltv_pro_match", user_id=user_id, team_id=team_id
+        )
+        rag_context.extend(pro_chunks)
+    except Exception as e:
+        logger.error(f"RAG retrieval failed in general_node: {e}")
+
+    # Build historical trend profile
+    past_matches_summary = ""
+    try:
+        if match_row:
+            team_id, user_id = match_row[0], match_row[1]
+            if team_id:
+                history_rows = db.execute(
+                    text(
+                        "SELECT match_id, map_name, total_rounds, coaching_notes, created_at FROM matches WHERE team_id = :team_id AND status = 'complete' ORDER BY created_at DESC LIMIT 5"
+                    ),
+                    {"team_id": team_id},
+                ).fetchall()
+            else:
+                history_rows = db.execute(
+                    text(
+                        "SELECT match_id, map_name, total_rounds, coaching_notes, created_at FROM matches WHERE user_id = :user_id AND status = 'complete' ORDER BY created_at DESC LIMIT 5"
+                    ),
+                    {"user_id": user_id},
+                ).fetchall()
+
+            if history_rows:
+                past_matches_summary += "\n\nPAST TEAM MATCHES HISTORICAL TRENDS:\n"
+                for h in history_rows:
+                    past_matches_summary += f"- Match on {h[1]} ({h[2]} rounds, created {h[4]}): "
+                    notes = h[3]
+                    if notes:
+                        try:
+                            notes_dict = json.loads(notes)
+                            past_matches_summary += f"{notes_dict.get('summary', '')}\n"
+                        except Exception:
+                            past_matches_summary += f"{notes[:100]}...\n"
+                    else:
+                        past_matches_summary += "No coaching notes available.\n"
+    except Exception as e:
+        logger.error(f"Failed to fetch team history in general_node: {e}")
+    finally:
+        db.close()
+
+    rag_text = "\n".join([f"- {c.get('content')}" for c in rag_context])
+
+    prompt = f"""You are DemoSage (The Great Khan) — an elite CS2 tactical coach.
+The user is asking a general or historical question: "{query}"
+
+Here is some retrieved game rules, meta, and pro guidelines context (RAG):
+{rag_text}
+{past_matches_summary}
+
+Based on this, answer the user's question with historical insights, past trends, and strategic advice.
+Return ONLY valid JSON matching this exact structure:
+{{
+  "summary": "Direct answer to the user's query in 2-3 sentences.",
+  "key_findings": ["historical context point 1", "meta trend point 2", "game review point 3"],
+  "economy_analysis": "Historical economy patterns or N/A",
+  "tactical_recommendations": [
+    {{"title": "Meta/Strategic recommendation", "detail": "actionable advice based on historical context"}}
+  ],
+  "strongest_area": "Summary of historical strength",
+  "weakest_area": "Summary of historical weakness"
+}}"""
+
+    report = _call_gemini(prompt)
+    if not report:
+        report = _stub_coaching()
+
+    return {"final_report": report}
+
+def _stub_server_report(msg: str) -> dict:
+    """Docstring for _stub_server_report."""
+    return {
+        "summary": msg,
+        "key_findings": ["Warlord node aborted."],
+        "economy_analysis": "N/A",
+        "tactical_recommendations": [],
+        "strongest_area": "N/A",
+        "weakest_area": "N/A",
+    }
+
+def warlord_node(state: MatchState) -> dict[str, Any]:
+    """Executes RCON commands on the team's active server based on user query."""
+    logger.info("[Warlord Node] Routing server config query...")
+
+    match_id = state.get("match_id")
+    query = state.get("user_query", "")
+
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import Match, PracticeServer  # noqa: PLC0415
+
+    db = SessionLocal()
+    try:
+        # 1. Get the team_id from the match
+        match = db.query(Match).filter(Match.match_id == match_id).first()
+        if not match or not match.team_id:
+            return {
+                "final_report": _stub_server_report(
+                    "This match is not associated with a Team. You must be in a Team to manage servers."
+                )
+            }
+
+        # 2. Get the active practice server for the team
+        server = (
+            db.query(PracticeServer)
+            .filter(
+                PracticeServer.team_id == match.team_id,
+                PracticeServer.status.in_(["booting", "active"]),
+            )
+            .first()
+        )
+
+        if not server:
+            return {
+                "final_report": _stub_server_report(
+                    "There is no active server running for your team. Please spin one up in the Training Server tab."
+                )
+            }
+
+        if server.status == "booting":
+            return {
+                "final_report": _stub_server_report(
+                    "Your server is still booting. Please wait a moment before sending commands."
+                )
+            }
+
+        if not server.ip_address or not server.rcon_password:
+            return {"final_report": _stub_server_report("Server IP or RCON password missing.")}
+
+        # 3. Use Gemini to parse the user's intent into RCON commands
+        import json
+        import os
+
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            return {"final_report": _stub_server_report("GEMINI_API_KEY not configured.")}
+
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            temperature=0.0,
+            google_api_key=api_key,
+            model_kwargs={"response_mime_type": "application/json"},
+        )
+
+        prompt = f"""
+You are the Warlord CS2 RCON translator.
+Convert this user request into an array of raw CS2 RCON commands to execute.
+User Request: "{query}"
+
+Common commands:
+- warmup/practice: ['sv_cheats 1', 'mp_warmup_pausetimer 1', 'sv_infinite_ammo 1', 'mp_restartgame 1']
+- kick bots: ['bot_kick']
+- pause: ['mp_pause_match']
+
+Return ONLY valid JSON: {{"commands": ["cmd1", "cmd2"]}}
+"""
+        response = llm.invoke(prompt)
+        try:
+            parsed = json.loads(response.content)
+            cmds = parsed.get("commands", [])
+        except Exception:
+            cmds = []
+
+        if not cmds:
+            return {
+                "final_report": _stub_server_report(
+                    "I couldn't figure out which server commands you wanted to run."
+                )
+            }
+
+        # 4. Execute via RCON
+        from services.warlord.rcon_client import execute_batch_commands
+
+        host, port = server.ip_address.split(":")
+
+        # We need to run this async within a sync node... LangGraph runs nodes in threads if they are sync.
+        import asyncio
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(
+                execute_batch_commands(host, int(port), server.rcon_password, cmds)
+            )
+        finally:
+            loop.close()
+
+        # 5. Return success
+        return {
+            "final_report": {
+                "summary": f"Executed {len(cmds)} server commands successfully.",
+                "key_findings": [f"Executed: {cmd}" for cmd in cmds],
+                "economy_analysis": "Server management",
+                "tactical_recommendations": [],
+                "strongest_area": "Server Online",
+                "weakest_area": "N/A",
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Warlord node failed: {e}")
+        return {"final_report": _stub_server_report(f"Failed to execute commands: {e}")}
+    finally:
+        db.close()
+
+
+def cache_node(state: MatchState) -> dict[str, Any]:
+    """Caches the generated report to the matches table in the database."""
+    match_id = state.get("match_id")
+    report = state.get("final_report")
+
+    # LangGraph 1.x requires every node to return at least one state key.
+    # We echo back final_report unchanged so the state update is valid.
+    if not report:
+        return {"final_report": state.get("final_report")}
+
+    logger.info(f"[Cache Node] Caching coaching notes for match {match_id}...")
+
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import Match, TrainingSession  # noqa: PLC0415
+
+    db = SessionLocal()
+    try:
+        match = db.query(Match).filter(Match.match_id == match_id).first()
+        if match:
+            match.coaching_notes = json.dumps(report)
+
+            # Auto-link to the most recent TrainingSession started within the last 4 hours
+            from datetime import UTC, datetime, timedelta
+
+            four_hours_ago = datetime.now(UTC) - timedelta(hours=4)
+            session = None
+            if match.team_id:
+                session = (
+                    db.query(TrainingSession)
+                    .filter(
+                        TrainingSession.team_id == match.team_id,
+                        TrainingSession.started_at >= four_hours_ago,
+                    )
+                    .order_by(TrainingSession.started_at.desc())
+                    .first()
+                )
+            elif match.user_id:
+                session = (
+                    db.query(TrainingSession)
+                    .filter(
+                        TrainingSession.user_id == match.user_id,
+                        TrainingSession.started_at >= four_hours_ago,
+                    )
+                    .order_by(TrainingSession.started_at.desc())
+                    .first()
+                )
+
+            if session:
+                session.job_id = match_id
+                logger.info(f"[Cache Node] Linked training session {session.id} to job {match_id}")
+
+            db.commit()
+            logger.info(f"[Cache Node] Cached notes saved successfully for {match_id}.")
+    except Exception as e:
+        logger.error(f"Failed to cache coaching notes: {e}")
+    finally:
+        db.close()
+
+    return {"final_report": report}

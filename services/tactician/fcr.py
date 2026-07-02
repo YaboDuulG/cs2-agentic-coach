@@ -65,6 +65,7 @@ class PlayerFcrStats:
 
     @property
     def first_kill_rate(self) -> float:
+        """Docstring for first_kill_rate."""
         return self.first_kills / max(self.first_kills + self.first_deaths, 1)
 
     @property
@@ -98,6 +99,7 @@ class FcrAnalysis:
 
 
 def _flag(severity: str, message: str, player: str | None = None) -> dict:
+    """Docstring for _flag."""
     return {"severity": severity, "message": message, "player": player}
 
 

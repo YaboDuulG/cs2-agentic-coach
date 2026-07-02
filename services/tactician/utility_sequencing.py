@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class UtilityFlag:
+    """Docstring for UtilityFlag."""
     round_num: int
     player: str
     severity: str
@@ -27,6 +28,7 @@ class UtilityFlag:
 
 @dataclass
 class UtilityAnalysis:
+    """Docstring for UtilityAnalysis."""
     flags: list[UtilityFlag] = field(default_factory=list)
     overall_efficiency: float = 1.0
 
@@ -92,6 +94,7 @@ def analyze_utility(match_data: dict) -> UtilityAnalysis:
 
 
 def utility_to_dict(analysis: UtilityAnalysis) -> dict:
+    """Docstring for utility_to_dict."""
     return {
         "overall_efficiency": round(analysis.overall_efficiency, 2),
         "flags": [

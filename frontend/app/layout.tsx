@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" className={`dark ${cinzel.variable} ${inter.variable} ${jetbrains.variable}`}>
-        <body className="antialiased">
+        <body suppressHydrationWarning className="antialiased">
           <Navbar />
           {children}
         </body>

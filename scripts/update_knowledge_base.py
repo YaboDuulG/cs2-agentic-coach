@@ -35,6 +35,7 @@ from db.models import FirstContact, Kill, KnowledgeEmbedding, Match, MatchStatus
 
 
 def clean_player_name(name: str | None) -> str:
+    """Docstring for clean_player_name."""
     if not name:
         return ""
     import re
@@ -43,6 +44,7 @@ def clean_player_name(name: str | None) -> str:
 
 
 def format_weapon_name(weapon: str | None) -> str:
+    """Docstring for format_weapon_name."""
     if not weapon:
         return "unknown weapon"
     return weapon.replace("weapon_", "").replace("_", " ").upper()
@@ -214,6 +216,7 @@ def ingest_match(db, match_id: str, api_key: str):
 
 
 def main():
+    """Docstring for main."""
     parser = argparse.ArgumentParser(description="DemoSage RAG Knowledge Base Ingestion Script")
     parser.add_argument("--match-id", type=str, help="Process specific match ID")
     args = parser.parse_args()
@@ -232,6 +235,7 @@ def main():
         from db.models import SystemConfig
 
         def update_last_run():
+            """Docstring for update_last_run."""
             config_obj = (
                 db.query(SystemConfig).filter(SystemConfig.key == "last_hltv_ingest_run").first()
             )

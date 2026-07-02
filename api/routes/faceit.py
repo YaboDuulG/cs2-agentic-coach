@@ -1,8 +1,14 @@
+"""Module docstring."""
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+from db.database import get_session
+
 """
 FACEIT Webhook Receiver
 ========================
 Receives FACEIT platform events (match.finished, match.cancelled) and
-auto-triggers demo analysis via the Scout pipeline.
+auto-triggers demo analysis via the demo-parser pipeline.
 
 Setup (FACEIT Developer Portal):
     1. Create a webhook subscription on your FACEIT hub/championship
@@ -17,7 +23,7 @@ Environment variables:
     FACEIT_API_KEY          - FACEIT server-side API key (for fetching match details)
     FACEIT_AUTO_TEAM_ID     - Optional: auto-associate demos with this team_id
     GCS_BUCKET              - GCS bucket for uploaded demos
-    SCOUT_URL               - Internal Scout service URL (for direct triggering in dev)
+    PARSER_URL              - Internal demo-parser service URL (for direct triggering in dev)
 """
 
 from datetime import UTC, datetime
@@ -28,8 +34,8 @@ import os
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
+import httpx
 import requests
-from sqlalchemy.orm import Session
 
 from db.models import Match, MatchStatus
 
@@ -42,7 +48,7 @@ FACEIT_API_KEY = os.getenv("FACEIT_API_KEY", "")
 FACEIT_API_BASE = "https://open.faceit.com/data/v4"
 FACEIT_AUTO_TEAM_ID = os.getenv("FACEIT_AUTO_TEAM_ID")
 GCS_BUCKET = os.getenv("GCS_BUCKET", "cs2-demosage")
-SCOUT_URL = os.getenv("SCOUT_URL", "http://localhost:8001")
+PARSER_URL = os.getenv("PARSER_SERVICE_URL", "http://localhost:8082")
 
 
 # ---------------------------------------------------------------------------
@@ -78,9 +84,8 @@ def _queue_demo_analysis(
     team_id: str | None,
 ) -> None:
     """
-    Downloads demo URL metadata and triggers the Scout parse pipeline.
-    In production this would upload the demo to GCS and push a Cloud Task.
-    In local/staging mode, it calls the Scout service directly.
+    Downloads demo URL metadata and triggers the demo-parser pipeline.
+    In local/staging mode, it calls the parser service directly.
     """
     local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
 
@@ -94,9 +99,7 @@ def _queue_demo_analysis(
         from sqlalchemy.orm import sessionmaker
 
         SessionLocal = sessionmaker(bind=engine)
-        db: Session = SessionLocal()
-
-        try:
+        with SessionLocal() as db:
             match = Match(
                 match_id=match_id,
                 team_id=team_id,
@@ -110,20 +113,21 @@ def _queue_demo_analysis(
             db.add(match)
             db.commit()
             logger.info(f"[FACEIT] Match record created: {match_id}")
-        finally:
-            db.close()
 
         if local_mode:
-            # Direct Scout call (dev only)
+            # Direct Parser call (dev only)
             try:
-                resp = requests.post(
-                    f"{SCOUT_URL}/parse-from-url",
+                resp = httpx.post(
+                    f"{PARSER_URL}/parse",
                     json={"match_id": match_id, "demo_url": demo_url},
-                    timeout=10,
+                    timeout=10.0,
                 )
-                logger.info(f"[FACEIT] Scout triggered: {resp.status_code}")
+                if resp.status_code in (200, 202):
+                    logger.info(f"[FACEIT] Parser triggered: {resp.status_code}")
+                else:
+                    logger.error(f"[FACEIT] Parser failed: {resp.status_code} {resp.text}")
             except Exception as e:
-                logger.warning(f"[FACEIT] Scout not reachable in dev: {e}")
+                logger.warning(f"[FACEIT] Parser not reachable in dev: {e}")
         else:
             # Production: push to Cloud Tasks (GCS upload would happen here)
             logger.info(
@@ -140,7 +144,7 @@ def _queue_demo_analysis(
 
 
 @router.post("/webhook")
-async def faceit_webhook(request: Request, background_tasks: BackgroundTasks) -> Response:
+async def faceit_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_session)) -> Response:
     """
     Receives FACEIT webhook events.
     Currently handled events:
@@ -238,7 +242,7 @@ def _fetch_demo_url(faceit_match_id: str) -> str | None:
 
 
 @router.get("/status")
-def faceit_connection_status() -> dict:
+def faceit_connection_status(db: Session = Depends(get_session)) -> dict:
     """Returns FACEIT integration config status (for the Settings UI)."""
     return {
         "webhook_configured": bool(FACEIT_WEBHOOK_SECRET),

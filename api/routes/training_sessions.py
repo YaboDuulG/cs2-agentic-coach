@@ -32,6 +32,7 @@ router = APIRouter()
 
 
 def _verify_team_member(db: Session, user_id: str, team_id: str) -> TeamMember:
+    """Docstring for _verify_team_member."""
     member = db.execute(
         select(TeamMember).where(
             TeamMember.user_id == user_id,
@@ -49,6 +50,7 @@ def _verify_team_member(db: Session, user_id: str, team_id: str) -> TeamMember:
 
 
 class SessionCreateRequest(BaseModel):
+    """Docstring for SessionCreateRequest."""
     server_id: str | None = None
     mode: str = "practice"
     map_name: str = "de_dust2"
@@ -56,10 +58,12 @@ class SessionCreateRequest(BaseModel):
 
 
 class SessionEndRequest(BaseModel):
+    """Docstring for SessionEndRequest."""
     ended_at: datetime | None = None  # defaults to now if omitted
 
 
 class SessionResponse(BaseModel):
+    """Docstring for SessionResponse."""
     id: str
     team_id: str
     user_id: str
@@ -76,6 +80,7 @@ class SessionResponse(BaseModel):
 
 
 class SessionListResponse(BaseModel):
+    """Docstring for SessionListResponse."""
     sessions: list[SessionResponse]
     total_sessions: int
     total_seconds: int

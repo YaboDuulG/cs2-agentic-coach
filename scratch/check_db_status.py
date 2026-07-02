@@ -1,3 +1,4 @@
+"""Module docstring."""
 from pathlib import Path
 import sys
 
@@ -16,6 +17,7 @@ from db.models import PracticeServer
 
 
 def check_db():
+    """Docstring for check_db."""
     db = SessionLocal()
     try:
         stmt = select(PracticeServer).order_by(PracticeServer.created_at.desc())

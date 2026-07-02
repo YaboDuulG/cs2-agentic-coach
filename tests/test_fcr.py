@@ -25,6 +25,7 @@ def _make_match(rounds: list[dict], first_contacts: list[dict]) -> dict:
 
 
 def _round(num: int, winner: str) -> dict:
+    """Docstring for _round."""
     return {
         "round_num": num,
         "winner_side": winner,
@@ -37,6 +38,7 @@ def _round(num: int, winner: str) -> dict:
 
 
 def _fc(round_num: int, attacker: str, team: str, victim: str) -> dict:
+    """Docstring for _fc."""
     return {
         "round_num": round_num,
         "tick": 1000,
