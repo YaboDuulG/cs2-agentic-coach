@@ -37,11 +37,12 @@ REPO_ROOT = Path(__file__).parent.parent.resolve()
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from services.scout.parse_demo import parse_demo, write_to_db
+
 from db.database import SessionLocal
 from db.models import Match
 from scripts.update_knowledge_base import ingest_match
 from services.hltv_watcher.main import extract_demo_file, upload_to_gcs
-from services.scout.parse_demo import parse_demo, write_to_db
 
 TARGET_TEAMS = {
     "9565": "Vitality",
