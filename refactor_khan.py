@@ -14,7 +14,8 @@ def get_section(start_marker, end_marker=None):
             start_idx = i
             break
 
-    if start_idx == -1: return []
+    if start_idx == -1:
+        return []
 
     end_idx = len(lines)
     if end_marker:
