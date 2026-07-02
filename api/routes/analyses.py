@@ -1,3 +1,4 @@
+"""Module docstring."""
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
@@ -50,6 +51,7 @@ async def list_analyses(user_id: str = "", db: Session = Depends(get_session)):
 
 
 class UpdateNotesRequest(BaseModel):
+    """Docstring for UpdateNotesRequest."""
     notes: str
 
 

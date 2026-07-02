@@ -1,3 +1,4 @@
+"""Module docstring."""
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
@@ -99,6 +100,7 @@ async def discord_webhook(
     team_id: str = Query(...),
     db: Session = Depends(get_session)
 ):
+    """Docstring for discord_webhook."""
     body = await request.body()
 
     secret = os.environ.get("DISCORD_WEBHOOK_SECRET")

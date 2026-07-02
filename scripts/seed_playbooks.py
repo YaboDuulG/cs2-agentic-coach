@@ -1,3 +1,4 @@
+"""Module docstring."""
 import asyncio
 import json
 import os
@@ -59,6 +60,7 @@ PRO_CHUNKS = [
 
 
 async def seed_db():
+    """Docstring for seed_db."""
     print("Creating tables if they do not exist...")
     Base.metadata.create_all(bind=engine)
 

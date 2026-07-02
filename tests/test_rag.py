@@ -41,6 +41,7 @@ def seed_embeddings(db_session):
     # 3. Orthogonal / bad match [0.0, 1.0]
     # We'll pad these to 768 dimensions with zeros.
     def make_vector(first_two):
+        """Docstring for make_vector."""
         v = [0.0] * 768
         v[0] = first_two[0]
         v[1] = first_two[1]
@@ -123,6 +124,7 @@ def test_retrieve_similar_chunks_isolation(mock_get_embedding, db_session):
     db_session.query(KnowledgeEmbedding).delete()
 
     def make_vector():
+        """Docstring for make_vector."""
         return [0.1] * 768
 
     # Public match (default scope or explicit)

@@ -92,6 +92,7 @@ def parse_markdown_chunks(filepath: Path) -> list[dict]:
     current_chunk_lines = []
 
     def save_current_chunk():
+        """Docstring for save_current_chunk."""
         nonlocal current_chunk_lines, current_h2, current_h3
         chunk_text = "\n".join(current_chunk_lines).strip()
         if chunk_text:
@@ -138,6 +139,7 @@ def parse_markdown_chunks(filepath: Path) -> list[dict]:
 
 
 def main():
+    """Docstring for main."""
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         logger.warning(

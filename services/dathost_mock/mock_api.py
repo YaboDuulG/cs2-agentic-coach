@@ -1,3 +1,4 @@
+"""Module docstring."""
 import asyncio
 import logging
 import uuid
@@ -14,11 +15,13 @@ servers = {}
 
 
 class ConsoleCommand(BaseModel):
+    """Docstring for ConsoleCommand."""
     line: str
 
 
 @app.post("/game-servers")
 async def create_server(request: Request):
+    """Docstring for create_server."""
     form = await request.form()
     logger.info(f"Mock Create Server: {form}")
 
@@ -36,6 +39,7 @@ async def create_server(request: Request):
 
 @app.get("/game-servers/{server_id}")
 async def get_server(server_id: str):
+    """Docstring for get_server."""
     if server_id not in servers:
         raise HTTPException(status_code=404, detail="Server not found")
     return servers[server_id]
@@ -43,6 +47,7 @@ async def get_server(server_id: str):
 
 @app.post("/game-servers/{server_id}/start")
 async def start_server(server_id: str):
+    """Docstring for start_server."""
     if server_id not in servers:
         raise HTTPException(status_code=404, detail="Server not found")
 
@@ -51,6 +56,7 @@ async def start_server(server_id: str):
 
     # Simulate boot delay in background
     async def boot():
+        """Docstring for boot."""
         await asyncio.sleep(5)
         servers[server_id]["booting"] = False
         servers[server_id]["on"] = True
@@ -62,6 +68,7 @@ async def start_server(server_id: str):
 
 @app.post("/game-servers/{server_id}/stop")
 async def stop_server(server_id: str):
+    """Docstring for stop_server."""
     if server_id not in servers:
         raise HTTPException(status_code=404, detail="Server not found")
 
@@ -73,6 +80,7 @@ async def stop_server(server_id: str):
 @app.post("/game-servers/{server_id}/console")
 async def console_command(server_id: str, line: str = None):
     # Form-data parses 'line' as a field
+    """Docstring for console_command."""
     if server_id not in servers:
         raise HTTPException(status_code=404, detail="Server not found")
 
@@ -82,6 +90,7 @@ async def console_command(server_id: str, line: str = None):
 
 @app.delete("/game-servers/{server_id}")
 async def delete_server(server_id: str):
+    """Docstring for delete_server."""
     if server_id in servers:
         del servers[server_id]
     return {"status": "deleted"}

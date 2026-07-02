@@ -1,3 +1,4 @@
+"""Module docstring."""
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
@@ -19,11 +20,13 @@ router = APIRouter()
 
 
 class UpdateConfigsRequest(BaseModel):
+    """Docstring for UpdateConfigsRequest."""
     configs: dict[str, str]
 
 
 @router.get("/configs", summary="Get all dynamic LLM configurations and prompts")
 async def get_admin_configs(db: Session = Depends(get_session)):
+    """Docstring for get_admin_configs."""
     try:
         rows = db.query(SystemConfig).all()
         db_configs = {r.key: r.value for r in rows}
@@ -39,6 +42,7 @@ async def get_admin_configs(db: Session = Depends(get_session)):
 
 @router.post("/configs", summary="Save LLM configurations and prompt directives")
 async def update_admin_configs(body: UpdateConfigsRequest, db: Session = Depends(get_session)):
+    """Docstring for update_admin_configs."""
     try:
         for key, val in body.configs.items():
             # Restrict saving to verified default keys to prevent DB pollution

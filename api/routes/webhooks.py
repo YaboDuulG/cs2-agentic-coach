@@ -1,3 +1,4 @@
+"""Module docstring."""
 from datetime import UTC, datetime
 import hashlib
 import hmac
@@ -19,6 +20,7 @@ router = APIRouter()
 FACEIT_WEBHOOK_SECRET = os.getenv("FACEIT_WEBHOOK_SECRET", "")
 
 def verify_faceit_signature(raw_body: bytes, signature: str) -> bool:
+    """Docstring for verify_faceit_signature."""
     if not FACEIT_WEBHOOK_SECRET:
         return True
     expected = hmac.new(
@@ -30,6 +32,7 @@ def verify_faceit_signature(raw_body: bytes, signature: str) -> bool:
 
 @router.post("/faceit", summary="FACEIT Webhook Receiver")
 async def faceit_webhook(request: Request, db: Session = Depends(get_session)):
+    """Docstring for faceit_webhook."""
     raw_body = await request.body()
     sig_header = request.headers.get("X-FACEIT-Signature", "")
 

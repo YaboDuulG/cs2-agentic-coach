@@ -1,3 +1,4 @@
+"""Module docstring."""
 import logging
 from typing import Any
 import uuid

@@ -19,6 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def migrate():
+    """Docstring for migrate."""
     ensure_collections_exist()
     db = SessionLocal()
     try:

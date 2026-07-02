@@ -1,9 +1,11 @@
+"""Module docstring."""
 import sys
 
 import demoparser2
 
 
 def test_demo(demo_path):
+    """Docstring for test_demo."""
     parser = demoparser2.DemoParser(demo_path)
 
     try:

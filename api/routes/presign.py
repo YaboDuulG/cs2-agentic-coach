@@ -1,3 +1,4 @@
+"""Module docstring."""
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
@@ -23,6 +24,7 @@ MAX_DEMO_SIZE_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB hard cap
 
 
 class PresignRequest(BaseModel):
+    """Docstring for PresignRequest."""
     filename: str
     size_bytes: int = 0
     team_id: str | None = None
@@ -152,6 +154,7 @@ async def presign_demo_upload(body: PresignRequest, request: Request, db: Sessio
 
 
 class ComposeRequest(BaseModel):
+    """Docstring for ComposeRequest."""
     match_id: str
     filename: str
     chunk_count: int

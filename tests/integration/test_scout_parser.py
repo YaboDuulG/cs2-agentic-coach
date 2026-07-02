@@ -1,3 +1,4 @@
+"""Module docstring."""
 from pathlib import Path
 
 # Adjust path to import Scout correctly
@@ -22,6 +23,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture
 def sample_demo():
     # Use the existing E2E demo
+    """Docstring for sample_demo."""
     demo_path = Path(__file__).parent.parent / "e2e" / "default.dem"
     if not demo_path.exists():
         pytest.skip(f"Test demo not found at {demo_path}")

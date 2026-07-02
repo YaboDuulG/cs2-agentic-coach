@@ -1,3 +1,4 @@
+"""Module docstring."""
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
@@ -17,6 +18,7 @@ router = APIRouter()
 
 
 class SaveUserStrategyRequest(BaseModel):
+    """Docstring for SaveUserStrategyRequest."""
     user_id: str
     map_name: str
     title: str
@@ -24,6 +26,7 @@ class SaveUserStrategyRequest(BaseModel):
 
 
 class SaveTeamPlaybookRequest(BaseModel):
+    """Docstring for SaveTeamPlaybookRequest."""
     team_id: str
     map_name: str
     title: str
@@ -32,6 +35,7 @@ class SaveTeamPlaybookRequest(BaseModel):
 
 @router.post("/user", summary="Save a custom user strategy")
 async def save_user_strategy(body: SaveUserStrategyRequest, db: Session = Depends(get_session)):
+    """Docstring for save_user_strategy."""
     if not body.title.strip() or not body.user_id.strip():
         raise HTTPException(status_code=400, detail="Title and user_id cannot be empty")
 
@@ -54,6 +58,7 @@ async def save_user_strategy(body: SaveUserStrategyRequest, db: Session = Depend
 
 @router.get("/user/{user_id}", summary="Get all strategies for a user")
 async def get_user_strategies(user_id: str, db: Session = Depends(get_session)):
+    """Docstring for get_user_strategies."""
     from db.models import UserStrategy
     try:
         strats = db.query(UserStrategy).filter(UserStrategy.user_id == user_id).all()
@@ -76,6 +81,7 @@ async def get_user_strategies(user_id: str, db: Session = Depends(get_session)):
 
 @router.post("/team", summary="Save a team playbook")
 async def save_team_playbook(body: SaveTeamPlaybookRequest, db: Session = Depends(get_session)):
+    """Docstring for save_team_playbook."""
     if not body.title.strip() or not body.team_id.strip():
         raise HTTPException(status_code=400, detail="Title and team_id cannot be empty")
 
@@ -98,6 +104,7 @@ async def save_team_playbook(body: SaveTeamPlaybookRequest, db: Session = Depend
 
 @router.get("/team/{team_id}", summary="Get all playbooks for a team")
 async def get_team_playbooks(team_id: str, db: Session = Depends(get_session)):
+    """Docstring for get_team_playbooks."""
     from db.models import TeamPlaybook
     try:
         playbooks = db.query(TeamPlaybook).filter(TeamPlaybook.team_id == team_id).all()
@@ -119,12 +126,14 @@ async def get_team_playbooks(team_id: str, db: Session = Depends(get_session)):
 
 
 class CritiqueStrategyRequest(BaseModel):
+    """Docstring for CritiqueStrategyRequest."""
     map_name: str
     strategy_json: str
 
 
 @router.post("/critique", summary="Get AI critique of a drawn strategy")
 async def get_strategy_critique(body: CritiqueStrategyRequest, db: Session = Depends(get_session)):
+    """Docstring for get_strategy_critique."""
     if not body.map_name.strip() or not body.strategy_json.strip():
         raise HTTPException(status_code=400, detail="map_name and strategy_json cannot be empty")
 

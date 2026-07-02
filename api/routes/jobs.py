@@ -1,3 +1,4 @@
+"""Module docstring."""
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
@@ -258,6 +259,7 @@ async def get_job_status(match_id: str, user_id: str | None = None, db: Session 
             ]
 
         def sanitize_nan(val):
+            """Docstring for sanitize_nan."""
             if isinstance(val, float):
                 return None if (math.isnan(val) or math.isinf(val)) else val
             elif isinstance(val, dict):

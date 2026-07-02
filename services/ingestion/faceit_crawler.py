@@ -1,3 +1,4 @@
+"""Module docstring."""
 from datetime import UTC, datetime
 import logging
 import os
@@ -16,6 +17,7 @@ FACEIT_API_KEY = os.getenv("FACEIT_API_KEY", "")
 GCS_BUCKET = os.getenv("GCS_BUCKET", "cs2-demosage")
 
 def _fetch_demo_url(faceit_match_id: str, headers: dict) -> str | None:
+    """Docstring for _fetch_demo_url."""
     try:
         resp = requests.get(
             f"{FACEIT_API_BASE}/matches/{faceit_match_id}",

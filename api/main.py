@@ -132,6 +132,7 @@ app.include_router(oauth.router, prefix="/api/oauth", tags=["OAuth"])
 
 @app.get("/")
 async def root():
+    """Docstring for root."""
     return {
         "service": "DemoSage API",
         "version": "0.1.0",

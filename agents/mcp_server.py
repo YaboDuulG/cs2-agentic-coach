@@ -36,6 +36,7 @@ app = Server("demosage")
 
 @app.list_tools()
 async def list_tools() -> ListToolsResult:
+    """Docstring for list_tools."""
     return ListToolsResult(tools=[
         Tool(
             name="get_match_summary",
@@ -101,6 +102,7 @@ async def list_tools() -> ListToolsResult:
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
+    """Docstring for call_tool."""
     from sqlalchemy import text
 
     from db.database import SessionLocal
@@ -197,6 +199,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
 
 @app.list_resources()
 async def list_resources() -> ListResourcesResult:
+    """Docstring for list_resources."""
     return ListResourcesResult(resources=[
         Resource(
             uri="demosage://meta/status",
@@ -209,6 +212,7 @@ async def list_resources() -> ListResourcesResult:
 
 @app.read_resource()
 async def read_resource(uri: str) -> ReadResourceResult:
+    """Docstring for read_resource."""
     from sqlalchemy import text
 
     from db.database import SessionLocal
@@ -239,6 +243,7 @@ async def read_resource(uri: str) -> ReadResourceResult:
 # ---------------------------------------------------------------------------
 
 async def main():
+    """Docstring for main."""
     async with stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream, app.create_initialization_options())
 

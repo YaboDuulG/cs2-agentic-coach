@@ -73,6 +73,7 @@ def get_session():
 
 
 def run_automatic_migrations():
+    """Docstring for run_automatic_migrations."""
     from sqlalchemy import text  # noqa: PLC0415
 
     statements = [

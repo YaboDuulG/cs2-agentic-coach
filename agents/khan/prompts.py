@@ -1,3 +1,4 @@
+"""Module docstring."""
 import json
 from typing import Any
 
@@ -5,6 +6,7 @@ from typing import Any
 def _build_prompt(
     match_id: str, stats: dict[str, Any], rag_context: list[dict[str, Any]] | None = None
 ) -> str:
+    """Docstring for _build_prompt."""
     rag_text = ""
     if rag_context:
         rag_text = "\n\nCRITICAL CONTEXT & GAME RULES FOR THE COACH (RAG):\n"

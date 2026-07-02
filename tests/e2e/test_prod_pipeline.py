@@ -1,3 +1,4 @@
+"""Module docstring."""
 import os
 import sys
 import time
@@ -6,6 +7,7 @@ import requests
 
 
 def run_e2e_test(api_url: str, demo_path: str, user_id: str, auth_token: str | None = None):
+    """Docstring for run_e2e_test."""
     print(f"Starting E2E test against {api_url}")
     print(f"Target demo: {demo_path}")
 

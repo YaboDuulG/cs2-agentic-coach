@@ -1,3 +1,4 @@
+"""Module docstring."""
 from pathlib import Path
 import sys
 from unittest.mock import MagicMock, patch

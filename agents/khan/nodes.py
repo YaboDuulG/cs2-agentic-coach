@@ -1,3 +1,4 @@
+"""Module docstring."""
 import json
 import logging
 from typing import Any
@@ -346,6 +347,7 @@ Return ONLY valid JSON matching this exact structure:
     return {"final_report": report}
 
 def _stub_server_report(msg: str) -> dict:
+    """Docstring for _stub_server_report."""
     return {
         "summary": msg,
         "key_findings": ["Warlord node aborted."],

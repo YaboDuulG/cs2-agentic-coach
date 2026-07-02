@@ -1,3 +1,4 @@
+"""Module docstring."""
 import asyncio
 import logging
 
@@ -12,6 +13,7 @@ async def send_rcon_command(host: str, port: int, password: str, command: str) -
     """
 
     def _run():
+        """Docstring for _run."""
         try:
             with Client(host, port, passwd=password, timeout=5.0) as client:
                 response = client.run(command)
@@ -33,6 +35,7 @@ async def execute_batch_commands(
     results = []
 
     def _run_batch():
+        """Docstring for _run_batch."""
         try:
             with Client(host, port, passwd=password, timeout=8.0) as client:
                 for cmd in commands:

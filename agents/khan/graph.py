@@ -1,3 +1,4 @@
+"""Module docstring."""
 from typing import Any
 
 from langgraph.checkpoint.memory import MemorySaver
@@ -18,6 +19,7 @@ from agents.state import MatchState
 
 
 def route_after_supervisor(state: MatchState) -> Any:
+    """Docstring for route_after_supervisor."""
     intent = state.get("intent", "tactical_analysis")
     if intent == "server_request":
         return "warlord"
@@ -60,6 +62,7 @@ def _get_app() -> Any:
     return _APP
 
 def build_graph() -> Any:
+    """Docstring for build_graph."""
     workflow = StateGraph(MatchState)
 
     # Add nodes

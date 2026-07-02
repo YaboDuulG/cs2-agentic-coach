@@ -26,6 +26,7 @@ from db.models import KnowledgeEmbedding, Match
 
 
 def main():
+    """Docstring for main."""
     db = SessionLocal()
     try:
         logger.info("Fetching hltv_pro_match embeddings...")

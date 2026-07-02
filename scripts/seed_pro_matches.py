@@ -260,6 +260,7 @@ def download_and_process_match(match: dict, api_key: str):
 
 
 def main():
+    """Docstring for main."""
     parser = argparse.ArgumentParser(description="DemoSage HLTV Pro Seeding Script")
     parser.add_argument(
         "--limit-per-team", type=int, default=3, help="Max matches to scrape per team"

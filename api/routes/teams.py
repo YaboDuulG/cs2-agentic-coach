@@ -1,3 +1,4 @@
+"""Module docstring."""
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
@@ -20,23 +21,27 @@ router = APIRouter()
 
 
 class UpdateTeamRequest(BaseModel):
+    """Docstring for UpdateTeamRequest."""
     name: str | None = None
     logo_url: str | None = None
     user_id: str
 
 
 class CreateTeamRequest(BaseModel):
+    """Docstring for CreateTeamRequest."""
     name: str
     user_id: str
 
 
 class JoinTeamRequest(BaseModel):
+    """Docstring for JoinTeamRequest."""
     invite_code: str
     user_id: str
 
 
 @router.post("", summary="Create a new team")
 async def create_team(body: CreateTeamRequest, db: Session = Depends(get_session)):
+    """Docstring for create_team."""
     if not body.name.strip():
         raise HTTPException(status_code=400, detail="Team name cannot be empty")
 
@@ -74,6 +79,7 @@ async def create_team(body: CreateTeamRequest, db: Session = Depends(get_session
 
 @router.post("/join", summary="Join a team by invite code")
 async def join_team(body: JoinTeamRequest, db: Session = Depends(get_session)):
+    """Docstring for join_team."""
     code = body.invite_code.strip().upper()
     try:
         row = db.execute(
@@ -112,6 +118,7 @@ async def join_team(body: JoinTeamRequest, db: Session = Depends(get_session)):
 
 @router.get("", summary="List teams for a user")
 async def list_teams(user_id: str = "", db: Session = Depends(get_session)):
+    """Docstring for list_teams."""
     if not user_id:
         return []
     try:
@@ -191,6 +198,7 @@ async def team_analyses(team_id: str, user_id: str = "", db: Session = Depends(g
 
 @router.get("/{team_id}", summary="Get team details and members")
 async def get_team(team_id: str, db: Session = Depends(get_session)):
+    """Docstring for get_team."""
     try:
         team = db.execute(
             text(
@@ -229,6 +237,7 @@ async def get_team(team_id: str, db: Session = Depends(get_session)):
 
 @router.patch("/{team_id}", summary="Update team name")
 async def update_team(team_id: str, body: UpdateTeamRequest, db: Session = Depends(get_session)):
+    """Docstring for update_team."""
     try:
         team = db.execute(
             text("SELECT owner_user_id FROM teams WHERE id = :id"),
@@ -267,6 +276,7 @@ async def update_team(team_id: str, body: UpdateTeamRequest, db: Session = Depen
 
 @router.post("/{team_id}/logo", summary="Upload a team logo image")
 async def upload_team_logo(team_id: str, user_id: str = "", file: UploadFile = File(...), db: Session = Depends(get_session)):
+    """Docstring for upload_team_logo."""
     if not user_id:
         raise HTTPException(status_code=400, detail="User ID is required")
 
@@ -341,6 +351,7 @@ async def upload_team_logo(team_id: str, user_id: str = "", file: UploadFile = F
 
 @router.delete("/{team_id}", summary="Delete a team")
 async def delete_team(team_id: str, user_id: str = "", db: Session = Depends(get_session)):
+    """Docstring for delete_team."""
     if not user_id:
         raise HTTPException(status_code=400, detail="User ID is required")
 
@@ -365,6 +376,7 @@ async def delete_team(team_id: str, user_id: str = "", db: Session = Depends(get
 
 
 class CreateStrategyRequest(BaseModel):
+    """Docstring for CreateStrategyRequest."""
     title: str
     map_name: str
     side: str
@@ -375,6 +387,7 @@ class CreateStrategyRequest(BaseModel):
 
 @router.post("/{team_id}/strategies", summary="Add a strategy manually")
 async def create_team_strategy(team_id: str, body: CreateStrategyRequest, db: Session = Depends(get_session)):
+    """Docstring for create_team_strategy."""
     import json  # noqa: PLC0415
 
     from db.models import KnowledgeEmbedding  # noqa: PLC0415
@@ -439,6 +452,7 @@ async def create_team_strategy(team_id: str, body: CreateStrategyRequest, db: Se
 
 
 class StrategyChatRequest(BaseModel):
+    """Docstring for StrategyChatRequest."""
     message: str
     history: list[dict[str, str]] = []
     map_name: str | None = None
@@ -447,6 +461,7 @@ class StrategyChatRequest(BaseModel):
 
 @router.get("/{team_id}/strategies", summary="Get all strategies for a team")
 async def get_team_strategies(team_id: str, db: Session = Depends(get_session)):
+    """Docstring for get_team_strategies."""
     import json  # noqa: PLC0415
 
     from db.models import KnowledgeEmbedding  # noqa: PLC0415
@@ -487,6 +502,7 @@ async def get_team_strategies(team_id: str, db: Session = Depends(get_session)):
 
 @router.post("/{team_id}/strategies/chat", summary="Chat to refine team strategies")
 async def chat_team_strategies(team_id: str, body: StrategyChatRequest, db: Session = Depends(get_session)):
+    """Docstring for chat_team_strategies."""
     import json  # noqa: PLC0415
 
     from api.routes.discord import call_gemini_text  # noqa: PLC0415

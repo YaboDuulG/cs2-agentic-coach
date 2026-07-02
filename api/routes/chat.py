@@ -1,3 +1,4 @@
+"""Module docstring."""
 import logging
 from typing import Optional
 
@@ -11,6 +12,7 @@ router = APIRouter()
 
 
 class ChatRequest(BaseModel):
+    """Docstring for ChatRequest."""
     match_id: Optional[str] = None
     team_id: Optional[str] = None
     query: str
@@ -45,6 +47,7 @@ from fastapi.responses import StreamingResponse
 
 
 async def stream_generator(req: ChatRequest, db) -> AsyncGenerator[str, None]:
+    """Docstring for stream_generator."""
     try:
         from agents.khan.graph import _get_app
         app = _get_app()
@@ -87,6 +90,7 @@ async def stream_generator(req: ChatRequest, db) -> AsyncGenerator[str, None]:
 
 @router.post("/stream")
 async def stream_chat(req: ChatRequest):
+    """Docstring for stream_chat."""
     return StreamingResponse(
         stream_generator(req, None),
         media_type="text/event-stream",

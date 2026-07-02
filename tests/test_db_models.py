@@ -56,7 +56,9 @@ def seed_match(db_session):
 
 
 class TestMatchModel:
+    """Docstring for TestMatchModel."""
     def test_match_created(self, db_session):
+        """Docstring for test_match_created."""
         match = db_session.get(Match, TEST_MATCH_ID)
         assert match is not None
         assert match.map_name == "de_mirage"
@@ -65,6 +67,7 @@ class TestMatchModel:
         assert match.status == MatchStatus.PENDING
 
     def test_match_status_update(self, db_session):
+        """Docstring for test_match_status_update."""
         match = db_session.get(Match, TEST_MATCH_ID)
         match.status = MatchStatus.COMPLETE
         db_session.commit()
@@ -72,12 +75,15 @@ class TestMatchModel:
         assert refreshed.status == MatchStatus.COMPLETE
 
     def test_match_repr(self, db_session):
+        """Docstring for test_match_repr."""
         match = db_session.get(Match, TEST_MATCH_ID)
         assert TEST_MATCH_ID in repr(match)
 
 
 class TestKillModel:
+    """Docstring for TestKillModel."""
     def test_kill_insert(self, db_session):
+        """Docstring for test_kill_insert."""
         kill = Kill(
             match_id=TEST_MATCH_ID,
             round_num=1,
@@ -105,7 +111,9 @@ class TestKillModel:
 
 
 class TestGrenadeModel:
+    """Docstring for TestGrenadeModel."""
     def test_grenade_insert(self, db_session):
+        """Docstring for test_grenade_insert."""
         grenade = Grenade(
             match_id=TEST_MATCH_ID,
             round_num=2,
@@ -125,7 +133,9 @@ class TestGrenadeModel:
 
 
 class TestRoundModel:
+    """Docstring for TestRoundModel."""
     def test_round_insert(self, db_session):
+        """Docstring for test_round_insert."""
         round_ = Round(
             match_id=TEST_MATCH_ID,
             round_num=1,
@@ -146,7 +156,9 @@ class TestRoundModel:
 
 
 class TestFirstContactModel:
+    """Docstring for TestFirstContactModel."""
     def test_first_contact_insert(self, db_session):
+        """Docstring for test_first_contact_insert."""
         fc = FirstContact(
             match_id=TEST_MATCH_ID,
             round_num=1,
@@ -170,7 +182,9 @@ class TestFirstContactModel:
 
 
 class TestTrajectoryModel:
+    """Docstring for TestTrajectoryModel."""
     def test_trajectory_insert(self, db_session):
+        """Docstring for test_trajectory_insert."""
         import json
 
         traj = PlayerTrajectory(
@@ -196,7 +210,9 @@ class TestTrajectoryModel:
 
 
 class TestTrainingSessionModel:
+    """Docstring for TestTrainingSessionModel."""
     def test_training_session_insert_and_link(self, db_session):
+        """Docstring for test_training_session_insert_and_link."""
         from datetime import UTC, datetime
 
         # Insert a team and a server first to satisfy FK constraints

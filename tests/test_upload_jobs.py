@@ -16,6 +16,7 @@ client = TestClient(app)
 
 
 class TestPresignEndpoint:
+    """Docstring for TestPresignEndpoint."""
     def test_presign_missing_body(self):
         """Presign with no body should return 422."""
         response = client.post("/api/upload/presign")
@@ -96,6 +97,7 @@ class TestPresignEndpoint:
 
 
 class TestJobStatusEndpoint:
+    """Docstring for TestJobStatusEndpoint."""
     def test_job_status_local_mode(self):
         """Job status in LOCAL_MODE should return stub done response."""
         response = client.get("/api/jobs/test-match-12345")

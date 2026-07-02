@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class EconomyFlag:
+    """Docstring for EconomyFlag."""
     round_num: int
     severity: str  # 'warning', 'critical', 'positive'
     message: str
@@ -27,6 +28,7 @@ class EconomyFlag:
 
 @dataclass
 class RoundEconomy:
+    """Docstring for RoundEconomy."""
     round_num: int
     ct_eq_val: int
     t_eq_val: int
@@ -36,6 +38,7 @@ class RoundEconomy:
 
 @dataclass
 class EconomyAnalysis:
+    """Docstring for EconomyAnalysis."""
     rounds: list[RoundEconomy] = field(default_factory=list)
     flags: list[EconomyFlag] = field(default_factory=list)
     overall_coherence_score: float = 1.0
@@ -114,6 +117,7 @@ def analyze_economy(match_data: dict) -> EconomyAnalysis:
 
 
 def economy_to_dict(analysis: EconomyAnalysis) -> dict:
+    """Docstring for economy_to_dict."""
     return {
         "overall_coherence_score": analysis.overall_coherence_score,
         "rounds": [

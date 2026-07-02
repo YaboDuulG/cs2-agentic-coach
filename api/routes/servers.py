@@ -1,3 +1,4 @@
+"""Module docstring."""
 from datetime import UTC, datetime, timedelta
 import logging
 import os
@@ -26,6 +27,7 @@ VALID_MODES = list(TRAINING_MODE_CONFIGS.keys())
 
 
 class ServerCreateRequest(BaseModel):
+    """Docstring for ServerCreateRequest."""
     model_config = ConfigDict(populate_by_name=True)
 
     mode: str = "practice"
@@ -34,6 +36,7 @@ class ServerCreateRequest(BaseModel):
 
 
 class ServerResponse(BaseModel):
+    """Docstring for ServerResponse."""
     id: str
     status: str
     ip_address: Optional[str] = None
@@ -44,6 +47,7 @@ class ServerResponse(BaseModel):
 
 
 def _verify_team_member(db: Session, user_id: str, team_id: str):
+    """Docstring for _verify_team_member."""
     member = db.execute(
         select(TeamMember).where(TeamMember.team_id == team_id, TeamMember.user_id == user_id)
     ).scalar_one_or_none()
@@ -70,6 +74,7 @@ def spin_up_server(
     request: Request,
     db: Session = Depends(get_session),
 ):
+    """Docstring for spin_up_server."""
     user_id = request.headers.get("x-clerk-user-id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -149,6 +154,7 @@ def spin_up_server(
 
 @router.get("/teams/{team_id}/servers", response_model=List[ServerResponse])
 def list_servers(team_id: str, request: Request, db: Session = Depends(get_session)):
+    """Docstring for list_servers."""
     user_id = request.headers.get("x-clerk-user-id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -170,6 +176,7 @@ def list_servers(team_id: str, request: Request, db: Session = Depends(get_sessi
 
 @router.delete("/servers/{server_id}")
 def terminate_server(server_id: str, request: Request, db: Session = Depends(get_session)):
+    """Docstring for terminate_server."""
     user_id = request.headers.get("x-clerk-user-id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -194,6 +201,7 @@ def terminate_server(server_id: str, request: Request, db: Session = Depends(get
 
 
 class WebhookPayload(BaseModel):
+    """Docstring for WebhookPayload."""
     server_id: str
     status: str
 
