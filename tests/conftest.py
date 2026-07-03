@@ -1,7 +1,9 @@
+"""Module docstring."""
 import pytest
 
 from api.auth import get_current_user
 from api.main import app
+
 
 @pytest.fixture(autouse=True)
 def override_auth_dependency():
