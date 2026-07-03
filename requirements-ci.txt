@@ -33,3 +33,4 @@ langchain-community>=0.3.31
 
 # --- RCON ---
 rcon==2.4.9
+python-jose
