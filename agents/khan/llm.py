@@ -15,7 +15,7 @@ if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
 _engine = create_engine(db_url)
-set_llm_cache(SQLAlchemyCache(_engine, "llm_cache"))
+set_llm_cache(SQLAlchemyCache(_engine))
 
 COACHING_MODEL = "gemini-2.5-flash"
 
