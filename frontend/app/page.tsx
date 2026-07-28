@@ -3,18 +3,18 @@
 import { useUser, SignInButton, SignUpButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { UploadZone } from "@/components/UploadZone";
-import { motion } from "framer-motion";
+import { Variants, motion } from "framer-motion";
 import { 
   Target, BarChart3, Zap, Shield, 
   Brain, Users, ChevronRight, CheckCircle2 
 } from "lucide-react";
 
-const FADE_UP = {
+const FADE_UP: Variants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+  visible: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
 };
 
-const STAGGER = {
+const STAGGER: Variants = {
   hidden: { opacity: 0 },
   visible: { transition: { staggerChildren: 0.1 } }
 };

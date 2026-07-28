@@ -1,6 +1,7 @@
 import os
-from google import genai
+
 from dotenv import load_dotenv
+from google import genai
 
 # Path Setup
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +25,7 @@ def generate_spec_with_ai():
         return
 
     print(f"🤖 Gemini (New SDK) is analyzing {README_PATH}...")
-    
+
     with open(README_PATH, "r", encoding="utf-8") as f:
         readme_content = f.read()
 
@@ -55,12 +56,12 @@ def generate_spec_with_ai():
                 "max_output_tokens": 2048
             }
         )
-        
+
         with open(SPEC_PATH, "w", encoding="utf-8") as f:
             f.write(response.text)
-        
+
         print(f"✅ AI Spec generated at {SPEC_PATH}")
-        
+
     except Exception as e:
         print(f"❌ Generation failed: {e}")
 

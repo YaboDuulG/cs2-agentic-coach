@@ -142,6 +142,8 @@ def main() -> None:
     parser.add_argument("--skip-docker", action="store_true", help="Skip docker-compose startup")
     args = parser.parse_args()
 
+    import sys
+
     dem_path = Path(args.demo)
     if not dem_path.exists():
         logger.error(f"Demo file not found: {dem_path}")
@@ -159,12 +161,13 @@ def main() -> None:
 
     # 3. Parse the demo (using local Go parser binary or HTTP)
     logger.info(f"Parsing: {dem_path}")
-    import time
-    import requests
     import sys
+    import time
+
+    import requests
 
     start_time = time.perf_counter()
-    
+
     # In LOCAL_MODE, we simulate the Go parser by making a request to the local Go service
     # Assuming demo-parser is running locally on port 8082
     try:
@@ -178,7 +181,7 @@ def main() -> None:
         logger.error(f"Failed to connect to or parse via local demo-parser on 8082: {e}")
         logger.error("Please ensure the Go parser is running: cd services/demo-parser && go run main.go")
         sys.exit(1)  # Strict failure, no mocking
-        
+
     duration = time.perf_counter() - start_time
     logger.info(f"Parsing finished in {duration:.2f} seconds")
 

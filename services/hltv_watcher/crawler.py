@@ -1,9 +1,8 @@
 import asyncio
 import logging
-import os
 import re
-import uuid
 from typing import List
+import uuid
 
 from bs4 import BeautifulSoup
 
@@ -50,55 +49,55 @@ class HLTVCrawler:
         directly into the LangGraph MatchState schema.
         """
         states: List[MatchState] = []
-        
+
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             )
-            
+
             try:
                 results_url = f"{self.base_url}/results"
                 html = await self.fetch_page(context, results_url)
                 if not html:
                     return states
-                
+
                 soup = BeautifulSoup(html, "html.parser")
                 match_links = []
                 for a in soup.select(".results-all a.a-reset"):
                     href = a.get("href")
                     if href:
                         match_links.append(self.base_url + href)
-                
+
                 match_urls = match_links[:limit]
-                
+
                 for url in match_urls:
                     match_html = await self.fetch_page(context, url)
                     if not match_html:
                         continue
-                    
+
                     match_soup = BeautifulSoup(match_html, "html.parser")
-                    
+
                     # Parse Match ID from URL
                     match_id_match = re.search(r'/matches/(\d+)/', url)
                     hltv_id = match_id_match.group(1) if match_id_match else str(uuid.uuid4())
-                    
+
                     # Parse Map
                     map_el = match_soup.select_one(".mapname")
                     map_name = map_el.text.strip().lower() if map_el else "de_dust2"
                     if not map_name.startswith("de_"):
                         map_name = "de_" + map_name
-                    
+
                     # Parse Demo Link
                     demo_el = match_soup.select_one("a[href*='/download/demo/']")
                     if not demo_el:
                         logger.warning(f"No demo link found for {url}")
                         continue
-                    
+
                     demo_url = demo_el.get("href")
                     if demo_url and not demo_url.startswith("http"):
                         demo_url = self.base_url + demo_url
-                    
+
                     # Generate standard MatchState schema payload
                     match_state: MatchState = {
                         "match_id": f"hltv-{hltv_id}-{map_name.replace('de_', '')}",
@@ -111,13 +110,13 @@ class HLTVCrawler:
                     }
                     # We can store the demo_url in scout_output temporarily or just yield the state
                     # for the orchestrator queue.
-                    
+
                     logger.info(f"Generated MatchState for {match_state['match_id']}")
                     states.append(match_state)
-            
+
             finally:
                 await browser.close()
-                
+
         return states
 
 if __name__ == "__main__":
