@@ -1,8 +1,8 @@
 """
 Free Local HLTV Scraper
 =======================
-Alternative to paid Apify actors. Uses Playwright to spin up a local browser,
-bypass Cloudflare, and scrape recent match demo download URLs.
+Uses async Playwright to spin up a headless browser,
+bypass Cloudflare, and scrape recent match demo download URLs asynchronously.
 
 Prerequisites:
     pip install playwright
@@ -12,6 +12,7 @@ Usage:
     python services/hltv_watcher/free_scraper.py
 """
 
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -26,11 +27,8 @@ REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from db.database import SessionLocal
-from db.models import Match, MatchStatus
-
 try:
-    from playwright.sync_api import sync_playwright
+    from playwright.async_api import async_playwright
 except ImportError:
     logger.error(
         "Playwright not installed. Please run: pip install playwright && playwright install"
@@ -38,28 +36,28 @@ except ImportError:
     sys.exit(1)
 
 
-def scrape_recent_matches(limit: int = 5) -> list[dict]:
-    """Uses Playwright to scrape the latest completed match results and demo links."""
-    logger.info("Starting local Playwright browser...")
+async def scrape_recent_matches(limit: int = 5) -> list[dict]:
+    """Uses async Playwright to scrape the latest completed match results and demo links."""
+    logger.info("Starting async Playwright browser...")
     results = []
 
-    with sync_playwright() as p:
+    async with async_playwright() as p:
         # Launch browser with standard user-agent and headers to bypass simple detection
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
-        page = context.new_page()
+        page = await context.new_page()
 
         try:
             logger.info("Navigating to HLTV results page...")
-            page.goto("https://www.hltv.org/results", wait_until="domcontentloaded", timeout=60000)
+            await page.goto("https://www.hltv.org/results", wait_until="domcontentloaded", timeout=60000)
 
             # Wait for results elements to appear
-            page.wait_for_selector(".results-all", timeout=15000)
+            await page.wait_for_selector(".results-all", timeout=15000)
 
             # Get recent match links
-            match_links = page.locator(".results-all a.a-reset").evaluate_all(
+            match_links = await page.locator(".results-all a.a-reset").evaluate_all(
                 "nodes => nodes.map(n => n.href)"
             )
 
@@ -70,34 +68,57 @@ def scrape_recent_matches(limit: int = 5) -> list[dict]:
             for url in match_urls:
                 try:
                     logger.info(f"Visiting match page: {url}")
-                    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
-                    # Parse Match ID from URL (e.g. /matches/2370012/astralis-vs-vitality)
+                    # Parse Match ID from URL
                     match_id = url.split("/matches/")[-1].split("/")[0]
 
                     # Parse Map
-                    # Matches page can list multiple maps. We look for completed maps.
                     map_el = page.locator(".mapname").first
-                    map_name = (
-                        map_el.text_content().strip().lower() if map_el.count() > 0 else "de_dust2"
-                    )
+                    count = await map_el.count()
+                    if count > 0:
+                        map_name = (await map_el.text_content()).strip().lower()
+                    else:
+                        map_name = "de_dust2"
+                    
                     if not map_name.startswith("de_"):
                         map_name = "de_" + map_name
 
                     # Find the "GOTV Demo" download link
                     demo_link_el = page.locator("a[href*='/download/demo/']")
-                    if demo_link_el.count() == 0:
+                    count_demo = await demo_link_el.count()
+                    if count_demo == 0:
                         logger.warning(
                             f"No demo download link found for match {match_id}. Skipping."
                         )
                         continue
 
-                    demo_url = demo_link_el.first.get_attribute("href")
+                    demo_url = await demo_link_el.first.get_attribute("href")
                     if demo_url and not demo_url.startswith("http"):
                         demo_url = "https://www.hltv.org" + demo_url
 
-                    logger.info(
-                        f"Extracted Match {match_id} | Map: {map_name} | Demo URL: {demo_url}"
+                    logger.info(f"Extracted Match {match_id} | Map: {map_name} | Demo URL: {demo_url}")
+                    results.append({
+                        "match_id": f"hltv-{match_id}-{map_name.replace('de_', '')}",
+                        "map_name": map_name,
+                        "demo_url": demo_url
+                    })
+                    
+                    # Polite rate limiting
+                    await asyncio.sleep(2)
+                except Exception as e:
+                    logger.error(f"Failed to process match page {url}: {e}")
+
+        except Exception as e:
+            logger.error(f"Failed to scrape HLTV results: {e}")
+        finally:
+            await browser.close()
+
+    return results
+
+if __name__ == "__main__":
+    matches = asyncio.run(scrape_recent_matches(limit=3))
+    print(matches)
                     )
                     results.append(
                         {"match_id": f"hltv-{match_id}", "map_name": map_name, "demo_url": demo_url}

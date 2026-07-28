@@ -42,12 +42,20 @@ app = FastAPI(
 os.makedirs("data/logos", exist_ok=True)
 app.mount("/logos", StaticFiles(directory="data/logos"), name="logos")
 
-ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "https://demosage.gg",
-    "https://www.demosage.gg",
-    "https://cs2-agentic-coach.vercel.app"
-]
+# CORS Lockdown
+# Read from environment, default to production domains if not set
+cors_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if cors_origins_env:
+    ALLOWED_ORIGINS = [orig.strip() for orig in cors_origins_env.split(",")]
+else:
+    # Production defaults (localhost excluded by default in production)
+    ALLOWED_ORIGINS = [
+        "https://demosage.gg",
+        "https://www.demosage.gg",
+        "https://cs2-agentic-coach.vercel.app"
+    ]
+    if os.getenv("APP_ENV") == "development":
+        ALLOWED_ORIGINS.append("http://localhost:3000")
 
 app.add_middleware(
     CORSMiddleware,

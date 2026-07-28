@@ -357,7 +357,7 @@ def _stub_server_report(msg: str) -> dict:
         "weakest_area": "N/A",
     }
 
-def warlord_node(state: MatchState) -> dict[str, Any]:
+async def warlord_node(state: MatchState) -> dict[str, Any]:
     """Executes RCON commands on the team's active server based on user query."""
     logger.info("[Warlord Node] Routing server config query...")
 
@@ -434,7 +434,7 @@ Common commands:
 
 Return ONLY valid JSON: {{"commands": ["cmd1", "cmd2"]}}
 """
-        response = llm.invoke(prompt)
+        response = await llm.ainvoke(prompt)
         try:
             parsed = json.loads(response.content)
             cmds = parsed.get("commands", [])
@@ -448,22 +448,11 @@ Return ONLY valid JSON: {{"commands": ["cmd1", "cmd2"]}}
                 )
             }
 
-        # 4. Execute via RCON
+        # 4. Execute via RCON asynchronously natively
         from services.warlord.rcon_client import execute_batch_commands
-
         host, port = server.ip_address.split(":")
 
-        # We need to run this async within a sync node... LangGraph runs nodes in threads if they are sync.
-        import asyncio
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(
-                execute_batch_commands(host, int(port), server.rcon_password, cmds)
-            )
-        finally:
-            loop.close()
+        await execute_batch_commands(host, int(port), server.rcon_password, cmds)
 
         # 5. Return success
         return {

@@ -1,18 +1,18 @@
-"""initial
+"""Initial schema
 
-Revision ID: 090962b1b256
-Revises:
-Create Date: 2026-06-30 18:15:38.168287
+Revision ID: 8b072a51f688
+Revises: 
+Create Date: 2026-07-28 14:15:18.363401
 
 """
 from typing import Sequence, Union
 
+from alembic import op
 import sqlalchemy as sa
 
-from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '090962b1b256'
+revision: str = '8b072a51f688'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -24,13 +24,25 @@ def upgrade() -> None:
     op.create_table('knowledge_embeddings',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('content', sa.Text(), nullable=False),
-    sa.Column('embedding', sa.String(), nullable=False),
+    sa.Column('embedding', sa.Text(), nullable=False),
     sa.Column('source', sa.String(length=100), nullable=True),
     sa.Column('metadata_json', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_knowledge_embeddings_source'), 'knowledge_embeddings', ['source'], unique=False)
+    op.create_table('linked_accounts',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('user_id', sa.String(length=64), nullable=False),
+    sa.Column('provider', sa.String(length=32), nullable=False),
+    sa.Column('provider_user_id', sa.String(length=64), nullable=False),
+    sa.Column('access_token', sa.Text(), nullable=True),
+    sa.Column('refresh_token', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_linked_accounts_user_id'), 'linked_accounts', ['user_id'], unique=False)
     op.create_table('map_playbooks',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('map_name', sa.String(length=64), nullable=False),
@@ -273,6 +285,8 @@ def downgrade() -> None:
     op.drop_table('system_configs')
     op.drop_index(op.f('ix_map_playbooks_map_name'), table_name='map_playbooks')
     op.drop_table('map_playbooks')
+    op.drop_index(op.f('ix_linked_accounts_user_id'), table_name='linked_accounts')
+    op.drop_table('linked_accounts')
     op.drop_index(op.f('ix_knowledge_embeddings_source'), table_name='knowledge_embeddings')
     op.drop_table('knowledge_embeddings')
     # ### end Alembic commands ###

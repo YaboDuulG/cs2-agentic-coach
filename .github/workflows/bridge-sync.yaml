@@ -1,0 +1,16 @@
+- name: Install Dependencies
+        run: pip install google-generativeai
+
+      - name: Generate Spec with Gemini
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          cd .bridge
+          python3 handlers/gemini_gen.py
+
+      - name: Sync Issues to GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd .bridge
+          python3 handlers/sync_tasks.py
