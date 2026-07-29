@@ -30,10 +30,10 @@ def generate_spec_with_ai():
         readme_content = f.read()
 
     prompt = f"""
-    You are a rigid Senior Technical Architect. You only output valid Markdown tasks. 
-    You never apologize or add conversational filler. 
+    You are a rigid Senior Technical Architect. You only output valid Markdown tasks.
+    You never apologize or add conversational filler.
     Based on the README below, generate a Technical Specification for a project called 'Agentic AI Coach'.
-    
+
     OUTPUT FORMAT RULES:
     1. Organize by Epics using '#' headers.
     2. For every technical task, use this EXACT format:

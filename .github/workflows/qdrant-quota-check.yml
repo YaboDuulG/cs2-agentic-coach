@@ -21,10 +21,14 @@ jobs:
           QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
         run: |
           python -c "
+          import os, sys
+          if not os.environ.get('QDRANT_URL') or not os.environ.get('QDRANT_API_KEY'):
+              print('::warning::QDRANT_URL or QDRANT_API_KEY not configured — skipping quota check')
+              sys.exit(0)
           from db.qdrant_client import check_vector_quota
           result = check_vector_quota()
           print(result)
           if result['warning']:
               print('::warning::' + result['message'])
-              exit(1)
+              sys.exit(1)
           "

@@ -19,8 +19,10 @@ import logging
 import os
 from pathlib import Path
 import sys
+import tarfile
 import tempfile
 import time
+import zipfile
 
 from dotenv import load_dotenv
 import requests
@@ -42,6 +44,41 @@ from services.scout.parse_demo import parse_demo, write_to_db
 from db.database import SessionLocal
 from db.models import Match
 from scripts.update_knowledge_base import ingest_match
+
+
+def extract_demo_file(archive_path: Path, dest_dir: Path) -> None:
+    """Extract .zip, .tar.gz, or .rar archives into dest_dir."""
+    suffix = archive_path.suffix.lower()
+    if suffix == ".zip":
+        with zipfile.ZipFile(archive_path) as zf:
+            zf.extractall(dest_dir)
+    elif suffix in (".gz", ".bz2", ".tgz"):
+        with tarfile.open(archive_path) as tf:
+            tf.extractall(dest_dir)
+    elif suffix == ".rar":
+        try:
+            import rarfile
+            with rarfile.RarFile(archive_path) as rf:
+                rf.extractall(dest_dir)
+        except ImportError:
+            import subprocess
+            subprocess.run(["unrar", "x", str(archive_path), str(dest_dir)], check=True)
+    else:
+        raise ValueError(f"Unsupported archive format: {suffix}")
+
+
+def upload_to_gcs(file_path: Path, gcs_path: str) -> str:
+    """Upload a file to GCS and return gs:// URI."""
+    from google.cloud import storage
+    bucket_name = os.environ.get("GCS_BUCKET", "").strip()
+    if not bucket_name:
+        raise ValueError("GCS_BUCKET environment variable is not set.")
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(gcs_path)
+    blob.upload_from_filename(str(file_path))
+    return f"gs://{bucket_name}/{gcs_path}"
+
 
 TARGET_TEAMS = {
     "9565": "Vitality",
