@@ -5,6 +5,7 @@ Verifies workflow structure, node execution, and query intent routing.
 
 from unittest.mock import MagicMock, patch
 
+from langgraph.checkpoint.memory import MemorySaver
 import pytest
 
 import agents.khan.graph as great_khan_module
@@ -16,12 +17,15 @@ from agents.khan.main import analyse_match
 def reset_graph_singleton():
     """Reset the _APP singleton before each test to prevent cross-test contamination.
     Each test compiles a fresh graph under its own set of mocked functions.
+
+    graph.py imports MemorySaver lazily inside _get_checkpointer(), so it is not
+    a module attribute — import it from langgraph directly.
     """
     great_khan_module._APP = None
-    great_khan_module._MEMORY = great_khan_module.MemorySaver()
+    great_khan_module._MEMORY = MemorySaver()
     yield
     great_khan_module._APP = None
-    great_khan_module._MEMORY = great_khan_module.MemorySaver()
+    great_khan_module._MEMORY = MemorySaver()
 
 
 def test_graph_compilation():

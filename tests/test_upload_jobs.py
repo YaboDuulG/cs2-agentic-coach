@@ -121,68 +121,73 @@ class TestJobStatusEndpoint:
         """Test that NaN values in database results are recursively sanitized to None and headshot is mapped."""
         from unittest.mock import MagicMock, patch
 
-        with (
-            patch("api.routes.jobs._get_db") as mock_get_db,
-            patch.dict(os.environ, {"LOCAL_MODE": "false"}),
-        ):
-            mock_db = MagicMock()
-            mock_get_db.return_value = mock_db
+        from db.database import get_session
 
-            # Setup fetch results
-            mock_result_match = (
-                "test-match-nan",
-                "de_dust2",
-                "done",
-                None,
-                '{"player1": {"adr": NaN, "kills": 10}}',
-                None,
-                None,
-                "test-user",
-                None,
+        # The route takes its session via Depends(get_session), so override the
+        # dependency rather than patching a module-level accessor.
+        mock_db = MagicMock()
+        app.dependency_overrides[get_session] = lambda: mock_db
+
+        # Setup fetch results
+        mock_result_match = (
+            "test-match-nan",
+            "de_dust2",
+            "done",
+            None,
+            '{"player1": {"adr": NaN, "kills": 10}}',
+            None,
+            None,
+            "test-user",
+            None,
+        )
+
+        mock_result_kills = [
+            (
+                "attacker1",
+                "victim1",
+                "weapon_ak47",
+                1,
+                "CT",
+                float("nan"),
+                20.0,
+                30.0,
+                float("nan"),
+                "steam1",
+                "steam2",
+                100,
+                True,
+                "T",
             )
+        ]
 
-            mock_result_kills = [
-                (
-                    "attacker1",
-                    "victim1",
-                    "weapon_ak47",
-                    1,
-                    "CT",
-                    float("nan"),
-                    20.0,
-                    30.0,
-                    float("nan"),
-                    "steam1",
-                    "steam2",
-                    100,
-                    True,
-                    "T",
-                )
-            ]
+        mock_result_rounds = [(999, 1, "CT", 4000, 3500)]
 
-            mock_result_rounds = [(999, 1, "CT", 4000, 3500)]
+        # Chain the execute returns
+        mock_exec = mock_db.execute.return_value
+        mock_exec.fetchone.return_value = mock_result_match
+        mock_exec.fetchall.side_effect = [mock_result_kills, mock_result_rounds]
 
-            # Chain the execute returns
-            mock_exec = mock_db.execute.return_value
-            mock_exec.fetchone.return_value = mock_result_match
-            mock_exec.fetchall.side_effect = [mock_result_kills, mock_result_rounds]
+        try:
+            with patch.dict(os.environ, {"LOCAL_MODE": "false"}):
+                response = client.get("/api/jobs/test-match-nan?user_id=test-user")
+        finally:
+            app.dependency_overrides.pop(get_session, None)
 
-            response = client.get("/api/jobs/test-match-nan?user_id=test-user")
-            assert response.status_code == 200
-            data = response.json()
+        assert response.status_code == 200
+        data = response.json()
 
-            # Check fields
-            assert data["status"] == "done"
-            assert data["player_stats"]["player1"]["adr"] is None
-            assert data["player_stats"]["player1"]["kills"] == 10
+        # Check fields
+        assert data["status"] == "done"
+        assert data["player_stats"]["player1"]["adr"] is None
+        assert data["player_stats"]["player1"]["kills"] == 10
 
-            # Check kills list and coordinates sanitization
-            assert len(data["kills"]) == 1
-            kill = data["kills"][0]
-            assert kill["killer"] == "attacker1"
-            assert kill["attacker_x"] is None
-            assert kill["attacker_y"] == 20.0
-            assert kill["victim_x"] == 30.0  # float('nan') was at victim_y, victim_x is 30.0
-            assert kill["victim_y"] is None
-            assert kill["tick"] == 100
-            assert kill["headshot"] is True
+        # Check kills list and coordinates sanitization
+        assert len(data["kills"]) == 1
+        kill = data["kills"][0]
+        assert kill["killer"] == "attacker1"
+        assert kill["attacker_x"] is None
+        assert kill["attacker_y"] == 20.0
+        assert kill["victim_x"] == 30.0  # float('nan') was at victim_y, victim_x is 30.0
+        assert kill["victim_y"] is None
+        assert kill["tick"] == 100
+        assert kill["headshot"] is True
