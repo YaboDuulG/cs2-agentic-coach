@@ -61,9 +61,12 @@ export async function POST(request: Request) {
         userId,
       });
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error("[Admin provision] Error:", err);
-    const message = err?.errors?.[0]?.longMessage ?? err?.message ?? "Failed to provision admin user";
+    // Clerk errors carry a structured `errors` array; fall back to a plain message.
+    const clerkErr = err as { errors?: { longMessage?: string }[]; message?: string };
+    const message =
+      clerkErr?.errors?.[0]?.longMessage ?? clerkErr?.message ?? "Failed to provision admin user";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

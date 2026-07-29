@@ -128,7 +128,7 @@ export default function StratbookPage() {
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-center text-slate-500">
-                    <p>Draw your strategy and hit "Get AI Critique" to receive feedback based on professional playbooks.</p>
+                    <p>Draw your strategy and hit &quot;Get AI Critique&quot; to receive feedback based on professional playbooks.</p>
                   </div>
                 )}
               </div>

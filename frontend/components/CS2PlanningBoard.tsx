@@ -141,7 +141,7 @@ const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
     markers.forEach(m => {
       ctx.beginPath();
       let fillColor = "#555";
-      let label = m.type;
+      const label = m.type;
       if (m.type === "CT") fillColor = "#2D7DD2";
       else if (m.type === "T") fillColor = "#FF4D6D";
       else if (m.type === "Smoke") fillColor = "#708090";
@@ -292,10 +292,10 @@ const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
           )}
 
           {/* Markers */}
-          {["CT", "T", "Smoke", "Flash", "HE", "Molotov"].map(t => (
+          {(["CT", "T", "Smoke", "Flash", "HE", "Molotov"] as const).map(t => (
             <button
               key={t}
-              onClick={() => setTool(t as any)}
+              onClick={() => setTool(t)}
               className={`px-2.5 py-1 py-1.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${tool === t ? "bg-slate-800 border-white text-white shadow-inner" : "bg-slate-950 text-slate-400 border-slate-900 hover:bg-slate-900"}`}
             >
               <span className={`inline-block w-2.5 h-2.5 rounded-full mr-1.5 text-[8px] font-bold leading-none align-middle ${t === "CT" ? "bg-[#2D7DD2]" : t === "T" ? "bg-[#FF4D6D]" : t === "Smoke" ? "bg-slate-500" : t === "Flash" ? "bg-yellow-400" : t === "HE" ? "bg-orange-500" : "bg-red-600"}`} />
@@ -342,5 +342,7 @@ const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
     </div>
   );
 });
+
+CS2PlanningBoard.displayName = "CS2PlanningBoard";
 
 export default CS2PlanningBoard;

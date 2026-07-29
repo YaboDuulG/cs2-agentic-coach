@@ -39,6 +39,15 @@ interface Team {
   member_count: number;
 }
 
+/** Subset of the Steam Web API player summary this page renders. */
+interface SteamProfile {
+  avatarfull?: string;
+  personaname?: string;
+  profileurl?: string;
+  playtime_private?: boolean;
+  playtime_forever?: number;
+}
+
 const STATUS_COLORS: Record<string, string> = {
   done: "#22D3A0", processing: "var(--color-accent-primary)", queued: "var(--color-text-secondary)", failed: "var(--color-danger)",
 };
@@ -171,20 +180,24 @@ export default function ProfilePage() {
   const limits = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] ?? PLAN_LIMITS.free;
   const maxUploads = limits.uploadsPerMonth === Infinity ? null : limits.uploadsPerMonth;
 
-  const [steamProfile, setSteamProfile] = useState<any>(null);
+  const [steamProfile, setSteamProfile] = useState<SteamProfile | null>(null);
   const [steamProfileLoading, setSteamProfileLoading] = useState(false);
 
   useEffect(() => {
     if (!isLoaded) return;
     if (!user) { router.push("/sign-in"); return; }
 
-    setLoading(true);
-    const promises: Promise<any>[] = [
+    // `loading` initialises to true, so no need to set it here on mount.
+    const promises: Promise<unknown>[] = [
       fetch("/api/analyses").then(r => r.json()).catch(() => []),
       fetch("/api/teams").then(r => r.json()).catch(() => []),
     ];
 
     if (currentSteamId) {
+      // TODO(frontend-refactor): this effect kicks off fetches and flips loading
+      // flags synchronously. Move to a proper data-fetching hook (SWR/React Query)
+      // so the loading state is derived rather than set from inside the effect.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSteamProfileLoading(true);
       promises.push(
         fetch(`/api/steam/profile?steamid=${currentSteamId}`)
@@ -353,7 +366,7 @@ export default function ProfilePage() {
                   ) : (
                     <div>
                       <p className="text-xl font-extrabold text-[var(--color-text-primary)] font-mono">
-                        {Math.round(steamProfile.playtime_forever / 60).toLocaleString()} <span className="text-[11px] text-slate-500 font-normal">hrs</span>
+                        {Math.round((steamProfile.playtime_forever ?? 0) / 60).toLocaleString()} <span className="text-[11px] text-slate-500 font-normal">hrs</span>
                       </p>
                       <p className="text-[9px] text-[#22D3A0] font-semibold font-mono">Synced via Steam</p>
                     </div>

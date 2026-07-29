@@ -100,7 +100,7 @@ export default function TeamDetailPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const [stratSearch, setStratSearch] = useState("");
   const [expandedStrats, setExpandedStrats] = useState<Record<string, boolean>>({});
-  const [individualAnalyses, setIndividualAnalyses] = useState<any[]>([]);
+  const [individualAnalyses, setIndividualAnalyses] = useState<Analysis[]>([]);
   const [activeStratMap, setActiveStratMap] = useState<string | undefined>(undefined);
 
   const fetchStrategies = useCallback(() => {

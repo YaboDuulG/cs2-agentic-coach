@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 type Theme = "khan" | "purple-void" | "tactical";
 
@@ -10,30 +10,60 @@ const THEMES: { id: Theme; label: string; color: string; description: string }[]
   { id: "tactical", label: "Tactical Command", color: "#22C55E", description: "Gunmetal & Green" },
 ];
 
-export function ThemeSwitcher() {
-  const [theme, setTheme] = useState<Theme>("khan");
+const STORAGE_KEY = "demosage-theme";
+const DEFAULT_THEME: Theme = "khan";
 
-  useEffect(() => {
-    const saved = localStorage.getItem("demosage-theme") as Theme;
-    if (saved && THEMES.find(t => t.id === saved)) {
-      applyTheme(saved);
-      setTheme(saved);
-    }
-  }, []);
+function isTheme(value: string | null): value is Theme {
+  return value !== null && THEMES.some(t => t.id === value);
+}
 
-  const applyTheme = (t: Theme) => {
-    const root = document.documentElement;
-    if (t === "khan") {
-      root.removeAttribute("data-theme");
-    } else {
-      root.setAttribute("data-theme", t);
-    }
+function applyTheme(t: Theme) {
+  const root = document.documentElement;
+  if (t === DEFAULT_THEME) {
+    root.removeAttribute("data-theme");
+  } else {
+    root.setAttribute("data-theme", t);
+  }
+}
+
+// localStorage is external state, so it's read through a store rather than
+// mirrored into component state — avoids the cascading render on mount.
+const listeners = new Set<() => void>();
+
+function subscribe(onChange: () => void) {
+  listeners.add(onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    listeners.delete(onChange);
+    window.removeEventListener("storage", onChange);
   };
+}
+
+function getSnapshot(): Theme {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  return isTheme(saved) ? saved : DEFAULT_THEME;
+}
+
+// The server has no localStorage; render the default and let the client reconcile.
+function getServerSnapshot(): Theme {
+  return DEFAULT_THEME;
+}
+
+function storeTheme(t: Theme) {
+  localStorage.setItem(STORAGE_KEY, t);
+  listeners.forEach(notify => notify());
+}
+
+export function ThemeSwitcher() {
+  const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  // Syncing the DOM to the selected theme is exactly what an effect is for.
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   const handleSelect = (t: Theme) => {
-    setTheme(t);
-    applyTheme(t);
-    localStorage.setItem("demosage-theme", t);
+    storeTheme(t);
   };
 
   return (
