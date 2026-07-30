@@ -86,17 +86,42 @@ def test_cosine_similarity():
     assert pytest.approx(cosine_similarity(v1, v4), 0.001) == 0.707
 
 
+# retrieve_similar_chunks queries Qdrant, not the SQL session — qdrant_client
+# returns [{"score": ..., **payload}] and rag.py reshapes that into
+# {content, source, score, metadata}. These tests mock at that boundary.
+QDRANT_HITS = [
+    {
+        "score": 0.95,
+        "content": "Economy buy rules: always buy Kevlar on full buy.",
+        "source": "game_rules",
+        "type": "economy",
+    },
+    {
+        "score": 0.71,
+        "content": "Dust II B Site strategy: smoke doors and push tunnels.",
+        "source": "game_rules",
+        "type": "tactics",
+    },
+    {
+        "score": 0.30,
+        "content": "Pro Match: Astralis vs NaVi on de_nuke.",
+        "source": "hltv_pro_match",
+        "match_id": "pro-123",
+    },
+]
+
+
+@patch("db.qdrant_client.search_pro_tactics")
 @patch("db.rag.get_query_embedding")
-def test_retrieve_similar_chunks_sqlite(mock_get_embedding, db_session):
-    """Test semantic retrieval sorting and source filtering in SQLite (Python-fallback)."""
-    # Mock query embedding: close to c1 [1.0, 0.0]
-    query_vector = [0.0] * 768
-    query_vector[0] = 0.95
-    query_vector[1] = 0.05
-    mock_get_embedding.return_value = query_vector
+def test_retrieve_similar_chunks_ranking_and_source_filter(
+    mock_get_embedding, mock_search_pro, db_session
+):
+    """Results are ranked by score, truncated to limit, and filterable by source."""
+    mock_get_embedding.return_value = [0.1] * 768
+    mock_search_pro.return_value = QDRANT_HITS
 
     with patch.dict(os.environ, {"GEMINI_API_KEY": "fake-api-key"}):
-        # 1. Retrieve without source filter (should return top 2: c1, then c2)
+        # 1. Highest scores first, truncated to limit
         results = retrieve_similar_chunks(db_session, "some query", limit=2)
         assert len(results) == 2
         assert "Economy buy rules" in results[0]["content"]
@@ -104,7 +129,7 @@ def test_retrieve_similar_chunks_sqlite(mock_get_embedding, db_session):
         assert "Dust II B Site" in results[1]["content"]
         assert results[1]["score"] > 0.6
 
-        # 2. Retrieve with source filter 'hltv_pro_match' (should only return c3)
+        # 2. Source filter narrows to the matching hit, and metadata survives
         results_pro = retrieve_similar_chunks(
             db_session, "some query", limit=5, source="hltv_pro_match"
         )
@@ -118,60 +143,72 @@ def test_retrieve_similar_chunks_sqlite(mock_get_embedding, db_session):
 
 
 @patch("db.rag.get_query_embedding")
-def test_retrieve_similar_chunks_isolation(mock_get_embedding, db_session):
-    """Verify that retrieve_similar_chunks respects namespace walls for user and team."""
-    # Clean up and seed custom scoped data
-    db_session.query(KnowledgeEmbedding).delete()
+def test_retrieve_similar_chunks_no_api_key_returns_empty(mock_get_embedding, db_session):
+    """Without an embedding API key, retrieval short-circuits instead of raising."""
+    mock_get_embedding.return_value = [0.1] * 768
 
-    def make_vector():
-        """Docstring for make_vector."""
-        return [0.1] * 768
+    with patch.dict(os.environ, {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": ""}):
+        assert retrieve_similar_chunks(db_session, "some query", limit=5) == []
 
-    # Public match (default scope or explicit)
-    c1 = KnowledgeEmbedding(
-        content="Public pro match advice: NaVi plays default A.",
-        embedding=make_vector(),
-        source="hltv_pro_match",
-        metadata_json=json.dumps({"scope": "public"}),
-    )
-    # Team match
-    c2 = KnowledgeEmbedding(
-        content="Team specific tactics: Mirage A split execute.",
-        embedding=make_vector(),
-        source="user_match_summary",
-        metadata_json=json.dumps({"scope": "team", "team_id": "team-abc"}),
-    )
-    # Individual match
-    c3 = KnowledgeEmbedding(
-        content="Individual training details: AWP entry positioning.",
-        embedding=make_vector(),
-        source="user_match_summary",
-        metadata_json=json.dumps({"scope": "individual", "user_id": "user-xyz"}),
-    )
 
-    db_session.add_all([c1, c2, c3])
-    db_session.commit()
+PUBLIC_HIT = {
+    "score": 0.9,
+    "content": "Public pro match advice: NaVi plays default A.",
+    "source": "hltv_pro_match",
+    "scope": "public",
+}
+TEAM_HIT = {
+    "score": 0.8,
+    "content": "Team specific tactics: Mirage A split execute.",
+    "source": "user_match_summary",
+    "scope": "team",
+    "team_id": "team-abc",
+}
+USER_HIT = {
+    "score": 0.8,
+    "content": "Individual training details: AWP entry positioning.",
+    "source": "user_match_summary",
+    "scope": "individual",
+    "user_id": "user-xyz",
+}
 
-    mock_get_embedding.return_value = make_vector()
+
+@patch("db.qdrant_client.search_player_tendencies")
+@patch("db.qdrant_client.search_pro_tactics")
+@patch("db.rag.get_query_embedding")
+def test_retrieve_similar_chunks_isolation(
+    mock_get_embedding, mock_search_pro, mock_search_tendencies, db_session
+):
+    """Namespace walls: tendencies are only searched for the scope that was asked for."""
+    mock_get_embedding.return_value = [0.1] * 768
+    mock_search_pro.return_value = [PUBLIC_HIT]
 
     with patch.dict(os.environ, {"GEMINI_API_KEY": "fake-api-key"}):
-        # 1. No context: should ONLY return public embedding (c1)
+        # 1. No context: public tactics only, tendencies never queried.
+        mock_search_tendencies.return_value = []
         res_none = retrieve_similar_chunks(db_session, "tactics", limit=5)
         assert len(res_none) == 1
         assert "Public pro match" in res_none[0]["content"]
+        mock_search_tendencies.assert_not_called()
 
-        # 2. Team-abc context: should return c1 and c2, but not c3
+        # 2. Team context: tendencies queried scoped to that team, not a user.
+        mock_search_tendencies.reset_mock()
+        mock_search_tendencies.return_value = [TEAM_HIT]
         res_team = retrieve_similar_chunks(db_session, "tactics", limit=5, team_id="team-abc")
-        assert len(res_team) == 2
         contents = [c["content"] for c in res_team]
         assert any("Public pro match" in text for text in contents)
         assert any("Team specific tactics" in text for text in contents)
         assert not any("Individual training details" in text for text in contents)
+        assert mock_search_tendencies.call_args.kwargs["team_id"] == "team-abc"
+        assert "user_id" not in mock_search_tendencies.call_args.kwargs
 
-        # 3. User-xyz context: should return c1 and c3, but not c2
+        # 3. User context: tendencies queried scoped to that user, not a team.
+        mock_search_tendencies.reset_mock()
+        mock_search_tendencies.return_value = [USER_HIT]
         res_user = retrieve_similar_chunks(db_session, "tactics", limit=5, user_id="user-xyz")
-        assert len(res_user) == 2
         contents = [c["content"] for c in res_user]
         assert any("Public pro match" in text for text in contents)
         assert any("Individual training details" in text for text in contents)
         assert not any("Team specific tactics" in text for text in contents)
+        assert mock_search_tendencies.call_args.kwargs["user_id"] == "user-xyz"
+        assert "team_id" not in mock_search_tendencies.call_args.kwargs
