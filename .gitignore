@@ -79,3 +79,8 @@ temp/
 outputs/strat_cards/
 .vercel
 .env*.local
+
+# 🤖 CLAUDE CODE — personal, per-machine
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
