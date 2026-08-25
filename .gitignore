@@ -49,6 +49,11 @@ data/processed/
 data/embeddings/
 *.log
 
+# 📦 INSTALLERS & COMPILED BINARIES (never belongs in git)
+# AWSCLIV2.msi (48MB) was committed in 5efff1f during the abandoned AWS Lightsail
+# phase and untracked later. Download installers, don't version them.
+*.msi
+
 # 🛰️ LANGGRAPH & ORCHESTRATION
 .langchain/
 .langgraph/
