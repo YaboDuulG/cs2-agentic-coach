@@ -54,6 +54,13 @@ data/embeddings/
 # phase and untracked later. Download installers, don't version them.
 *.msi
 
+# Go build output — services/demo-parser/Dockerfile compiles from source and its
+# .dockerignore already excludes bin/, so the committed .exe was pure bloat.
+services/demo-parser/bin/
+
+# Personal debugging scratch space — one-off scripts and infra state, not source.
+scratch/
+
 # 🛰️ LANGGRAPH & ORCHESTRATION
 .langchain/
 .langgraph/
