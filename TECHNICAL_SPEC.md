@@ -270,11 +270,36 @@ Step 4: Identify the root cause of the round loss/win.
 Step 5: State 1 specific improvement + 1 positive observation.
 ```
 
-### 4.3 Hallucination Guardrails
-- All tactical claims validated against demo-parsed structured data
-- Ungrounded claims withheld and flagged by Great Khan
-- Agent outputs include `confidence_score` — low-confidence output disclosed to user
-- Pro match citations include source match ID + round number
+### 4.3 Evidence-Grounded Coaching (implemented 2026-08)
+
+Principle: **the LLM narrates, it never measures.** Everything numeric is computed
+deterministically (Tactician) or looked up (pro baselines); the Scribe's only job is
+selection, explanation, and drill prescription — with citations.
+
+- **Evidence pack** (`agents/scribe/evidence.py`), built before any LLM call:
+  - `facts` (IDs `F*`) — Tactician metrics with values and round lists (FCR rates,
+    economy coherence flags, utility sequencing, rotation scores)
+  - `baselines` (IDs `B*`) — numeric pro reference values from the `pro_baselines`
+    table (metric + map + side lookup with `any` fallback). Baselines are **lookups,
+    not vector searches** — you can't compare a 31% opening-duel rate to a paragraph.
+  - `pro_examples` (IDs `P*`) — retrieved per *flagged* round (≤8 rounds × 2 chunks)
+    with situation-keyed queries built from the round's real state (side, buy tier,
+    outcome), not one static match-level query
+- **Prompt contract** (versioned in `system_configs`): every claim must cite evidence
+  IDs in square brackets; baseline gaps stated as numbers; "if the evidence doesn't
+  cover it, write nothing." Synthesis output is **schema-enforced JSON**
+  (`findings[]{claim, evidence_ids, rounds, severity, drill, audience}`), from which
+  the legacy markdown reports are rendered — the raw findings are cached too, enabling
+  future deep-links from finding → rounds in the 3D viewer.
+- **Verification pass**: one flash call re-checks each finding against its cited
+  evidence; unsupported findings are dropped and the drop count logged — this is the
+  ongoing grounding metric (a rising drop-rate means the prompt or pack regressed).
+- Round-analysis calls receive only their own round's data + round-scoped evidence.
+- Global LLM concurrency gate (`SCRIBE_LLM_CONCURRENCY`, default 8) bounds Gemini
+  fan-out under concurrent match load — no 429 cascades at hundreds of users.
+
+Bootstrap baselines are seeded defaults marked for replacement by HLTV aggregates
+(§5.4 nightly ingestion is the intended source).
 
 ### 4.4 Gemini Context Caching
 Static RAG corpora (CS2 rules, meta snapshots, Discord strategies) are cached via Gemini's **Context Caching API** with a 30-60 minute TTL. Reduces TTFT by ~75% and token cost by 50-70% on repeated queries.
@@ -289,47 +314,55 @@ All coaching endpoints use **Server-Sent Events (SSE)** to stream tokens to the 
 
 ## 5. Data Pipelines
 
-### 5.1 Auto-Ingestion Pipeline (v2 — Zero-Upload Default)
+### 5.1 Upload → Parse → Coach Pipeline (v3 — DB job queue, implemented 2026-08)
 
 ```
-## System Architecture
-The application runs on Google Cloud Platform with a highly distributed backend:
-
-**User Flow & Processing Pipeline:**
-1. **Upload**: User uploads a `.dem` file directly to Google Cloud Storage (GCS) via a signed URL.
-2. **Task Enqueue**: The FastAPI backend creates a generic Cloud Task targeting the high-performance Go parser.
-3. **Go Parser (Cloud Run)**: `demosage-parser-prod` (Go 1.25) processes the `.dem` stream directly from GCS, extracting positional telemetry, nade throws, and combat logs.
-4. **Storage**: The parsed metrics are stored in PostgreSQL (Neon) and vectorized into Qdrant Cloud.
-5. **AI Inference (Great Khan)**: LangGraph (running on the FastAPI backend) analyzes the match using `gpt-4o` or `gemini-1.5-pro` (via Postgres-backed LangChain cache), generating personalized coaching insights.
-6. **Delivery**: The Coach UI consumes the AI report in real-time via Server-Sent Events (SSE).
-
-**Retired Architecture (V1):**
-*The legacy Python `demoparser2` threading system (`scout`) has been formally deprecated, container deleted, and removed from Cloud Run.*
-
+POST /api/upload/presign
+  → match row created (status PENDING, gcs_demo_uri stored up front)
+  → browser PUTs .dem.gz directly to GCS via presigned URL(s)
          │
          ▼
-Cloud Tasks → demo-parser (Go) triggered
-  → Streams parsed events as JSON
-  → Writes kills / grenades / rounds / trajectories / first_contacts to Postgres
-  → Uploads parsed JSON to GCS (Parquet format for analytics)
+POST /api/upload/compose  (chunked)          POST /api/upload/complete  (single chunk)
+  → GCS compose, temp parts deleted             → confirms the object is final
+  → enqueue_job(match_id, PARSE)                → enqueue_job(match_id, PARSE)
          │
          ▼
-Cloud Tasks → AI Layer triggered
-  → Great Khan → Tactician + Comms Analyst (parallel)
-  → Khan's Library (Dual-RAG context)
-  → Scribe (report, streamed via SSE)
+jobs table (Postgres) — claimed by services/worker with
+SELECT ... FOR UPDATE SKIP LOCKED; retries with attempt cap; stuck-job sweep
          │
          ▼
-Match status → COMPLETE
-User sees report (WebSocket notification)
+Worker: POST demo-parser /parse (Go, gunzips .gz, streams from GCS)
+  → batch-inserts kills / rounds / grenades to Postgres (multi-row inserts)
+  → derives first_contacts (earliest kill per round), groups trajectories
+  → match status → COMPLETE  ← stats visible to the user HERE (~60s)
+  → enqueue_job(match_id, COACH)
+         │
+         ▼
+Worker (bounded pool, COACH_CONCURRENCY): Great Khan LangGraph run
+  → scout ∥ rag → tactician → scribe with evidence pack (see §4)
+  → verified findings + legacy reports cached in coaching_notes
+         │
+         ▼
+Frontend polls /api/jobs/{id}?light=true (status-only ticks; full payload
+fetched once on done) and /api/coaching/{id} (20-min cap, self-heal enqueue)
 ```
 
-### 5.2 Manual Upload Pipeline (Fallback)
-```
-POST /api/upload/presign → presigned GCS URL
-Browser → direct chunked upload to GCS (bypasses Vercel 4.5MB limit)
-POST /api/upload/compose → trigger Cloud Tasks → same pipeline as above
-```
+**Why a DB job queue** (replaces GCS→Pub/Sub→Scout push *and* Cloud Tasks *and*
+FastAPI BackgroundTasks): the v2 trio left the pipeline severed — compose never
+enqueued anything, the Go parser's JSON response went back to Cloud Tasks and was
+discarded, and coaching only started when a poll happened to arrive on an
+already-COMPLETE match. One `jobs` table is transactional with the match rows it
+describes, free, observable with plain SQL, safe for horizontal workers via
+SKIP LOCKED, and works identically in LOCAL_MODE.
+
+**Retired Architecture (V1/V2):**
+*Python `demoparser2` scout: deprecated, container deleted. Pub/Sub OBJECT_FINALIZE
+push subscription and Cloud Tasks parse-trigger: superseded by the jobs table.
+SSE delivery and Parquet analytics export: not yet implemented (future).*
+
+### 5.2 Auto-Ingestion (Zero-Upload Default — planned)
+Auto-fetch from Steam/FACEIT match history remains the target default UX; it will
+enqueue the same PARSE jobs as manual upload once ingestion lands.
 
 ### 5.3 Audio Pipeline
 ```
@@ -663,7 +696,7 @@ SHARED / UTILITY
 
 | Action | Trigger | Purpose |
 | :--- | :--- | :--- |
-| `ci.yml` | Push / PR | Lint (ruff), type-check (mypy), unit tests, Go tests |
+| `ci.yml` | Push / PR | Lint (ruff), type-check (mypy — non-blocking in CI, run locally for truth), unit tests, Go build+vet (parser job), frontend lint+tsc+build |
 | `hltv-ingest.yml` | Nightly 02:00 UTC | Scrape HLTV, queue parse jobs, update Qdrant |
 | `qdrant-quota-check.yml` | Nightly 03:00 UTC | Check vector counts, alert at 8M threshold |
 | `meta-snapshot.yml` | Weekly Mon 06:00 UTC | Generate weekly meta summary from pro matches |
@@ -852,7 +885,7 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 | **Demo Ingestion** | Auto-fetch first, upload as last resort | Zero-friction UX priority |
 | **Steam Auth** | OpenID 2.0 | Valve's only public web login protocol |
 | **FACEIT Auth** | OAuth2 Authorization Code + PKCE | Standard; server-side token exchange |
-| **Background Jobs** | Cloud Tasks (no bare threads) | Durability + observability |
+| **Background Jobs** | ~~Cloud Tasks~~ → **Postgres `jobs` table + SKIP LOCKED workers** (2026-08) | One queue, transactional with match rows, observable via SQL, horizontal workers safe; Cloud Tasks path was never wired to the real upload flow |
 | **LLM Cache** | Postgres-backed (not SQLiteCache) | SQLiteCache wipes on Cloud Run cold start |
 | **DB Migrations** | Alembic | No more raw ALTER TABLE on startup |
 | **Auth** | Clerk JWT validated server-side | Never trust client-supplied user_id |
@@ -864,7 +897,7 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 | **App Infrastructure** | Google Cloud Platform | Unified billing with Gemini API |
 | **Database** | Cloud SQL for PostgreSQL 15 | Managed; no self-hosting |
 | **File Storage** | Google Cloud Storage | Demo + audio; 5GB free tier |
-| **Task Queue** | Cloud Tasks (serverless) | 1M tasks/mo free |
+| **Task Queue** | ~~Cloud Tasks~~ → **DB job queue** (2026-08) | See Background Jobs; `api/queue.py` retained only for non-pipeline tasks |
 | **Compute** | Cloud Run (serverless) | Scales to zero; separate containers per service |
 | **Practice Servers** | DatHost API | Sub-10-second provisioning |
 | **DatHost API Format** | `multipart/form-data` | JSON gives 500 error |
@@ -872,6 +905,15 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 | **CS2 Update Guard** | Steam News API (live detection) | No API key needed; 10-min cache; fails open |
 | **HLTV Scraping** | Apify actor | Managed; no proxy/maintenance overhead |
 | **Payments** | Stripe | 3-tier: Free / Basic $5 / Pro $20 |
+| **Parse persistence** | Python worker persists; Go parser stays a pure function (2026-08) | Parser JSON was previously discarded by Cloud Tasks; ORM models live in Python; batch multi-row inserts (10-50x vs row-by-row); parser gained gunzip for browser `.dem.gz` uploads |
+| **First contacts / trajectories** | Derived in the worker from the kill feed / position samples (2026-08) | Earliest kill per round; positions grouped per (round, player) — no extra parser work |
+| **Coaching execution** | Worker pool, not FastAPI BackgroundTasks (2026-08) | Cloud Run throttles CPU after the response is sent — background coaching was silently starved; `COACH_CONCURRENCY` bounds per-worker load |
+| **Coaching grounding** | Evidence pack + citation contract + schema-enforced findings + verification pass (2026-08) | Tactician metrics previously never reached the prompts; see §4.3. Drop-rate of unverified findings is the grounding metric |
+| **Pro baselines** | `pro_baselines` table (numeric lookups), not vectors (2026-08) | Comparisons need numbers; vector search reserved for situation-keyed pro examples |
+| **LLM throughput** | Global semaphore `SCRIBE_LLM_CONCURRENCY` (2026-08) | ~25 Gemini calls/match × hundreds of users needs admission control, not 429 cascades |
+| **Status polling** | `light=true` poll ticks + one full fetch on done; coaching cap 5→20 min (2026-08) | 3s polls were re-reading kill/round tables after completion; 5-min cap showed false errors under load |
+| **Frontend design system** | CSS tokens + theme registry with `motifs` flag; ui primitives (2026-08) | Great Khan identity is one swappable theme; Emil Kowalski motion rules (sub-300ms, ease-out, reduced-motion floor) enforced in primitives |
+| **CI Go coverage** | `parser` job: go build + go vet (2026-08) | The Go parser is load-bearing; nothing previously compiled it in CI |
 
 ---
 
