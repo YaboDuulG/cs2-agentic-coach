@@ -60,6 +60,19 @@ Set `LOCAL_MODE=true` in `.env` to skip GCS and Cloud Tasks.
   main safety net during refactors; keep it clean.
 - `pytest` uses `asyncio_mode = "auto"` — async tests need no decorator.
 
+## Git workflow
+
+`staging` is the integration branch — land work there, not straight on `main`.
+
+- **Commit day-to-day work to `staging`, not `main`.** `main` is the release branch;
+  changes reach it by promoting `staging`, not by committing to it directly.
+- **If `staging` is behind `main`, refresh it first** (`git checkout staging`,
+  `git merge main` or `git pull` from `main`) so you're building on current code, then
+  commit your work.
+- **Promote to `main` only once the change is verified on `staging`** — the checks in
+  the Commands section pass.
+- Same as everywhere: don't commit or push unless I ask. If I ask, use this path.
+
 <!-- Maintainer note: keep this under ~200 lines. Don't add anything derivable from the
      codebase (dir trees, dep lists) — /doctor will just suggest trimming it back out.
      Pitfalls, rationale, and non-default conventions are what earn their place here. -->
