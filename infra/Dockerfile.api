@@ -2,8 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Slim serving deps only — requirements.txt carries dev/crawler/audio extras
+# this image doesn't need (torch, playwright, celery). See requirements-api.txt.
+COPY requirements-api.txt .
+RUN pip install --no-cache-dir -r requirements-api.txt
 
 COPY . .
 
@@ -11,4 +13,6 @@ COPY . .
 ENV PORT=8000
 EXPOSE 8000
 
+# The pipeline worker uses this same image with the command overridden to:
+#   python -m services.worker
 CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT}"]

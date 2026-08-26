@@ -914,6 +914,7 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 | **Status polling** | `light=true` poll ticks + one full fetch on done; coaching cap 5→20 min (2026-08) | 3s polls were re-reading kill/round tables after completion; 5-min cap showed false errors under load |
 | **Frontend design system** | CSS tokens + theme registry with `motifs` flag; ui primitives (2026-08) | Great Khan identity is one swappable theme; Emil Kowalski motion rules (sub-300ms, ease-out, reduced-motion floor) enforced in primitives |
 | **CI Go coverage** | `parser` job: go build + go vet (2026-08) | The Go parser is load-bearing; nothing previously compiled it in CI |
+| **Serving image deps** | `requirements-api.txt` in Dockerfile.api (2026-08) | Full requirements.txt pulled torch (pyannote), playwright, celery, vertexai into the Cloud Run image — multi-GB, 30-60s cold starts. Slim set = only what api/agents/db/worker import; verified by importing api.main + services.worker under it. Worker reuses the image with CMD `python -m services.worker` |
 
 ---
 
