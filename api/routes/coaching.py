@@ -10,29 +10,32 @@ Coaching endpoint — triggers Great Khan AI analysis and returns cached results
 
 import json
 import logging
-import threading
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_running_tasks_lock = threading.Lock()
-_running_tasks = set()
-
 
 @router.post("/{match_id}", summary="Trigger AI coaching for a match")
-async def trigger_coaching(match_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_session)):
-    """Called by Scout after a successful parse. Runs coaching in background."""
-    background_tasks.add_task(_run_coaching, match_id)
+async def trigger_coaching(match_id: str, db: Session = Depends(get_session)):
+    """
+    Queue a coaching run for the match. Work happens in the coach worker
+    (services/worker), not in a request-scoped background task — Cloud Run
+    throttles CPU after the response is sent, which silently starved the
+    old BackgroundTasks approach.
+    """
+    from db.jobs import enqueue_job  # noqa: PLC0415
+    from db.models import JobKind  # noqa: PLC0415
+
+    enqueue_job(db, match_id, JobKind.COACH)
     return {"status": "coaching_queued", "match_id": match_id}
 
 
 @router.get("/{match_id}", summary="Get cached coaching notes for a match")
 async def get_coaching(
     match_id: str,
-    background_tasks: BackgroundTasks,
     user_id: str | None = None,
     uploader_steam_id: str | None = None,
 db: Session = Depends(get_session)):
@@ -82,17 +85,13 @@ db: Session = Depends(get_session)):
             db.commit()
 
         if not match.coaching_notes:
-            # Self-healing: trigger coaching in background if match is COMPLETE and coaching is not running
+            # Self-healing: queue a coaching job if the match is parsed but no
+            # report exists. enqueue_job dedupes, so repeated polls are cheap.
             if match.status == MatchStatus.COMPLETE:
-                is_running = False
-                with _running_tasks_lock:
-                    if match_id in _running_tasks:
-                        is_running = True
-                if not is_running:
-                    logger.info(
-                        f"Triggering self-healing coaching run for complete match {match_id}"
-                    )
-                    background_tasks.add_task(_run_coaching, match_id)
+                from db.jobs import enqueue_job  # noqa: PLC0415
+                from db.models import JobKind  # noqa: PLC0415
+
+                enqueue_job(db, match_id, JobKind.COACH)
 
             return JSONResponse(
                 status_code=202,
@@ -160,21 +159,3 @@ async def get_player_coaching(match_id: str, player_name: str, user_id: str | No
         raise HTTPException(status_code=500, detail="Failed to fetch player report")
 
 
-def _run_coaching(match_id: str) -> None:
-    """Background task: run Great Khan analysis."""
-    with _running_tasks_lock:
-        if match_id in _running_tasks:
-            logger.info(
-                f"Coaching for match {match_id} is already in progress. Skipping duplicate run."
-            )
-            return
-        _running_tasks.add(match_id)
-    try:
-        from agents.khan import analyse_match  # noqa: PLC0415
-
-        analyse_match(match_id)
-    except Exception as e:
-        logger.error(f"Coaching task failed for {match_id}: {e}")
-    finally:
-        with _running_tasks_lock:
-            _running_tasks.discard(match_id)

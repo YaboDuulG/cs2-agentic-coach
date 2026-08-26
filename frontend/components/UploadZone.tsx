@@ -224,8 +224,19 @@ export function UploadZone({ onSuccess, teamId, defaultMode }: UploadZoneProps) 
           }
         });
 
-        xhr.addEventListener("load", () => {
+        xhr.addEventListener("load", async () => {
           if (xhr.status >= 200 && xhr.status < 300) {
+            // Tell the backend the object is final so it queues the parse —
+            // single-chunk uploads never hit /compose.
+            try {
+              await fetch("/api/upload/complete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ match_id: job_id }),
+              });
+            } catch (err) {
+              console.error("Upload completion signal failed:", err);
+            }
             if (onSuccess) onSuccess();
             router.push(`/analysis/${job_id}`);
           } else {

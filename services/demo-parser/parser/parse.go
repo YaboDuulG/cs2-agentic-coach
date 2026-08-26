@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -49,7 +50,23 @@ func ParseDemo(c *gin.Context) {
 	}
 	defer demoReader.Close()
 
-	result, err := parseDemoStream(req.MatchID, demoReader)
+	// The browser gzips demos before upload (.dem.gz) — decompress on the fly.
+	var demoStream io.Reader = demoReader
+	source := req.GCSURI
+	if source == "" {
+		source = req.DemoURL
+	}
+	if strings.HasSuffix(source, ".gz") {
+		gz, gzErr := gzip.NewReader(demoReader)
+		if gzErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("gzip decode failed: %v", gzErr)})
+			return
+		}
+		defer gz.Close()
+		demoStream = gz
+	}
+
+	result, err := parseDemoStream(req.MatchID, demoStream)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("parse failed: %v", err)})
 		return

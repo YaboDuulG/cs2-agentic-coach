@@ -576,3 +576,90 @@ class LinkedAccount(Base):
     def __repr__(self) -> str:
         """Docstring for __repr__."""
         return f"<LinkedAccount user={self.user_id} provider={self.provider} id={self.provider_user_id}>"
+
+
+# ---------------------------------------------------------------------------
+# Job — the single work queue for the pipeline (parse → coach)
+# Claimed by workers with SELECT ... FOR UPDATE SKIP LOCKED (db/jobs.py).
+# Replaces the Pub/Sub push + Cloud Tasks + BackgroundTasks trio: one queue,
+# transactional with the match rows it describes.
+# ---------------------------------------------------------------------------
+
+
+class JobKind(str, enum.Enum):
+    """Docstring for JobKind."""
+    PARSE = "parse"
+    COACH = "coach"
+
+
+class JobStatus(str, enum.Enum):
+    """Docstring for JobStatus."""
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
+class Job(Base):
+    """Docstring for Job."""
+    __tablename__ = "jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(Enum(JobKind), nullable=False)
+    status: Mapped[str] = mapped_column(
+        Enum(JobStatus), nullable=False, default=JobStatus.PENDING, index=True
+    )
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    claimed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    def __repr__(self) -> str:
+        """Docstring for __repr__."""
+        return f"<Job {self.id} {self.kind} match={self.match_id} status={self.status}>"
+
+
+# ---------------------------------------------------------------------------
+# ProBaseline — numeric professional-play reference values.
+# Baselines are lookups, not vector searches: the Scribe compares a player's
+# computed metric against these numbers and must cite both in its findings.
+# ---------------------------------------------------------------------------
+
+
+class ProBaseline(Base):
+    """Docstring for ProBaseline."""
+    __tablename__ = "pro_baselines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # Metric key, e.g. 'fcr_win_rate', 'eco_save_threshold', 'util_prekill_pct'
+    metric: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # Context discriminators — 'any' matches everything
+    map_name: Mapped[str] = mapped_column(String(64), nullable=False, default="any")
+    side: Mapped[str] = mapped_column(String(8), nullable=False, default="any")  # CT | T | any
+    value: Mapped[float] = mapped_column(Float, nullable=False)
+    unit: Mapped[str] = mapped_column(String(32), nullable=False, default="ratio")
+    detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    source: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    def __repr__(self) -> str:
+        """Docstring for __repr__."""
+        return f"<ProBaseline {self.metric} map={self.map_name} side={self.side} value={self.value}>"

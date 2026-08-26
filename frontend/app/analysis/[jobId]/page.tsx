@@ -823,8 +823,10 @@ function CoachingPanel({ matchId }: { matchId: string }) {
     if (status !== "loading" && status !== "pending") return;
     let stopped = false;
     async function poll() {
-      // Poll up to 60 times × 5s = 5 minutes total
-      for (let i = 0; i < 60; i++) {
+      // Poll up to 240 times × 5s = 20 minutes — a queued coaching run under
+      // heavy load can legitimately take longer than the old 5-minute cap,
+      // and a false "error" here looks like a lost report.
+      for (let i = 0; i < 240; i++) {
         if (stopped) return;
         try {
           const res = await fetch(`/api/coaching/${matchId}`);
@@ -3069,10 +3071,17 @@ export default function AnalysisPage() {
     async function poll() {
       while (!stopped) {
         try {
-          const res = await fetch(`/api/jobs/${jobId}`);
+          // Poll light (status only); pull the full payload exactly once on done.
+          const res = await fetch(`/api/jobs/${jobId}?light=1`);
           const data: JobResult = await res.json();
+          if (data.status === "done") {
+            const fullRes = await fetch(`/api/jobs/${jobId}`);
+            const fullData: JobResult = await fullRes.json();
+            if (!stopped) setResult(fullData);
+            break;
+          }
           setResult(data);
-          if (data.status === "done" || data.status === "failed") break;
+          if (data.status === "failed") break;
         } catch { /* continue */ }
         await new Promise(r => setTimeout(r, 3000));
       }

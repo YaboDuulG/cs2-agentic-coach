@@ -66,9 +66,20 @@ async def presign_demo_upload(body: PresignRequest, request: Request, db: Sessio
         if not member_check:
             raise HTTPException(status_code=403, detail="You are not a member of this team.")
 
+    # The final object location is known up front for both upload shapes —
+    # store it on the match so parse jobs only ever need a match_id.
+    final_path = f"demos/raw/{match_id}/{secure_filename}"
+    gcs_demo_uri = f"gs://{bucket_name}/{final_path}" if bucket_name else final_path
+
     # Create match record in DB immediately so jobs endpoint returns 'queued'
     _create_match_record(
-        match_id, secure_filename, user_id, body.team_id, uploader_steam_id, body.is_recon
+        match_id,
+        secure_filename,
+        user_id,
+        body.team_id,
+        uploader_steam_id,
+        body.is_recon,
+        gcs_demo_uri,
     )
 
     if local_mode or not bucket_name:
@@ -188,6 +199,7 @@ async def compose_chunks(body: ComposeRequest, request: Request, db: Session = D
 
     if local_mode or not bucket_name:
         logger.info(f"LOCAL_MODE mock composition for match_id: {body.match_id}")
+        _enqueue_parse(body.match_id)
         return {"ok": True, "match_id": body.match_id, "local_mode": True}
 
     try:
@@ -251,8 +263,8 @@ async def compose_chunks(body: ComposeRequest, request: Request, db: Session = D
             except Exception as del_err:
                 logger.warning(f"Failed to delete temporary chunk {part_blob.name}: {del_err}")
 
-        # In case the Pub/Sub trigger doesn't execute (e.g. locally or trigger issue),
-        # return the URI details. The finalized file in demos/raw/ will trigger GCS Eventarc.
+        # The composed object is final — hand the match to the parse queue.
+        _enqueue_parse(body.match_id)
         return {
             "ok": True,
             "match_id": body.match_id,
@@ -263,6 +275,34 @@ async def compose_chunks(body: ComposeRequest, request: Request, db: Session = D
     except Exception as e:
         logger.error(f"Composition failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to compose demo file: {e}")
+
+
+class CompleteRequest(BaseModel):
+    """Docstring for CompleteRequest."""
+    match_id: str
+
+
+@router.post("/complete", summary="Confirm a single-chunk upload finished; queue parsing")
+async def complete_upload(body: CompleteRequest, db: Session = Depends(get_session)):
+    """
+    Called by the browser after a single-chunk PUT succeeds (chunked uploads
+    go through /compose instead). Enqueues the parse job.
+    """
+    _enqueue_parse(body.match_id)
+    return {"ok": True, "match_id": body.match_id}
+
+
+def _enqueue_parse(match_id: str) -> None:
+    """Queue a parse job for the match — deduped, non-fatal on queue errors."""
+    try:
+        from db.database import SessionLocal  # noqa: PLC0415
+        from db.jobs import enqueue_job  # noqa: PLC0415
+        from db.models import JobKind  # noqa: PLC0415
+
+        with SessionLocal() as job_db:
+            enqueue_job(job_db, match_id, JobKind.PARSE)
+    except Exception as e:
+        logger.error(f"Failed to enqueue parse job for {match_id}: {e}")
 
 
 @router.put("/stub/{match_id}", include_in_schema=False)
@@ -279,6 +319,7 @@ def _create_match_record(
     team_id: str | None = None,
     uploader_steam_id: str | None = None,
     is_recon: bool = False,
+    gcs_demo_uri: str | None = None,
 ) -> None:
     """Insert a queued match row so /api/jobs/{id} returns 'queued' immediately."""
     try:
@@ -290,9 +331,9 @@ def _create_match_record(
             text("""
                     INSERT INTO matches (
                         match_id, map_name, tickrate, total_rounds,
-                        demo_filename, status, user_id, team_id, uploader_steam_id, is_recon, created_at, updated_at
+                        demo_filename, status, user_id, team_id, uploader_steam_id, is_recon, gcs_demo_uri, created_at, updated_at
                     )
-                    VALUES (:id, 'unknown', 64, 0, :filename, 'PENDING', :user_id, :team_id, :uploader_steam_id, :is_recon, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    VALUES (:id, 'unknown', 64, 0, :filename, 'PENDING', :user_id, :team_id, :uploader_steam_id, :is_recon, :gcs_demo_uri, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT (match_id) DO NOTHING
                 """),
             {
@@ -302,6 +343,7 @@ def _create_match_record(
                 "team_id": team_id,
                 "uploader_steam_id": uploader_steam_id,
                 "is_recon": is_recon,
+                "gcs_demo_uri": gcs_demo_uri,
             },
         )
             db.commit()
