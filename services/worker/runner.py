@@ -10,9 +10,11 @@ Run: python -m services.worker
 """
 
 from concurrent.futures import ThreadPoolExecutor
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import logging
 import os
 import socket
+import threading
 import time
 import uuid
 
@@ -25,6 +27,33 @@ logger = logging.getLogger("worker")
 POLL_INTERVAL_SECONDS = float(os.environ.get("WORKER_POLL_INTERVAL", "2"))
 COACH_CONCURRENCY = int(os.environ.get("COACH_CONCURRENCY", "4"))
 STUCK_SWEEP_EVERY = 30  # claim iterations between stuck-job sweeps
+
+
+class _HealthHandler(BaseHTTPRequestHandler):
+    """Docstring for _HealthHandler."""
+
+    def do_GET(self):  # noqa: N802 — BaseHTTPRequestHandler API
+        """Docstring for do_GET."""
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+    def log_message(self, *args):  # silence per-request access logs
+        """Docstring for log_message."""
+
+
+def _start_health_server() -> None:
+    """
+    Cloud Run services must listen on $PORT to pass the startup probe, even
+    though this process is a queue poller, not an HTTP app. Serves 200 on
+    every path from a daemon thread. Skipped when PORT is unset (local runs).
+    """
+    port = os.environ.get("PORT")
+    if not port:
+        return
+    server = ThreadingHTTPServer(("0.0.0.0", int(port)), _HealthHandler)
+    threading.Thread(target=server.serve_forever, daemon=True, name="health").start()
+    logger.info(f"Health server listening on :{port}")
 
 
 def _worker_id() -> str:
@@ -73,6 +102,7 @@ def main() -> None:
     """Docstring for main."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     worker_id = _worker_id()
+    _start_health_server()
     Base.metadata.create_all(engine)  # no-op when tables exist
     logger.info(f"Worker {worker_id} starting (coach concurrency {COACH_CONCURRENCY})")
 

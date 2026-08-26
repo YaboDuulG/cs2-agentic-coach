@@ -71,11 +71,31 @@ def _call_parser(match_id: str, gcs_uri: str) -> dict:
     resp = httpx.post(
         f"{parser_url}/parse",
         json={"match_id": match_id, "gcs_uri": gcs_uri},
+        headers=_parser_auth_headers(parser_url),
         timeout=PARSE_TIMEOUT_SECONDS,
     )
     if resp.status_code != 200:
         raise RuntimeError(f"Parser returned {resp.status_code}: {resp.text[:500]}")
     return resp.json()
+
+
+def _parser_auth_headers(parser_url: str) -> dict[str, str]:
+    """
+    The parser runs with --no-allow-unauthenticated on Cloud Run; calls need
+    an OIDC identity token with the service URL as audience. Local parsers
+    (LOCAL_MODE or a non-run.app URL) take no auth.
+    """
+    if os.getenv("LOCAL_MODE", "false").lower() == "true" or "run.app" not in parser_url:
+        return {}
+    try:
+        import google.auth.transport.requests  # noqa: PLC0415
+        from google.oauth2 import id_token  # noqa: PLC0415
+
+        token = id_token.fetch_id_token(google.auth.transport.requests.Request(), parser_url)
+        return {"Authorization": f"Bearer {token}"}
+    except Exception as e:
+        logger.warning(f"Could not mint parser ID token ({e}); calling unauthenticated")
+        return {}
 
 
 def _persist_result(db: Session, match: Match, result: dict) -> None:
