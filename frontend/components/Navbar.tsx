@@ -4,13 +4,15 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
-import { Upload, Shield } from "lucide-react";
+import { Upload, Shield, Compass } from "lucide-react";
 import { SoyomboIcon } from "@/components/patterns/mongolian";
 import { UploadModal } from "@/components/UploadModal";
+import { useTheme } from "@/lib/themes";
 
 export function Navbar() {
   const pathname = usePathname();
   const { user } = useUser();
+  const { def } = useTheme();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const plan = (user?.publicMetadata?.plan as string) ?? "free";
   const isAdmin = (user?.publicMetadata?.role as string) === "admin" ||
@@ -43,121 +45,128 @@ export function Navbar() {
 
   const planLabel = plan === "pro" ? "Pro" : plan === "basic" ? "Basic" : "Free";
   const planColor =
-    plan === "pro" ? "text-yellow-400" : plan === "basic" ? "text-blue-400" : "text-slate-400";
+    plan === "pro"
+      ? "var(--color-accent-secondary)"
+      : plan === "basic"
+        ? "var(--color-accent-primary)"
+        : "var(--color-text-muted)";
 
-  const isActive = (href: string) =>
-    pathname === href ? "text-white" : "text-slate-400 hover:text-white";
+  const linkStyle = (href: string): React.CSSProperties => ({
+    color: pathname === href ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+    transition: "color var(--dur-press) ease",
+  });
 
-  const isHome = pathname === "/";
+  const modeButton = (mode: "individual" | "team", labelText: string) => {
+    const active = coachingMode === mode;
+    return (
+      <button
+        onClick={() => handleToggle(mode)}
+        aria-pressed={active}
+        className="ds-btn px-2.5 py-1 rounded-md select-none text-[11px] sm:text-xs"
+        style={
+          active
+            ? { background: "var(--gradient-accent)", color: "#fff", fontWeight: 700 }
+            : { color: "var(--color-text-secondary)", fontWeight: 600 }
+        }
+      >
+        {labelText}
+      </button>
+    );
+  };
 
   return (
     <>
       <nav
         className="fixed top-0 left-0 right-0 z-50 border-b"
         style={{
-          background: isHome ? "rgba(5,12,21,0.7)" : "rgba(8,14,26,0.92)",
-          borderColor: isHome ? "rgba(255,255,255,0.06)" : "#1E3A5F",
+          background: "color-mix(in srgb, var(--color-bg-secondary) 92%, transparent)",
+          borderColor: "var(--color-border-primary)",
           backdropFilter: "blur(14px)",
         }}
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          {/* Logo */}
+          {/* Logo — the mark is part of the theme's identity layer */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <SoyomboIcon size={26} color="#C9A227" />
-            <span style={{ fontFamily: "Cinzel, serif", fontWeight: 700, fontSize: "1.05rem", color: "#F0F4FF", letterSpacing: "0.02em" }}>
-              Demo<span style={{ color: "#2D7DD2" }}>Sage</span>
+            {def.motifs ? (
+              <SoyomboIcon size={26} color="var(--color-accent-secondary)" />
+            ) : (
+              <Compass size={24} style={{ color: "var(--color-accent-secondary)" }} />
+            )}
+            <span
+              className="font-bold text-[1.05rem] tracking-wide"
+              style={{ fontFamily: "var(--font-heading)", color: "var(--color-text-primary)" }}
+            >
+              Demo<span style={{ color: "var(--color-accent-primary)" }}>Sage</span>
             </span>
           </Link>
 
-          {/* Right side — auth-aware */}
           <div className="flex items-center gap-3">
             {user && (
-              <div className="flex items-center bg-[#070D18]/90 border border-[#1E3A5F]/60 rounded-lg p-0.5 text-[11px] sm:text-xs font-semibold shadow-inner mr-1 z-10">
-                <button
-                  onClick={() => handleToggle("individual")}
-                  className={`px-2.5 py-1 rounded-md transition-all duration-250 select-none cursor-pointer ${
-                    coachingMode === "individual"
-                      ? "bg-gradient-to-r from-[#1B4F8A] to-[#2D7DD2] text-white shadow-sm font-bold"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  Individual
-                </button>
-                <button
-                  onClick={() => handleToggle("team")}
-                  className={`px-2.5 py-1 rounded-md transition-all duration-250 select-none cursor-pointer ${
-                    coachingMode === "team"
-                      ? "bg-gradient-to-r from-[#1B4F8A] to-[#2D7DD2] text-white shadow-sm font-bold"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  Team
-                </button>
+              <div
+                className="flex items-center rounded-lg p-0.5 shadow-inner mr-1 z-10 border"
+                style={{ background: "var(--color-bg-primary)", borderColor: "var(--color-border-primary)" }}
+              >
+                {modeButton("individual", "Individual")}
+                {modeButton("team", "Team")}
               </div>
             )}
             {user ? (
-              /* ── Logged-in nav ── */
               <>
                 <div className="hidden md:flex items-center gap-5 mr-3 text-sm font-medium">
                   <button
                     onClick={() => setIsUploadOpen(true)}
-                    className="transition-colors text-slate-400 hover:text-white flex items-center gap-1.5 focus:outline-none cursor-pointer"
+                    className="flex items-center gap-1.5 cursor-pointer"
+                    style={{ color: "var(--color-text-secondary)", transition: "color var(--dur-press) ease" }}
                   >
                     <Upload size={13} /> Upload
                   </button>
-                <Link href="/profile" className={`transition-colors ${isActive("/profile")}`}>
-                  My Analyses
-                </Link>
-                <Link href="/teams" className={`transition-colors ${isActive("/teams")}`}>
-                  Teams
-                </Link>
-                {plan !== "pro" && (
-                  <Link href="/billing" className={`transition-colors ${isActive("/billing")}`}>
+                  <Link href="/profile" style={linkStyle("/profile")}>
+                    My Analyses
+                  </Link>
+                  <Link href="/teams" style={linkStyle("/teams")}>
+                    Teams
+                  </Link>
+                  {plan !== "pro" && (
+                    <Link href="/billing" style={linkStyle("/billing")}>
+                      Pricing
+                    </Link>
+                  )}
+                  {isAdmin && (
+                    <Link
+                      href="/settings/admin"
+                      className="flex items-center gap-1 font-bold"
+                      style={{ color: "var(--color-danger)" }}
+                      title="Admin Dashboard"
+                    >
+                      <Shield size={12} />
+                      Admin
+                    </Link>
+                  )}
+                </div>
+                <span className="text-xs font-semibold font-mono hidden sm:inline" style={{ color: planColor }}>
+                  {planLabel}
+                </span>
+                <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }} />
+              </>
+            ) : (
+              <>
+                <div className="hidden md:flex items-center gap-5 mr-2 text-sm font-medium">
+                  <Link href="/billing" style={linkStyle("/billing")}>
                     Pricing
                   </Link>
-                )}
-                {isAdmin && (
-                  <Link
-                    href="/settings/admin"
-                    className={`transition-colors flex items-center gap-1 ${isActive("/settings/admin")}`}
-                    title="Admin Dashboard"
-                  >
-                    <Shield size={12} className="text-[#FF4D6D]" />
-                    <span className="text-[#FF4D6D] font-bold">Admin</span>
-                  </Link>
-                )}
-              </div>
-              <span className={`text-xs font-semibold font-mono hidden sm:inline ${planColor}`}>
-                {planLabel}
-              </span>
-              <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }} />
-            </>
-          ) : (
-            /* ── Logged-out nav ── */
-            <>
-              <div className="hidden md:flex items-center gap-5 mr-2 text-sm font-medium">
-                <Link href="/billing" className={`transition-colors ${isActive("/billing")}`}>
-                  Pricing
-                </Link>
-              </div>
-              <SignInButton mode="modal">
-                <button className="rounded-lg border px-4 py-1.5 text-sm font-semibold transition-all hover:bg-white/5"
-                  style={{ borderColor: "rgba(45,125,210,0.4)", color: "#8BA7CC" }}>
-                  Log In
-                </button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <button className="rounded-lg px-4 py-1.5 text-sm font-semibold transition-all hover:opacity-90"
-                  style={{ background: "linear-gradient(135deg, #1B4F8A, #2D7DD2)", color: "#fff" }}>
-                  Sign Up
-                </button>
-              </SignUpButton>
-            </>
-          )}
+                </div>
+                <SignInButton mode="modal">
+                  <button className="ds-btn ds-btn-secondary ds-btn-sm">Log in</button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <button className="ds-btn ds-btn-primary ds-btn-sm">Sign up</button>
+                </SignUpButton>
+              </>
+            )}
+          </div>
         </div>
-      </div>
-    </nav>
-    <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} defaultMode={coachingMode} />
+      </nav>
+      <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} defaultMode={coachingMode} />
     </>
   );
 }

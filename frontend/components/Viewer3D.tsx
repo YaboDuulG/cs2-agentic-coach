@@ -236,23 +236,23 @@ export function Viewer3D({
           {/* Dynamic HTML Tooltip Overlay when hovered */}
           {isHovered && (
             <Html position={start.clone().lerp(end, 0.5)} center zIndexRange={[100, 0]} className="pointer-events-none select-none">
-              <div 
-                className="bg-slate-950/95 border border-[#1E3A5F] rounded-lg p-2 text-xs shadow-2xl backdrop-blur-md text-slate-200 w-[180px] select-none"
+              <div
+                className="bg-[var(--color-bg-primary)]/95 border border-[var(--color-border-primary)] rounded-lg p-2 text-xs shadow-2xl backdrop-blur-md text-[var(--color-text-primary)] w-[180px] select-none"
                 style={{ transform: "translateY(-40px)" }}
               >
-                <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1.5 font-bold">
-                  <span className="text-[#C9A227]">Round {k.round}</span>
-                  <span className="font-mono text-slate-400 text-[10px]">{formatWeaponName(k.weapon)}</span>
+                <div className="flex items-center justify-between border-b border-[var(--color-border-primary)] pb-1 mb-1.5 font-bold">
+                  <span className="text-[var(--color-accent-secondary)]">Round {k.round}</span>
+                  <span className="font-mono text-[var(--color-text-secondary)] text-[10px]">{formatWeaponName(k.weapon)}</span>
                 </div>
                 <div className="space-y-0.5 text-[11px]">
                   <div className="truncate">
-                    <span className="text-slate-500">Killer:</span>{" "}
+                    <span className="text-[var(--color-text-muted)]">Killer:</span>{" "}
                     <span className="font-bold" style={{ color: color }}>
                       {cleanPlayerName(k.killer)}
                     </span>
                   </div>
                   <div className="truncate">
-                    <span className="text-slate-500">Victim:</span>{" "}
+                    <span className="text-[var(--color-text-muted)]">Victim:</span>{" "}
                     <span className="font-bold" style={{ color: vicColor }}>
                       {cleanPlayerName(k.victim)}
                     </span>
@@ -268,17 +268,16 @@ export function Viewer3D({
 
   if (!hasConfig) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-slate-900 text-slate-400">
+      <div className="w-full h-full flex items-center justify-center bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]">
         <p>3D Viewer not available for {mapKey}</p>
       </div>
     );
   }
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="w-full h-[600px] bg-[#0D1825] rounded-lg overflow-hidden border relative flex" 
-      style={{ borderColor: "#142135" }}
+      className="w-full h-[600px] bg-[var(--color-bg-secondary)] rounded-lg overflow-hidden border border-[var(--color-border-primary)] relative flex"
     >
       {/* 3D Canvas Area */}
       <div ref={canvasContainerRef} className="flex-1 h-full relative">
@@ -300,31 +299,31 @@ export function Viewer3D({
 
         {/* Floating Instruction overlay */}
         <div className="absolute top-4 left-4 pointer-events-none">
-          <div className="bg-slate-900/80 border border-slate-700 rounded px-3 py-2 text-xs font-mono text-white backdrop-blur-sm">
-            <p className="font-semibold text-slate-300 mb-1">3D Viewer Controls</p>
-            <ul className="text-slate-400">
-              <li><span className="text-slate-200">Left Click:</span> Rotate</li>
-              <li><span className="text-slate-200">Right Click:</span> Pan</li>
-              <li><span className="text-slate-200">Scroll:</span> Zoom</li>
+          <div className="bg-[var(--color-bg-secondary)]/80 border border-[var(--color-border-primary)] rounded px-3 py-2 text-xs font-mono text-[var(--color-text-primary)] backdrop-blur-sm">
+            <p className="font-semibold text-[var(--color-text-secondary)] mb-1">3D Viewer Controls</p>
+            <ul className="text-[var(--color-text-secondary)]">
+              <li><span className="text-[var(--color-text-primary)]">Left Click:</span> Rotate</li>
+              <li><span className="text-[var(--color-text-primary)]">Right Click:</span> Pan</li>
+              <li><span className="text-[var(--color-text-primary)]">Scroll:</span> Zoom</li>
             </ul>
           </div>
         </div>
       </div>
 
       {/* Sleek Interactive Kill Feed Sidebar */}
-      <div className="w-64 h-full bg-slate-950/80 border-l border-slate-800 p-4 flex flex-col gap-3 backdrop-blur-md overflow-hidden">
-        <div className="border-b border-slate-800 pb-2 shrink-0">
-          <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider font-mono">
+      <div className="w-64 h-full bg-[var(--color-bg-primary)]/80 border-l border-[var(--color-border-primary)] p-4 flex flex-col gap-3 backdrop-blur-md overflow-hidden">
+        <div className="border-b border-[var(--color-border-primary)] pb-2 shrink-0">
+          <h3 className="text-xs font-bold text-[var(--color-text-primary)] uppercase tracking-wider font-mono">
             {selectedRound !== null ? `Round ${selectedRound} Kill Feed` : "Match Kill Feed"}
           </h3>
-          <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+          <p className="text-[10px] text-[var(--color-text-muted)] font-mono mt-0.5">
             Hover an item to highlight in 3D
           </p>
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
           {kills.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-center text-[10px] text-slate-500 font-mono italic">
+            <div className="h-full flex items-center justify-center text-center text-[10px] text-[var(--color-text-muted)] font-mono italic">
               No kills in this round
             </div>
           ) : (
@@ -337,10 +336,10 @@ export function Viewer3D({
               return (
                 <div 
                   key={i}
-                  className={`flex items-center justify-between text-[10px] p-2 rounded cursor-pointer transition-all border ${
-                    hoveredKill === k 
-                      ? 'bg-slate-900 border-[#eb5e28] text-white shadow-md scale-[1.02]' 
-                      : 'bg-slate-900/30 border-slate-800/40 text-slate-300 hover:bg-slate-900/50 hover:text-white'
+                  className={`flex items-center justify-between text-[10px] p-2 rounded cursor-pointer transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] border ${
+                    hoveredKill === k
+                      ? 'bg-[var(--color-bg-secondary)] border-[var(--color-accent-secondary)] text-[var(--color-text-primary)] shadow-md scale-[1.02]'
+                      : 'bg-[var(--color-bg-secondary)]/30 border-[var(--color-border-primary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]/50 hover:text-[var(--color-text-primary)]'
                   }`}
                   onMouseEnter={() => setHoveredKill(k)}
                   onMouseLeave={() => setHoveredKill(null)}
@@ -353,15 +352,15 @@ export function Viewer3D({
                     >
                       {cleanPlayerName(k.killer)}
                     </span>
-                    <span className="text-slate-500 font-mono text-[9px] px-1 bg-slate-950/60 rounded border border-slate-800 shrink-0">
+                    <span className="text-[var(--color-text-muted)] font-mono text-[9px] px-1 bg-[var(--color-bg-primary)]/60 rounded border border-[var(--color-border-primary)] shrink-0">
                       {formatWeaponName(k.weapon)}
                     </span>
                     {k.headshot && (
-                      <span className="text-[9px] text-[#C9A227] font-bold shrink-0" title="Headshot">
+                      <span className="text-[9px] text-[var(--color-accent-secondary)] font-bold shrink-0" title="Headshot">
                         🎯
                       </span>
                     )}
-                    <span className="text-slate-400 font-medium shrink-0">→</span>
+                    <span className="text-[var(--color-text-secondary)] font-medium shrink-0">→</span>
                     <span 
                       className="font-bold truncate max-w-[70px]"
                       style={{ color: vicColor }}
@@ -371,7 +370,7 @@ export function Viewer3D({
                     </span>
                   </div>
                   {selectedRound === null && (
-                    <span className="text-[9px] text-slate-500 font-mono shrink-0 ml-1">
+                    <span className="text-[9px] text-[var(--color-text-muted)] font-mono shrink-0 ml-1">
                       R{k.round}
                     </span>
                   )}

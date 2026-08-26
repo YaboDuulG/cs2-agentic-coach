@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import { Upload, X, Clock } from "lucide-react";
 import { PLAN_LIMITS } from "@/lib/flags";
+import { Button, Progress, Spinner } from "@/components/ui";
 
 const MAX_MB = PLAN_LIMITS.free.maxFileSizeMB;
 const MAX_BYTES = MAX_MB * 1024 * 1024;
@@ -24,7 +25,7 @@ export function UploadZone({ onSuccess, teamId, defaultMode }: UploadZoneProps) 
   const [totalBytes, setTotalBytes] = useState(0);
   const [uploadSpeed, setUploadSpeed] = useState<string | null>(null);
   const [isRecon, setIsRecon] = useState(false);
-  
+
   const xhrListRef = useRef<XMLHttpRequest[]>([]);
   const startTimeRef = useRef<number>(0);
 
@@ -35,18 +36,18 @@ export function UploadZone({ onSuccess, teamId, defaultMode }: UploadZoneProps) 
     setProgress(0);
     setBytesUploaded(0);
     setUploadSpeed(null);
-    setError("Upload cancelled by user.");
+    setError("Upload cancelled.");
   };
 
   const onDrop = useCallback(async (accepted: File[]) => {
     const file = accepted[0];
     if (!file) return;
     if (!file.name.endsWith(".dem")) {
-      setError("Only .dem files are supported.");
+      setError("This isn't a CS2 demo (.dem). Export the demo from your match history and try again.");
       return;
     }
     if (file.size > MAX_BYTES) {
-      setError(`File too large. Max ${MAX_MB}MB.`);
+      setError(`File is over the ${MAX_MB}MB limit for your plan.`);
       return;
     }
 
@@ -263,151 +264,146 @@ export function UploadZone({ onSuccess, teamId, defaultMode }: UploadZoneProps) 
   return (
     <div className="w-full">
       {uploading ? (
-        <div 
-          className="relative mx-auto p-8 rounded-2xl border transition-all duration-300 max-w-[540px] text-center"
-          style={{
-            background: "rgba(13,24,37,0.92)",
-            borderColor: "rgba(45,125,210,0.35)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-          }}
-        >
-          {/* Top Cancel button */}
-          <button 
+        <div className="card relative mx-auto p-8 max-w-[540px] text-center">
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={cancelUpload}
-            className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-900 border border-white/5 hover:border-rose-500/40 text-slate-400 hover:text-white transition-all cursor-pointer"
-            title="Cancel Upload"
+            aria-label="Cancel upload"
+            className="absolute top-4 right-4 rounded-full"
           >
             <X size={14} />
-          </button>
+          </Button>
 
           <div className="flex flex-col items-center gap-6">
-            {/* Spinning Ring */}
             <div className="relative flex items-center justify-center">
-              <div className="w-16 h-16 rounded-full border-2 border-slate-800 border-t-[#2D7DD2] animate-spin" />
-              <span className="absolute text-xs font-mono font-bold text-slate-300">
+              <Spinner size={64} />
+              <span className="absolute text-xs font-mono font-bold" style={{ color: "var(--color-text-primary)" }}>
                 {progress}%
               </span>
             </div>
 
-            {/* Upload status text */}
             <div className="space-y-1.5">
-              <h3 className="text-white font-bold text-sm tracking-wider">Uploading your demo…</h3>
-              <p className="text-slate-400 text-xs font-mono">
+              <h3 className="font-bold text-sm tracking-wider" style={{ color: "var(--color-text-primary)" }}>
+                Uploading your demo…
+              </h3>
+              <p className="text-xs font-mono" style={{ color: "var(--color-text-secondary)" }}>
                 {formatMB(bytesUploaded)} MB / {formatMB(totalBytes)} MB
               </p>
             </div>
 
-            {/* Progress bar */}
             <div className="w-full space-y-1">
-              <div className="w-full h-1.5 rounded-full bg-slate-950/80 overflow-hidden p-0.5 border border-white/5">
-                <div 
-                  className="h-full rounded-full bg-gradient-to-r from-[#1B4F8A] to-[#2D7DD2] transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-[9px] font-mono text-slate-500">
+              <Progress value={progress} label="Upload progress" />
+              <div className="flex justify-between text-[9px] font-mono" style={{ color: "var(--color-text-muted)" }}>
                 <span className="flex items-center gap-1">
                   <Clock size={10} />
-                  Speed: {uploadSpeed || "Calculating..."}
+                  {uploadSpeed || "Calculating..."}
                 </span>
-                <span>*Do not close this window</span>
+                <span>Keep this window open</span>
               </div>
             </div>
           </div>
         </div>
       ) : (
         <div className="flex flex-col items-center">
-          {/* Circular Compass Shield Dropzone */}
+          {/* Circular compass dropzone — the khan's war-council table */}
           <div
             {...getRootProps()}
-            className="relative cursor-pointer mx-auto transition-all duration-300 rounded-full w-72 h-72 flex items-center justify-center overflow-hidden group select-none"
+            className="relative cursor-pointer mx-auto rounded-full w-72 h-72 flex items-center justify-center overflow-hidden group select-none"
             style={{
-              background: isDragActive ? "rgba(45,125,210,0.18)" : "rgba(13,24,37,0.85)",
-              border: `2px solid ${isDragActive ? "#FFE135" : "rgba(45,125,210,0.4)"}`,
+              background: isDragActive ? "var(--color-accent-soft)" : "var(--color-bg-card)",
+              border: `2px solid ${isDragActive ? "var(--color-accent-secondary)" : "var(--color-border-strong)"}`,
               backdropFilter: "blur(12px)",
-              boxShadow: isDragActive ? "0 0 50px rgba(255,225,53,0.25)" : "0 8px 32px rgba(0,0,0,0.5)",
+              boxShadow: isDragActive ? "var(--shadow-gold)" : "var(--shadow-card)",
+              transition: "background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease",
             }}
           >
-            {/* Tactical Blueprint Grid Background */}
-            <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_center,rgba(45,125,210,0.15)_0%,transparent_75%)] bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:16px_16px]" />
+            {/* Blueprint grid backdrop */}
+            <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_center,var(--color-accent-glow)_0%,transparent_75%)] bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:16px_16px]" />
 
-            {/* Slow-spinning decorative rings */}
-            <div 
-              className="absolute inset-2 border-2 border-dashed border-[#2D7DD2]/30 rounded-full animate-spin pointer-events-none" 
-              style={{ animationDuration: "25s" }}
+            {/* Slow decorative rings — stilled under prefers-reduced-motion */}
+            <div
+              className="ds-decorative-motion absolute inset-2 border-2 border-dashed rounded-full animate-spin pointer-events-none"
+              style={{ animationDuration: "25s", borderColor: "var(--color-border-primary)" }}
             />
-            <div 
-              className="absolute inset-6 border border-dotted border-[#C9A227]/40 rounded-full animate-spin pointer-events-none" 
-              style={{ animationDuration: "40s", animationDirection: "reverse" }}
+            <div
+              className="ds-decorative-motion absolute inset-6 border border-dotted rounded-full animate-spin pointer-events-none"
+              style={{ animationDuration: "40s", animationDirection: "reverse", borderColor: "var(--color-border-secondary)" }}
             />
-            <div 
-              className="absolute inset-10 border border-slate-800/40 rounded-full pointer-events-none" 
-            />
+            <div className="absolute inset-10 border rounded-full pointer-events-none" style={{ borderColor: "var(--color-border-primary)" }} />
 
-            {/* Drag-over active glow */}
-            {isDragActive && (
-              <div className="absolute inset-0 bg-[#FFE135]/5 animate-pulse rounded-full pointer-events-none" />
-            )}
+            <input {...getInputProps()} aria-label="Upload a CS2 demo file" />
 
-            <input {...getInputProps()} />
-
-            {/* Central elements */}
             <div className="relative z-10 flex flex-col items-center gap-3 text-center px-6">
-              <div 
-                className="w-14 h-14 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-105"
-                style={{ 
-                  background: isDragActive ? "rgba(255,225,53,0.15)" : "rgba(45,125,210,0.15)", 
-                  border: isDragActive ? "1px solid rgba(255,225,53,0.35)" : "1px solid rgba(45,125,210,0.3)" 
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center"
+                style={{
+                  background: isDragActive ? "var(--color-secondary-soft)" : "var(--color-accent-soft)",
+                  border: `1px solid ${isDragActive ? "var(--color-accent-secondary)" : "var(--color-border-strong)"}`,
+                  transform: isDragActive ? "scale(1.05)" : "scale(1)",
+                  transition: "transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast) ease, border-color var(--dur-fast) ease",
                 }}
               >
-                <Upload size={22} className={isDragActive ? "text-[#FFE135] animate-bounce" : "text-[#2D7DD2]"} />
+                <Upload
+                  size={22}
+                  style={{ color: isDragActive ? "var(--color-accent-secondary)" : "var(--color-accent-primary)" }}
+                />
               </div>
               <div className="space-y-1">
-                <p className="text-white font-bold text-sm tracking-wide">
-                  {isDragActive ? "Scan the battlefield" : "Drop CS2 Demo"}
+                <p className="font-bold text-sm tracking-wide" style={{ color: "var(--color-text-primary)" }}>
+                  {isDragActive ? "Release to upload" : "Drop a CS2 demo here"}
                 </p>
-                <p className="text-slate-400 text-[11px] leading-tight">
-                  or click to upload<br />
-                  <span className="font-mono text-slate-500">.dem (max {MAX_MB}MB)</span>
+                <p className="text-[11px] leading-tight" style={{ color: "var(--color-text-secondary)" }}>
+                  or click to browse<br />
+                  <span className="font-mono" style={{ color: "var(--color-text-muted)" }}>.dem (max {MAX_MB}MB)</span>
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Ilchi Spy Scan Checkbox — only in team mode */}
+          {/* Opposition-recon toggle — team mode only */}
           {defaultMode !== "individual" && (
-          <div 
-            className="mt-6 p-4 rounded-xl border transition-all duration-300 flex items-start gap-3 select-none w-full max-w-[480px]"
-            style={{
-              background: isRecon ? "rgba(201,162,39,0.06)" : "rgba(13,24,37,0.4)",
-              borderColor: isRecon ? "rgba(201,162,39,0.35)" : "rgba(30,58,95,0.4)",
-            }}
-          >
-            <input
-              type="checkbox"
-              id="is-recon-checkbox"
-              checked={isRecon}
-              onChange={(e) => setIsRecon(e.target.checked)}
-              className="mt-1 w-4 h-4 rounded border-slate-700 bg-slate-900 text-[#C9A227] focus:ring-[#C9A227] cursor-pointer"
-            />
-            <label htmlFor="is-recon-checkbox" className="flex-1 text-left cursor-pointer select-none">
-              <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <span className={isRecon ? "text-[#C9A227]" : "text-slate-300"}>Ilchi Spy Scan (Opposition Research)</span>
-                {isRecon && (
-                  <span className="text-[9px] bg-[#C9A227]/20 text-[#C9A227] px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider animate-pulse">
-                    Active
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1 leading-normal">
-                Bypass standard Steam ID verification checks. Focus the Great Khan&apos;s AI strategy output on opposition layout trends, rotations, and performance profiles.
-              </p>
-            </label>
-          </div>
+            <div
+              className="mt-6 p-4 rounded-xl border flex items-start gap-3 select-none w-full max-w-[480px]"
+              style={{
+                background: isRecon ? "var(--color-secondary-soft)" : "var(--color-bg-card)",
+                borderColor: isRecon ? "var(--color-accent-secondary)" : "var(--color-border-primary)",
+                transition: "background-color var(--dur-fast) ease, border-color var(--dur-fast) ease",
+              }}
+            >
+              <input
+                type="checkbox"
+                id="is-recon-checkbox"
+                checked={isRecon}
+                onChange={(e) => setIsRecon(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded cursor-pointer"
+                style={{ accentColor: "var(--color-accent-secondary)" }}
+              />
+              <label htmlFor="is-recon-checkbox" className="flex-1 text-left cursor-pointer select-none">
+                <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: isRecon ? "var(--color-accent-secondary)" : "var(--color-text-primary)" }}>
+                  Scout the opposition
+                  {isRecon && (
+                    <span
+                      className="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider"
+                      style={{ background: "var(--color-secondary-soft)", color: "var(--color-accent-secondary)" }}
+                    >
+                      On
+                    </span>
+                  )}
+                </span>
+                <p className="text-[11px] mt-1 leading-normal" style={{ color: "var(--color-text-muted)" }}>
+                  Skips Steam ID checks and focuses the report on the enemy team&apos;s setups, rotations, and tendencies.
+                </p>
+              </label>
+            </div>
           )}
         </div>
       )}
-      {error && <p className="text-center mt-3" style={{ color: "#FF4D6D", fontSize: "0.875rem" }}>{error}</p>}
+      {error && (
+        <p role="alert" className="text-center mt-3 text-sm" style={{ color: "var(--color-danger)" }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }
