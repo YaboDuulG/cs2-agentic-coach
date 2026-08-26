@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } from "react";
-import { Trash2, Undo, Palette, HelpCircle, Map } from "lucide-react";
+import { Trash2, Undo, Map } from "lucide-react";
 
 export interface CS2PlanningBoardRef {
   exportStrategy: () => { map: string; lines: Line[]; markers: Marker[] };
@@ -238,54 +238,54 @@ const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
   };
 
   return (
-    <div ref={containerRef} className="card p-5 flex flex-col gap-4 h-[650px] w-full" style={{ background: "rgba(13,24,37,0.6)", border: "1px solid #1E3A5F" }}>
+    <div ref={containerRef} className="card p-5 flex flex-col gap-4 h-[650px] w-full">
       {/* Control bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#1E3A5F]/40 select-none">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--color-border-primary)] select-none">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#C9A227]/10 border border-[#C9A227]/20 flex items-center justify-center text-[#C9A227]">
+          <div className="w-8 h-8 rounded-lg bg-[var(--color-secondary-soft)] border border-[var(--color-border-secondary)] flex items-center justify-center text-[var(--color-accent-secondary)]">
             📋
           </div>
           <div>
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">Tactical Planning Board</h3>
-            <p className="text-[9px] text-slate-500 font-mono mt-0.5">Sketch tactics and place pins</p>
+            <h3 className="text-xs font-bold text-[var(--color-text-primary)] uppercase tracking-wider font-mono">Tactical Planning Board</h3>
+            <p className="text-[9px] text-[var(--color-text-muted)] font-mono mt-0.5">Sketch tactics and place pins</p>
           </div>
         </div>
 
         {/* Map Select */}
-        <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded px-2.5 py-1">
-          <Map size={11} className="text-[#8BA7CC]" />
+        <div className="flex items-center gap-1.5 bg-[var(--color-bg-secondary)] border border-[var(--color-border-primary)] rounded px-2.5 py-1">
+          <Map size={11} className="text-[var(--color-text-secondary)]" />
           <select
             value={map}
             onChange={(e) => setMap(e.target.value)}
-            className="bg-transparent text-[10px] text-slate-300 font-bold uppercase tracking-wider outline-none cursor-pointer"
+            className="bg-transparent text-[10px] text-[var(--color-text-secondary)] font-bold uppercase tracking-wider outline-none cursor-pointer"
           >
             {MAPS.map(m => (
-              <option key={m.id} value={m.id} className="bg-slate-950 text-slate-300">{m.name}</option>
+              <option key={m.id} value={m.id} className="bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]">{m.name}</option>
             ))}
           </select>
         </div>
       </div>
 
       {/* Board tools */}
-      <div className="flex flex-wrap gap-2.5 select-none justify-between bg-slate-900/40 p-2 rounded-lg border border-slate-900">
+      <div className="flex flex-wrap gap-2.5 select-none justify-between bg-[var(--color-bg-secondary)]/40 p-2 rounded-lg border border-[var(--color-border-primary)]">
         <div className="flex flex-wrap gap-2">
           {/* Pen Toggle */}
           <button
             onClick={() => setTool("pen")}
-            className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase transition-all cursor-pointer ${tool === "pen" ? "bg-[#2D7DD2] text-white" : "bg-slate-900/60 hover:bg-[#1E3A5F]/20 text-slate-400 border border-slate-800"}`}
+            className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase transition-colors cursor-pointer ${tool === "pen" ? "bg-[var(--color-accent-primary)] text-white" : "bg-[var(--color-bg-secondary)]/60 hover:bg-[var(--color-accent-soft)] text-[var(--color-text-secondary)] border border-[var(--color-border-primary)]"}`}
           >
             ✏️ Drawing
           </button>
 
           {/* Color Palettes (Pen Mode) */}
           {tool === "pen" && (
-            <div className="flex items-center gap-1.5 border-l border-slate-800 pl-2.5">
+            <div className="flex items-center gap-1.5 border-l border-[var(--color-border-primary)] pl-2.5">
               {["#C9A227", "#FF4D6D", "#22D3A0", "#2D7DD2"].map(c => (
                 <button
                   key={c}
                   onClick={() => setColor(c)}
                   className="w-4.5 h-4.5 rounded-full border cursor-pointer transition-transform hover:scale-110"
-                  style={{ backgroundColor: c, borderColor: color === c ? "#FFF" : "#00000044" }}
+                  style={{ backgroundColor: c, borderColor: color === c ? "var(--color-text-primary)" : "var(--color-border-strong)" }}
                 />
               ))}
             </div>
@@ -296,7 +296,7 @@ const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
             <button
               key={t}
               onClick={() => setTool(t)}
-              className={`px-2.5 py-1 py-1.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${tool === t ? "bg-slate-800 border-white text-white shadow-inner" : "bg-slate-950 text-slate-400 border-slate-900 hover:bg-slate-900"}`}
+              className={`px-2.5 py-1 py-1.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${tool === t ? "bg-[var(--color-bg-elevated)] border-[var(--color-border-strong)] text-[var(--color-text-primary)] shadow-inner" : "bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] border-[var(--color-border-primary)] hover:bg-[var(--color-bg-secondary)]"}`}
             >
               <span className={`inline-block w-2.5 h-2.5 rounded-full mr-1.5 text-[8px] font-bold leading-none align-middle ${t === "CT" ? "bg-[#2D7DD2]" : t === "T" ? "bg-[#FF4D6D]" : t === "Smoke" ? "bg-slate-500" : t === "Flash" ? "bg-yellow-400" : t === "HE" ? "bg-orange-500" : "bg-red-600"}`} />
               {t}
@@ -309,7 +309,7 @@ const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
           <button
             onClick={handleUndo}
             disabled={history.length === 0}
-            className={`p-1.5 rounded transition-all flex items-center gap-1 border ${history.length > 0 ? "bg-slate-950 hover:bg-slate-900 text-slate-300 border-slate-800 cursor-pointer" : "text-slate-600 border-slate-950 cursor-not-allowed"}`}
+            className={`p-1.5 rounded transition-colors flex items-center gap-1 border ${history.length > 0 ? "bg-[var(--color-bg-primary)] hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] border-[var(--color-border-primary)] cursor-pointer" : "text-[var(--color-text-muted)] border-[var(--color-border-primary)] cursor-not-allowed"}`}
             title="Undo"
           >
             <Undo size={12} />
@@ -317,7 +317,7 @@ const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
           {/* Clear */}
           <button
             onClick={handleClear}
-            className="p-1.5 bg-slate-950 hover:bg-red-950/20 hover:text-red-400 hover:border-red-900/30 text-slate-400 border border-slate-800 rounded transition-all cursor-pointer flex items-center gap-1"
+            className="p-1.5 bg-[var(--color-bg-primary)] hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)] hover:border-[var(--color-danger)]/30 text-[var(--color-text-secondary)] border border-[var(--color-border-primary)] rounded transition-colors cursor-pointer flex items-center gap-1"
             title="Clear all"
           >
             <Trash2 size={12} />
@@ -326,7 +326,7 @@ const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
       </div>
 
       {/* Canvas container */}
-      <div className="flex-1 relative flex items-center justify-center overflow-hidden bg-slate-950/80 rounded-xl border border-slate-900 p-2 shadow-inner">
+      <div className="flex-1 relative flex items-center justify-center overflow-hidden bg-[var(--color-bg-primary)]/80 rounded-xl border border-[var(--color-border-primary)] p-2 shadow-inner">
         <canvas
           ref={canvasRef}
           width={800}
@@ -336,7 +336,7 @@ const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           className="w-full max-w-[500px] aspect-square rounded-lg shadow-lg cursor-crosshair"
-          style={{ background: "#0a121e" }}
+          style={{ background: "var(--color-bg-secondary)" }}
         />
       </div>
     </div>

@@ -84,10 +84,12 @@ export function CloudMotifBg({ className = "" }: { className?: string }) {
   return (
     <div className={`absolute inset-0 pointer-events-none overflow-hidden ${className}`} style={{ zIndex: 0 }}>
       {/* ── Layer 1: Case Hardened Ambient Glows ── */}
-      <div className="absolute inset-0 opacity-[0.45] mix-blend-color-dodge filter blur-[120px]">
+      {/* ds-decorative-motion: all drift/spark animation is decorative and is
+          stilled under prefers-reduced-motion (see globals.css) */}
+      <div className="ds-decorative-motion absolute inset-0 opacity-[0.45] mix-blend-color-dodge filter blur-[120px]">
         {/* Blob 1: Cyan/Blue */}
         <div
-          className="absolute rounded-full"
+          className="ds-decorative-motion absolute rounded-full"
           style={{
             width: "65vw",
             height: "65vh",
@@ -99,7 +101,7 @@ export function CloudMotifBg({ className = "" }: { className?: string }) {
         />
         {/* Blob 2: Gold */}
         <div
-          className="absolute rounded-full"
+          className="ds-decorative-motion absolute rounded-full"
           style={{
             width: "55vw",
             height: "55vh",
@@ -111,7 +113,7 @@ export function CloudMotifBg({ className = "" }: { className?: string }) {
         />
         {/* Blob 3: Violet */}
         <div
-          className="absolute rounded-full"
+          className="ds-decorative-motion absolute rounded-full"
           style={{
             width: "60vw",
             height: "60vh",
@@ -125,7 +127,7 @@ export function CloudMotifBg({ className = "" }: { className?: string }) {
 
       {/* ── Layer 2: Tactical Hex Grid ── */}
       <div
-        className="absolute inset-0 opacity-[0.06] mix-blend-screen"
+        className="ds-decorative-motion absolute inset-0 opacity-[0.06] mix-blend-screen"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='69.282' viewBox='0 0 40 69.282' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 40 0 L 20 11.547 L 0 0 L 0 23.094 L 20 34.641 L 40 23.094 Z M 0 34.641 L 20 46.188 L 40 34.641 L 40 57.735 L 20 69.282 L 0 57.735 Z' fill='none' stroke='%238BA7CC' stroke-width='1.2'/%3E%3C/svg%3E")`,
           backgroundRepeat: "repeat",
@@ -136,7 +138,7 @@ export function CloudMotifBg({ className = "" }: { className?: string }) {
 
       {/* ── Layer 3: Mongolian Cloud Motif (Drifting) ── */}
       <div
-        className="absolute inset-0 opacity-[0.05] mix-blend-screen"
+        className="ds-decorative-motion absolute inset-0 opacity-[0.05] mix-blend-screen"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='120' height='60' viewBox='0 0 120 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40 Q15 20 30 40 Q45 55 60 40 Q75 20 90 40 Q105 55 120 40' fill='none' stroke='%23F0F4FF' stroke-width='1.2'/%3E%3Cpath d='M0 55 Q15 35 30 55 Q45 70 60 55 Q75 35 90 55 Q105 70 120 55' fill='none' stroke='%23F0F4FF' stroke-width='0.8'/%3E%3C/svg%3E")`,
           backgroundRepeat: "repeat",
@@ -150,7 +152,7 @@ export function CloudMotifBg({ className = "" }: { className?: string }) {
         {sparks.map((s) => (
           <div
             key={s.id}
-            className="absolute rounded-full filter blur-[1px]"
+            className="ds-decorative-motion absolute rounded-full filter blur-[1px]"
             style={{
               width: `${s.size}px`,
               height: `${s.size}px`,

@@ -20,11 +20,20 @@ router = APIRouter()
 
 
 @router.get("/{match_id}", summary="Get demo parse job status and results")
-async def get_job_status(match_id: str, user_id: str | None = None, db: Session = Depends(get_session)):
+async def get_job_status(
+    match_id: str,
+    user_id: str | None = None,
+    light: bool = False,
+    db: Session = Depends(get_session),
+):
     """
     Poll this endpoint after uploading a demo.
     Returns status: queued | processing | done | failed
     Once done, returns kill feed, round data, and summary stats.
+
+    Pass light=true while polling: done-state responses then skip the kill/round
+    payload (status only), so a 3s poll loop doesn't re-read event tables on
+    every tick. Fetch once without `light` after status flips to done.
     """
     local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
 
@@ -148,6 +157,15 @@ async def get_job_status(match_id: str, user_id: str | None = None, db: Session 
                 "is_recon": is_recon,
             }
 
+        if light:
+            return {
+                "status": "done",
+                "match_id": match_id,
+                "map": result[1],
+                "parse_duration_seconds": parse_duration_seconds,
+                "is_recon": is_recon,
+            }
+
         # Fetch kills
         kills = db.execute(
             text("""
@@ -190,8 +208,8 @@ async def get_job_status(match_id: str, user_id: str | None = None, db: Session 
 
         # Filter warmup/knife rounds (where winner_side is empty or invalid)
         # and map them to clean sequential indices 1 to N
-        clean_rounds = []
-        orig_idx_to_seq_num = {}
+        clean_rounds: list[dict] = []
+        orig_idx_to_seq_num: dict[int, int] = {}
 
         for r in rounds:
             db_round_num = r[1]

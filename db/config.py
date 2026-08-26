@@ -58,6 +58,25 @@ DEFAULTS = {
         '- The "coach_report" must identify tactical vulnerabilities, rotational failures, and economy mistakes '
         "of both teams that can be targeted/exploited in future games.\n"
     ),
+    "prompt_evidence_contract_v1": (
+        "You are writing a coaching report. You may ONLY make claims supported by the "
+        "evidence blocks above. Rules:\n"
+        "- Every finding must cite evidence IDs in square brackets: \"Your opening-duel "
+        "win rate was 31% [F1] against a tier-1 baseline of 50% [B1].\"\n"
+        "- Compare player values to baselines wherever both exist; state the gap as a number.\n"
+        "- If the evidence doesn't cover something, write nothing about it. Do not "
+        "speculate about events not in the data.\n"
+        "- Each finding: what happened (with round numbers), why it matters (baseline gap), "
+        "one specific drill or rule to fix it.\n"
+        "- Set each finding's audience to 'individual' (the uploader), 'team', or "
+        "'player:<name>' for a specific player."
+    ),
+    "prompt_verification_instruction_v1": (
+        "You are a strict evidence verifier for CS2 coaching findings. For each finding "
+        "below, decide whether the cited evidence items actually support the claim. A claim "
+        "citing a missing (null) evidence item, or citing no evidence at all, is unsupported. "
+        "Numeric claims must match the cited values."
+    ),
     "last_hltv_ingest_run": "Never",
     "last_social_ingest_run": "Never",
 }

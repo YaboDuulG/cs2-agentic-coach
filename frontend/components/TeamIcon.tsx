@@ -139,16 +139,17 @@ export function TeamIcon({ teamId, name, logoUrl, size = "md" }: TeamIconProps) 
         borderColor: `${fruit.color}44`,
       }}
     >
-      {/* Background swirl pattern to look like Devil Fruit skin */}
-      <div 
-        className="absolute inset-0 opacity-[0.12] mix-blend-overlay pointer-events-none group-hover:scale-110 transition-transform duration-500"
+      {/* Background swirl pattern to look like Devil Fruit skin.
+          Hover motion is decorative: gated to real pointers and kept fast. */}
+      <div
+        className="absolute inset-0 opacity-[0.12] mix-blend-overlay pointer-events-none [@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-110 transition-transform duration-200 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15 0 C6.7 0 0 6.7 0 15 C0 23.3 6.7 30 15 30 Q22.5 15 15 0' fill='none' stroke='%23ffffff' stroke-width='1.5'/%3E%3C/svg%3E")`,
           backgroundSize: "20px 20px"
         }}
       />
       
-      <span className="relative z-10 transition-transform group-hover:scale-95 duration-300 font-mono tracking-tight">
+      <span className="relative z-10 transition-transform duration-200 [@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-95 motion-reduce:transition-none font-mono tracking-tight">
         {initials}
       </span>
       <span className={`absolute bottom-0 right-0 ${emojiSizes[size]} opacity-70 leading-none pointer-events-none z-10 filter drop-shadow`}>

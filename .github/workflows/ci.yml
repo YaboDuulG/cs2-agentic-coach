@@ -50,6 +50,29 @@ jobs:
           LANGCHAIN_PROJECT: "demosage-test"
           LANGCHAIN_API_KEY: "test-key"
 
+  parser:
+    name: Demo parser — build & vet (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/demo-parser
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/demo-parser/go.mod
+          cache-dependency-path: services/demo-parser/go.sum
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
   frontend:
     name: Frontend — lint, type-check & build
     runs-on: ubuntu-latest

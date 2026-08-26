@@ -15,6 +15,8 @@
     --color-accent-secondary: #C9A227;
     --color-accent-electric: #38BDF8;
     --color-accent-glow: rgba(45, 125, 210, 0.3);
+    --color-accent-soft: rgba(45, 125, 210, 0.12);
+    --color-secondary-soft: rgba(201, 162, 39, 0.12);
 
     --color-text-primary: #F0F4FF;
     --color-text-secondary: #8BA7CC;
@@ -22,6 +24,7 @@
 
     --color-border-primary: rgba(45, 125, 210, 0.2);
     --color-border-secondary: rgba(201, 162, 39, 0.15);
+    --color-border-strong: rgba(45, 125, 210, 0.4);
 
     --color-success: #22D3A0;
     --color-warning: #F59E0B;
@@ -36,14 +39,27 @@
     --shadow-glow: 0 0 40px rgba(45, 125, 210, 0.15);
     --shadow-gold: 0 0 20px rgba(201, 162, 39, 0.2);
 
+    /* Identity fonts are per-theme: the Khan speaks in Cinzel. */
     --font-heading: var(--font-cinzel), serif;
     --font-body: var(--font-inter), sans-serif;
-    --font-mono: var(--font-mono), monospace;
+    --font-mono: var(--font-jetbrains), monospace;
 
     --radius-sm: 6px;
     --radius-md: 12px;
     --radius-lg: 18px;
     --radius-xl: 24px;
+
+    /* ==========================================
+       Motion tokens — strong curves, sub-300ms UI.
+       Built-in CSS easings are too weak; never ease-in on UI.
+    ========================================== */
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+    --dur-press: 140ms;
+    --dur-fast: 180ms;
+    --dur-base: 220ms;
+    --dur-modal: 240ms;
   }
 
   [data-theme='purple-void'] {
@@ -60,6 +76,8 @@
     --color-accent-secondary: #D946EF;
     --color-accent-electric: #A78BFA;
     --color-accent-glow: rgba(124, 58, 237, 0.35);
+    --color-accent-soft: rgba(124, 58, 237, 0.12);
+    --color-secondary-soft: rgba(217, 70, 239, 0.12);
 
     --color-text-primary: #F5F0FF;
     --color-text-secondary: #9B8EC4;
@@ -67,6 +85,7 @@
 
     --color-border-primary: rgba(124, 58, 237, 0.25);
     --color-border-secondary: rgba(217, 70, 239, 0.15);
+    --color-border-strong: rgba(124, 58, 237, 0.45);
 
     --gradient-hero: linear-gradient(135deg, #0A0612 0%, #150A28 50%, #1E0A3C 100%);
     --gradient-card: linear-gradient(135deg, rgba(22, 10, 42, 0.9), rgba(16, 8, 30, 0.95));
@@ -76,6 +95,9 @@
     --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(124, 58, 237, 0.15);
     --shadow-glow: 0 0 40px rgba(124, 58, 237, 0.2);
     --shadow-gold: 0 0 20px rgba(217, 70, 239, 0.25);
+
+    /* No imperial serif outside the Khan theme. */
+    --font-heading: var(--font-inter), sans-serif;
   }
 
   [data-theme='tactical'] {
@@ -92,6 +114,8 @@
     --color-accent-secondary: #84CC16;
     --color-accent-electric: #4ADE80;
     --color-accent-glow: rgba(34, 197, 94, 0.25);
+    --color-accent-soft: rgba(34, 197, 94, 0.12);
+    --color-secondary-soft: rgba(132, 204, 22, 0.12);
 
     --color-text-primary: #E8EDF5;
     --color-text-secondary: #7A8FA6;
@@ -99,6 +123,7 @@
 
     --color-border-primary: rgba(34, 197, 94, 0.2);
     --color-border-secondary: rgba(132, 204, 22, 0.15);
+    --color-border-strong: rgba(34, 197, 94, 0.4);
 
     --gradient-hero: linear-gradient(135deg, #0E1117 0%, #141922 50%, #1A2030 100%);
     --gradient-card: linear-gradient(135deg, rgba(22, 30, 44, 0.9), rgba(18, 24, 36, 0.95));
@@ -108,6 +133,8 @@
     --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(34, 197, 94, 0.1);
     --shadow-glow: 0 0 40px rgba(34, 197, 94, 0.12);
     --shadow-gold: 0 0 20px rgba(132, 204, 22, 0.15);
+
+    --font-heading: var(--font-mono);
   }
 }
 
@@ -140,6 +167,13 @@ code, pre, .font-mono {
   font-family: var(--font-mono);
 }
 
+/* Every interactive element gets a visible keyboard ring; mouse clicks don't. */
+:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
@@ -160,7 +194,12 @@ code, pre, .font-mono {
   color: var(--color-text-primary);
 }
 
-/* Utility classes using CSS tokens */
+/* ==========================================
+   Component layer
+   Transitions name exact properties (never `all`), UI stays under 300ms,
+   entrances never start at scale(0), hover motion is gated to real pointers.
+========================================== */
+
 .card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-primary);
@@ -177,39 +216,201 @@ code, pre, .font-mono {
   backdrop-filter: blur(16px);
 }
 
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform var(--dur-press) var(--ease-out),
+    background-color var(--dur-press) ease,
+    border-color var(--dur-press) ease,
+    color var(--dur-press) ease,
+    opacity var(--dur-press) ease;
+}
+.ds-btn:active {
+  transform: scale(0.97);
+}
+.ds-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ds-btn-md {
+  padding: 0.6rem 1.4rem;
+  font-size: 0.875rem;
+}
+.ds-btn-sm {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.8125rem;
+}
+.ds-btn-icon {
+  padding: 0.5rem;
+}
+
+.ds-btn-primary {
+  background: var(--gradient-accent);
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+.ds-btn-secondary {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-primary);
+  font-weight: 500;
+}
+.ds-btn-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+.ds-btn-danger {
+  background: transparent;
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ds-btn-primary:hover:not(:disabled) {
+    box-shadow: var(--shadow-glow);
+    opacity: 0.92;
+  }
+  .ds-btn-secondary:hover:not(:disabled) {
+    color: var(--color-text-primary);
+    border-color: var(--color-accent-primary);
+    background: var(--color-accent-soft);
+  }
+  .ds-btn-ghost:hover:not(:disabled) {
+    color: var(--color-text-primary);
+    background: var(--color-accent-soft);
+  }
+  .ds-btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  }
+}
+
+/* Legacy aliases — pages still using these keep working. */
+.btn-primary,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1.4rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform var(--dur-press) var(--ease-out),
+    background-color var(--dur-press) ease,
+    border-color var(--dur-press) ease,
+    color var(--dur-press) ease,
+    opacity var(--dur-press) ease;
+}
 .btn-primary {
   background: var(--gradient-accent);
   color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 0.6rem 1.4rem;
   font-weight: 600;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
   letter-spacing: 0.02em;
 }
-.btn-primary:hover {
-  opacity: 0.9;
-  box-shadow: var(--shadow-glow);
-  transform: translateY(-1px);
-}
-
 .btn-secondary {
   background: transparent;
   color: var(--color-text-secondary);
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--radius-sm);
-  padding: 0.6rem 1.4rem;
+  border-color: var(--color-border-primary);
   font-weight: 500;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
-.btn-secondary:hover {
-  color: var(--color-text-primary);
-  border-color: var(--color-accent-primary);
-  background: var(--color-accent-glow);
+.btn-primary:active,
+.btn-secondary:active {
+  transform: scale(0.97);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover {
+    opacity: 0.92;
+    box-shadow: var(--shadow-glow);
+  }
+  .btn-secondary:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-accent-primary);
+    background: var(--color-accent-soft);
+  }
+}
+
+/* Modal / dialog. Transitions (not keyframes) so rapid open/close retargets
+   smoothly. Modals scale from center — they aren't anchored to a trigger. */
+.ds-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 12, 0.72);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transition: opacity var(--dur-modal) var(--ease-out);
+}
+.ds-modal-panel {
+  position: relative;
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity var(--dur-modal) var(--ease-out),
+    transform var(--dur-modal) var(--ease-out);
+}
+[data-state='open'] > .ds-modal-backdrop {
+  opacity: 1;
+}
+[data-state='open'] > .ds-modal-panel {
+  opacity: 1;
+  transform: scale(1);
+}
+[data-state='closing'] > .ds-modal-backdrop,
+[data-state='closing'] > .ds-modal-panel {
+  transition-duration: 160ms;
+}
+
+/* Progress bar — the fill animates scaleX (GPU) rather than width (layout). */
+.ds-progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  overflow: hidden;
+}
+.ds-progress-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--gradient-accent);
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 200ms linear;
+}
+
+/* Fast spinner: perceived performance — a quicker spin reads as a faster app. */
+.ds-spinner {
+  border-radius: 999px;
+  border: 2px solid var(--color-border-primary);
+  border-top-color: var(--color-accent-primary);
+  animation: ds-spin 650ms linear infinite;
+}
+@keyframes ds-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Entrance for list items / cards; pair with inline animation-delay stagger
+   (30–80ms per item). Decorative only — never blocks interaction. */
+.ds-enter {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: ds-fade-up 300ms var(--ease-out) forwards;
+}
+@keyframes ds-fade-up {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .accent-text {
@@ -231,4 +432,36 @@ code, pre, .font-mono {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+/* ==========================================
+   Reduced motion: fewer and gentler, not zero.
+   Keep opacity/color transitions that aid comprehension; drop movement.
+========================================== */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .ds-btn:active,
+  .btn-primary:active,
+  .btn-secondary:active {
+    transform: none;
+  }
+  .ds-modal-panel {
+    transform: none;
+    transition: opacity var(--dur-modal) ease;
+  }
+  .ds-enter {
+    transform: none;
+    animation-name: ds-fade;
+  }
+  @keyframes ds-fade {
+    to {
+      opacity: 1;
+    }
+  }
+  .ds-decorative-motion {
+    animation: none !important;
+    transition: none !important;
+  }
 }
