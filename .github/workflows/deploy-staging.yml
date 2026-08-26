@@ -92,7 +92,7 @@ jobs:
       # -------------------------------------------------------
       - name: Deploy worker to Cloud Run (staging)
         run: |
-          gcloud run deploy demosage-worker-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} --platform managed --region ${{ env.REGION }} --no-allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --command python --args -m,services.worker --min-instances 1 --max-instances 3 --no-cpu-throttling --memory 1Gi --set-env-vars APP_ENV=staging,LOCAL_MODE=false,PARSER_SERVICE_URL=${{ env.PARSER_URL }},COACH_CONCURRENCY=4 --set-secrets DATABASE_URL=DATABASE_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,API_SHARED_SECRET=API_SHARED_SECRET:latest --quiet
+          gcloud run deploy demosage-worker-staging --image gcr.io/${{ env.PROJECT_ID }}/demosage-api:${{ github.sha }} --platform managed --region ${{ env.REGION }} --no-allow-unauthenticated --service-account ${{ env.SA_EMAIL }} --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} --command python --args="-m,services.worker" --min-instances 1 --max-instances 3 --no-cpu-throttling --memory 1Gi --set-env-vars APP_ENV=staging,LOCAL_MODE=false,PARSER_SERVICE_URL=${{ env.PARSER_URL }},COACH_CONCURRENCY=4 --set-secrets DATABASE_URL=DATABASE_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,API_SHARED_SECRET=API_SHARED_SECRET:latest --quiet
 
       - name: Deployment summary
         run: |
