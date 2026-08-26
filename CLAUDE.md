@@ -62,16 +62,17 @@ Set `LOCAL_MODE=true` in `.env` to skip GCS and Cloud Tasks.
 
 ## Git workflow
 
-`staging` is the integration branch — land work there, not straight on `main`.
+Work flows through three tiers: **a working (clean-up) branch → `staging` → `main`.**
 
-- **Commit day-to-day work to `staging`, not `main`.** `main` is the release branch;
-  changes reach it by promoting `staging`, not by committing to it directly.
-- **If `staging` is behind `main`, refresh it first** (`git checkout staging`,
-  `git merge main` or `git pull` from `main`) so you're building on current code, then
-  commit your work.
-- **Promote to `main` only once the change is verified on `staging`** — the checks in
-  the Commands section pass.
-- Same as everywhere: don't commit or push unless I ask. If I ask, use this path.
+- **Do development on a working branch, never directly on `staging` or `main`.** A
+  short-lived clean-up/feature branch is where commits happen.
+- **Merge the working branch into `staging` when it's ready.** `staging` is the
+  integration branch — the place changes come together and get exercised.
+- **Promote `staging` to `main` only after the work is verified on `staging`** and the
+  checks in the Commands section pass. `main` is the release branch.
+- **If `staging` or the working branch has fallen behind `main`, refresh it from `main`
+  first** (`git merge main`) so you build on current code.
+- Same as everywhere: don't commit or push unless I ask. When I do, follow this path.
 
 <!-- Maintainer note: keep this under ~200 lines. Don't add anything derivable from the
      codebase (dir trees, dep lists) — /doctor will just suggest trimming it back out.
