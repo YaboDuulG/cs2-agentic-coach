@@ -83,10 +83,13 @@ export function CloudMotifBg({ className = "" }: { className?: string }) {
 
   return (
     <div className={`absolute inset-0 pointer-events-none overflow-hidden ${className}`} style={{ zIndex: 0 }}>
-      {/* ── Layer 1: Case Hardened Ambient Glows ── */}
+      {/* ── Layer 1: Ambient Glows ── */}
       {/* ds-decorative-motion: all drift/spark animation is decorative and is
-          stilled under prefers-reduced-motion (see globals.css) */}
-      <div className="ds-decorative-motion absolute inset-0 opacity-[0.45] mix-blend-color-dodge filter blur-[120px]">
+          stilled under prefers-reduced-motion (see globals.css).
+          Plain radial gradients at low opacity — a full-viewport
+          mix-blend-color-dodge + blur(120px) layer stalled GPU compositing
+          on capture/low-end machines for the same visual result. */}
+      <div className="ds-decorative-motion absolute inset-0 opacity-40">
         {/* Blob 1: Cyan/Blue */}
         <div
           className="ds-decorative-motion absolute rounded-full"
