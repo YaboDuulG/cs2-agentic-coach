@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
-import { Upload, Shield, Compass } from "lucide-react";
+import { Upload, Shield, Compass, Menu, X } from "lucide-react";
 import { SoyomboIcon } from "@/components/patterns/mongolian";
 import { UploadModal } from "@/components/UploadModal";
 import { useTheme } from "@/lib/themes";
@@ -14,6 +14,8 @@ export function Navbar() {
   const { user } = useUser();
   const { def } = useTheme();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = () => setMenuOpen(false);
   const plan = (user?.publicMetadata?.plan as string) ?? "free";
   const isAdmin = (user?.publicMetadata?.role as string) === "admin" ||
     (user?.publicMetadata?.is_admin as boolean) === true;
@@ -147,6 +149,14 @@ export function Navbar() {
                   {planLabel}
                 </span>
                 <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }} />
+                <button
+                  className="ds-btn ds-btn-ghost ds-btn-icon md:hidden"
+                  onClick={() => setMenuOpen(o => !o)}
+                  aria-expanded={menuOpen}
+                  aria-label={menuOpen ? "Close menu" : "Open menu"}
+                >
+                  {menuOpen ? <X size={18} /> : <Menu size={18} />}
+                </button>
               </>
             ) : (
               <>
@@ -165,6 +175,45 @@ export function Navbar() {
             )}
           </div>
         </div>
+
+        {/* Mobile menu — the md-hidden links, one per row */}
+        {menuOpen && user && (
+          <div
+            className="md:hidden border-t px-6 py-3 flex flex-col gap-1"
+            style={{ borderColor: "var(--color-border-primary)", background: "var(--color-bg-secondary)" }}
+          >
+            <button
+              onClick={() => { setMenuOpen(false); setIsUploadOpen(true); }}
+              className="flex items-center gap-2 py-2.5 text-sm font-medium text-left"
+              style={{ color: "var(--color-text-secondary)" }}
+            >
+              <Upload size={14} /> Upload a demo
+            </button>
+            <Link href="/profile" className="py-2.5 text-sm font-medium" onClick={closeMenu} style={linkStyle("/profile")}>
+              My Analyses
+            </Link>
+            <Link href="/teams" className="py-2.5 text-sm font-medium" onClick={closeMenu} style={linkStyle("/teams")}>
+              Teams
+            </Link>
+            <Link href="/stratbook" className="py-2.5 text-sm font-medium" onClick={closeMenu} style={linkStyle("/stratbook")}>
+              Stratbook
+            </Link>
+            {plan !== "pro" && (
+              <Link href="/billing" className="py-2.5 text-sm font-medium" onClick={closeMenu} style={linkStyle("/billing")}>
+                Pricing
+              </Link>
+            )}
+            {isAdmin && (
+              <Link
+                href="/settings/admin"
+                className="py-2.5 text-sm font-bold flex items-center gap-1.5"
+                style={{ color: "var(--color-danger)" }}
+              >
+                <Shield size={13} /> Admin
+              </Link>
+            )}
+          </div>
+        )}
       </nav>
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} defaultMode={coachingMode} />
     </>

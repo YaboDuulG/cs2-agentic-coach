@@ -373,7 +373,7 @@ export function UploadZone({ onSuccess, teamId, defaultMode }: UploadZoneProps) 
           </div>
 
           {/* Opposition-recon toggle — team mode only */}
-          {defaultMode !== "individual" && (
+          {defaultMode === "team" && (
             <div
               className="mt-6 p-4 rounded-xl border flex items-start gap-3 select-none w-full max-w-[480px]"
               style={{

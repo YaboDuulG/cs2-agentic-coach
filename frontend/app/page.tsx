@@ -72,7 +72,7 @@ export default function HomePage() {
           initial="hidden"
           animate="visible"
           variants={stagger}
-          className="pt-32 px-6 max-w-4xl mx-auto flex flex-col items-center"
+          className="pt-24 md:pt-32 px-6 max-w-4xl mx-auto flex flex-col items-center"
         >
           <motion.h1
             variants={fadeUp}
@@ -108,7 +108,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen overflow-hidden" style={{ background: "var(--color-bg-primary)" }}>
-      <main className="relative pt-40 px-6 pb-24 max-w-6xl mx-auto">
+      <main className="relative pt-28 md:pt-40 px-6 pb-24 max-w-6xl mx-auto">
         {/* Ambient identity layer — only themes that bring motifs render it */}
         {def.motifs && <CloudMotifBg className="!fixed" />}
 
