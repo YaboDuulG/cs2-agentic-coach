@@ -141,8 +141,11 @@
 /* IMPORTANT: element styles live in @layer base and component classes in
    @layer components. Tailwind v4 emits its utilities in native cascade
    layers, and UNLAYERED css always beats layered css — an unlayered
-   `* { margin: 0 }` here silently zeroed every m-*/p-*/gap utility (and
-   mx-auto centering) across the whole app. Keep everything layered. */
+   universal margin/padding reset here silently zeroed every margin,
+   padding, and gap utility (and mx-auto centering) across the whole app.
+   Keep everything layered. (Also: never write an asterisk-slash sequence
+   inside this comment — it ends the comment early and the parser eats
+   the next block.) */
 
 @layer base {
   html {
