@@ -138,60 +138,62 @@
   }
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* IMPORTANT: element styles live in @layer base and component classes in
+   @layer components. Tailwind v4 emits its utilities in native cascade
+   layers, and UNLAYERED css always beats layered css — an unlayered
+   `* { margin: 0 }` here silently zeroed every m-*/p-*/gap utility (and
+   mx-auto centering) across the whole app. Keep everything layered. */
 
-html {
-  scroll-behavior: smooth;
-}
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
 
-body {
-  background-color: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  font-family: var(--font-body);
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  body {
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading);
-  color: var(--color-text-primary);
-  line-height: 1.2;
-}
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    color: var(--color-text-primary);
+    line-height: 1.2;
+  }
 
-code, pre, .font-mono {
-  font-family: var(--font-mono);
-}
+  code, pre {
+    font-family: var(--font-mono);
+  }
 
-/* Every interactive element gets a visible keyboard ring; mouse clicks don't. */
-:focus-visible {
-  outline: 2px solid var(--color-accent-primary);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-}
+  /* Every interactive element gets a visible keyboard ring; mouse clicks don't. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: var(--color-bg-secondary);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--color-accent-primary);
-  border-radius: 3px;
-  opacity: 0.6;
-}
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-bg-secondary);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-accent-primary);
+    border-radius: 3px;
+    opacity: 0.6;
+  }
 
-/* Selection */
-::selection {
-  background: var(--color-accent-glow);
-  color: var(--color-text-primary);
+  /* Selection */
+  ::selection {
+    background: var(--color-accent-glow);
+    color: var(--color-text-primary);
+  }
 }
 
 /* ==========================================
@@ -199,6 +201,8 @@ code, pre, .font-mono {
    Transitions name exact properties (never `all`), UI stays under 300ms,
    entrances never start at scale(0), hover motion is gated to real pointers.
 ========================================== */
+
+@layer components {
 
 .card {
   background: var(--color-bg-card);
@@ -434,8 +438,11 @@ code, pre, .font-mono {
   text-transform: uppercase;
 }
 
+} /* end @layer components */
+
 /* ==========================================
    Reduced motion: fewer and gentler, not zero.
+   Deliberately unlayered so it outranks utility animations too.
    Keep opacity/color transitions that aid comprehension; drop movement.
 ========================================== */
 @media (prefers-reduced-motion: reduce) {
