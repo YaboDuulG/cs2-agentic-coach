@@ -73,6 +73,9 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Test
+        run: go test ./...
+
   frontend:
     name: Frontend — lint, type-check & build
     runs-on: ubuntu-latest

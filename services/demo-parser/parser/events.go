@@ -49,11 +49,12 @@ type PositionEvent struct {
 
 // ParseResult is the full output of parsing one demo.
 type ParseResult struct {
-	MatchID   string          `json:"match_id"`
-	MapName   string          `json:"map_name"`
-	Tickrate  int             `json:"tickrate"`
-	Rounds    []RoundEvent    `json:"rounds"`
-	Kills     []KillEvent     `json:"kills"`
-	Grenades  []GrenadeEvent  `json:"grenades"`
-	Positions []PositionEvent `json:"positions"`
+	MatchID      string          `json:"match_id"`
+	MapName      string          `json:"map_name"`
+	Tickrate     int             `json:"tickrate"`
+	Rounds       []RoundEvent    `json:"rounds"`
+	Kills        []KillEvent     `json:"kills"`
+	Grenades     []GrenadeEvent  `json:"grenades"`
+	Positions    []PositionEvent `json:"positions"`
+	PhaseSummary *PhaseSummary   `json:"phase_summary,omitempty"`
 }

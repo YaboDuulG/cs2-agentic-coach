@@ -54,6 +54,30 @@ def handle_parse_job(db: Session, match_id: str) -> None:
     match.tickrate = int(result.get("tickrate") or 64)
     match.total_rounds = len(result.get("rounds") or [])
     match.parse_duration_seconds = time.monotonic() - started
+
+    # GameStateGate strip report — persisted so a contaminated or all-warmup
+    # demo is diagnosable instead of silently producing an empty report.
+    phase_summary = result.get("phase_summary")
+    if phase_summary:
+        match.phase_summary_json = json.dumps(phase_summary)
+        stripped = (
+            phase_summary.get("warmup_events_stripped", 0)
+            + phase_summary.get("paused_events_stripped", 0)
+            + phase_summary.get("postgame_events_stripped", 0)
+            + phase_summary.get("pregame_events_stripped", 0)
+        )
+        if stripped or phase_summary.get("restarts_discarded") or phase_summary.get("pauses"):
+            logger.info(
+                f"Match {match_id} phase gate: stripped {stripped} non-live events, "
+                f"{phase_summary.get('restarts_discarded', 0)} restart(s) discarded, "
+                f"{len(phase_summary.get('pauses') or [])} pause(s)"
+            )
+    if match.total_rounds == 0:
+        raise RuntimeError(
+            "Demo contained no live rounds after phase gating "
+            f"(phase summary: {json.dumps(phase_summary) if phase_summary else 'none'})"
+        )
+
     match.status = MatchStatus.COMPLETE
     db.commit()
 
