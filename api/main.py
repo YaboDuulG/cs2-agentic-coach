@@ -144,6 +144,14 @@ app.include_router(
     tags=["Strats"],
     dependencies=[Depends(get_current_user)],
 )
+from api.routes import billing  # noqa: E402
+
+app.include_router(
+    billing.router,
+    prefix="/api/billing",
+    tags=["Billing"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 # OAuth routes — no global auth dependency; individual endpoints manage auth where needed

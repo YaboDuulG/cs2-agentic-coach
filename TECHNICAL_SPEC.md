@@ -924,6 +924,12 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 | **Discord integration** | HTTP Interactions endpoint, not a gateway bot (2026-09) | Slash commands/buttons/modals over signed HTTPS: no discord.js/nextcord dep, no 4th always-on service, Cloud Run scale-to-zero. Ed25519 verify via the cryptography package (fails closed outside LOCAL_MODE). Trade-off: no free-text @mention listening — AI refinement is /strat adapt in-thread |
 | **Discord tenancy** | HMAC bind codes: web issues `team_id.hmac12` (DISCORD_WEBHOOK_SECRET); /strat bind ties one guild↔one team (2026-09) | A guild cannot attach to a team without its signed code; every interaction resolves guild→team before touching data |
 | **Discord sync transport** | Transactional sync_outbox drained by the worker (SKIP LOCKED) (2026-09) | HTTP handlers only INSERT (same transaction as the strat change) — a Discord outage never blocks a web/interaction response; retries with attempt cap |
+| **Subscription authority** | subscriptions table written by the Stripe webhook fan-out (2026-09) | Next.js keeps the Stripe SDK + signature verify, updates Clerk (display) AND POSTs normalized events to /api/billing/sync (shared secret) — DB is the entitlement truth; no Stripe lookups on request paths |
+| **Three-tier matrix** | FREE / SOLO_PRO (basic) / TEAM (pro) with a cumulative entitlement matrix (2026-09) | basic_analysis → +full_coaching → +team_analysis/team_scouting/stratbook_sync; TIER_NEEDED drives upgrade metadata in 402s and teasers |
+| **Grace periods** | past_due keeps the tier until period_end+7d; canceled until period_end (2026-09) | invoice.payment_failed → past_due sync sets grace_until; expiry mid-analysis just changes what the next read returns (reports are gated at read time) |
+| **Team seats** | members inherit team-scoped entitlements from a TEAM-tier owner (2026-09) | team_analysis/scouting/stratbook only, and only on that team's resources; personal full_coaching is not inherited |
+| **Entitlement cache** | in-process TTL (60s) invalidated by the sync endpoint — deliberately no Redis (2026-09) | The constraint's intent (no Stripe per request) is met by DB authority; a second stateful service isn't warranted, and TTL bounds cross-instance staleness |
+| **Teaser payloads** | Team/Oppo reports without the tier return mode+grade+category histogram only (2026-09) | Tactical specifics (observations, rounds, ticks, drills) are omitted server-side, never client-filtered; upgrade metadata included |
 
 ---
 

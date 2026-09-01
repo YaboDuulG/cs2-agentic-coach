@@ -108,19 +108,25 @@ db: Session = Depends(get_session)):
                 "coach_report": match.coaching_notes,
             }
 
-        # Tier gating at read time: paywalled insights are omitted from the
-        # payload server-side (never hidden client-side). The x-user-plan
-        # header is set by the trusted Next.js server route from Clerk.
-        from services.billing import redact_coaching_payload, resolve_tier  # noqa: PLC0415
+        # Entitlement gating at read time: paywalled insights are omitted
+        # from the payload server-side. Authority: subscriptions table →
+        # x-user-plan header (trusted Next.js route) → FREE. Team matches
+        # honor team-seat inheritance from a TEAM-tier owner.
+        from services.billing import (  # noqa: PLC0415
+            effective_entitlements,
+            redact_coaching_payload,
+            resolve_user_tier,
+        )
 
-        tier = resolve_tier(request.headers.get("x-user-plan"))
-        coaching_data = redact_coaching_payload(coaching_data, tier)
+        plan_header = request.headers.get("x-user-plan")
+        ents = effective_entitlements(db, user_id, plan_header, team_id=match.team_id)
+        coaching_data = redact_coaching_payload(coaching_data, ents)
 
         return {
             "status": "ready",
             "match_id": match_id,
             "coaching": coaching_data,
-            "tier": tier.value,
+            "tier": resolve_user_tier(db, user_id, plan_header).value,
             "is_recon": getattr(match, "is_recon", False),
         }
     except HTTPException:
@@ -156,17 +162,24 @@ async def get_player_coaching(match_id: str, player_name: str, request: Request,
                 status_code=404, detail=f"No report found for player {player_name}"
             )
 
-        # Per-player deep dives are premium content.
-        from services.billing import Tier, resolve_tier  # noqa: PLC0415
+        # Per-player deep dives require full coaching (Solo Pro and up).
+        from services.billing import (  # noqa: PLC0415
+            Entitlement,
+            effective_entitlements,
+            upgrade_metadata,
+        )
 
-        if resolve_tier(request.headers.get("x-user-plan")) is not Tier.PREMIUM:
+        ents = effective_entitlements(
+            db, user_id, request.headers.get("x-user-plan"), team_id=match.team_id
+        )
+        if Entitlement.FULL_COACHING not in ents:
             return JSONResponse(
                 status_code=402,
                 content={
                     "status": "locked",
                     "match_id": match_id,
                     "player": player_name,
-                    "upgrade_cta": "Player deep-dives are a premium feature.",
+                    **upgrade_metadata(Entitlement.FULL_COACHING),
                 },
             )
 

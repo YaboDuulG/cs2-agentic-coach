@@ -913,3 +913,37 @@ class SyncOutbox(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
+
+
+# ---------------------------------------------------------------------------
+# Subscription — Stripe-backed plan authority (module 4). Written only by
+# the billing sync path (webhook fan-out); read by the entitlement layer.
+# Clerk publicMetadata.plan remains a display cache.
+# ---------------------------------------------------------------------------
+
+
+class Subscription(Base):
+    """Docstring for Subscription."""
+    __tablename__ = "subscriptions"
+
+    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    stripe_customer_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, unique=True, index=True
+    )
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    plan: Mapped[str] = mapped_column(String(16), nullable=False, default="free")
+    # active | trialing | past_due | canceled
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # past_due keeps entitlements until here (period_end + grace window)
+    grace_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    def __repr__(self) -> str:
+        """Docstring for __repr__."""
+        return f"<Subscription {self.user_id} plan={self.plan} status={self.status}>"

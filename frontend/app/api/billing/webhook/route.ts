@@ -11,6 +11,37 @@ const PRICE_TO_PLAN: Record<string, string> = {
   price_1TZdcdK81lqFuAqa5aXKj8F6: "pro",
 };
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+// Fan the normalized event out to the backend: the subscriptions table is
+// the entitlement authority (Clerk metadata is display only), and this call
+// invalidates the backend's entitlement cache — so no request path ever
+// needs a raw Stripe lookup.
+async function syncBackend(payload: {
+  user_id: string;
+  plan: string;
+  status: string;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  current_period_end?: number | null;
+  event: string;
+}) {
+  try {
+    await fetch(`${API_URL}/api/billing/sync`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    // Non-fatal: Stripe retries the webhook, and the entitlement cache TTL
+    // bounds staleness meanwhile.
+    console.error("Backend billing sync failed:", err);
+  }
+}
+
 export async function POST(req: NextRequest) {
   // Dynamic import — Stripe module only loads at request time, never at build time
   const Stripe = (await import("stripe")).default;
@@ -42,6 +73,14 @@ export async function POST(req: NextRequest) {
         await clerk.users.updateUserMetadata(userId, {
           publicMetadata: { plan, stripeCustomerId: session.customer },
         });
+        await syncBackend({
+          user_id: userId,
+          plan,
+          status: "active",
+          stripe_customer_id: (session.customer as string) ?? null,
+          stripe_subscription_id: (session.subscription as string) ?? null,
+          event: event.type,
+        });
       }
       break;
     }
@@ -55,6 +94,15 @@ export async function POST(req: NextRequest) {
         await clerk.users.updateUserMetadata(userId, {
           publicMetadata: { plan },
         });
+        await syncBackend({
+          user_id: userId,
+          plan,
+          status: sub.status,
+          stripe_customer_id: (sub.customer as string) ?? null,
+          stripe_subscription_id: sub.id,
+          current_period_end: sub.items.data[0]?.current_period_end ?? null,
+          event: event.type,
+        });
       }
       break;
     }
@@ -65,6 +113,38 @@ export async function POST(req: NextRequest) {
       if (userId) {
         await clerk.users.updateUserMetadata(userId, {
           publicMetadata: { plan: "free" },
+        });
+        await syncBackend({
+          user_id: userId,
+          plan: "free",
+          status: "canceled",
+          stripe_subscription_id: sub.id,
+          current_period_end: sub.items.data[0]?.current_period_end ?? null,
+          event: event.type,
+        });
+      }
+      break;
+    }
+
+    case "invoice.payment_failed": {
+      // Grace period: the backend keeps entitlements until period_end + 7d.
+      // Structural cast: the SDK's Invoice type moves these fields between
+      // API versions; we only need two optional strings.
+      const invoice = event.data.object as unknown as {
+        subscription_details?: { metadata?: Record<string, string> };
+        parent?: { subscription_details?: { metadata?: Record<string, string> } };
+        lines?: { data?: Array<{ pricing?: { price_details?: { price?: string } } }> };
+      };
+      const userId =
+        invoice.subscription_details?.metadata?.clerk_user_id ??
+        invoice.parent?.subscription_details?.metadata?.clerk_user_id;
+      const priceId = invoice.lines?.data?.[0]?.pricing?.price_details?.price ?? "";
+      if (userId) {
+        await syncBackend({
+          user_id: userId,
+          plan: PRICE_TO_PLAN[priceId] ?? "basic",
+          status: "past_due",
+          event: event.type,
         });
       }
       break;
