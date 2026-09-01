@@ -9,7 +9,13 @@ import { bySeverity, categoryHistogram, groupByCategory, reportState } from "./r
 
 // Team analysis: findings grouped by category with a radar of category counts.
 // Renders exactly what the server sent — full, redacted, or teaser shape.
-export function TeamView({ report }: { report: ReportV2 }) {
+export function TeamView({
+  report,
+  onRoundClick,
+}: {
+  report: ReportV2;
+  onRoundClick?: (round: number) => void;
+}) {
   const state = reportState(report);
   const findings = report.key_findings ?? [];
   const summary = report.summary ?? { grade: "" };
@@ -64,7 +70,7 @@ export function TeamView({ report }: { report: ReportV2 }) {
             </h3>
             <div className="space-y-3">
               {[...items].sort(bySeverity).map((finding, i) => (
-                <InsightCard key={i} finding={finding} />
+                <InsightCard key={i} finding={finding} onRoundClick={onRoundClick} />
               ))}
             </div>
           </section>
@@ -73,7 +79,7 @@ export function TeamView({ report }: { report: ReportV2 }) {
       {state === "redacted" && (
         <div className="space-y-3">
           {findings.map((finding, i) => (
-            <InsightCard key={i} finding={finding} />
+            <InsightCard key={i} finding={finding} onRoundClick={onRoundClick} />
           ))}
           {report.paywalled_preview && <GatedInsightCard preview={report.paywalled_preview} />}
         </div>

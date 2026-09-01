@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 export interface InsightCardProps {
   finding: Partial<KeyFinding>;
   className?: string;
+  /** When set, the finding's round references become deep links into the replay. */
+  onRoundClick?: (round: number) => void;
 }
 
 const SEVERITY_STYLES: Record<string, { color: string; bg: string; border: string }> = {
@@ -38,10 +40,17 @@ function roundTickRef(finding: Partial<KeyFinding>): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-export function InsightCard({ finding, className }: InsightCardProps) {
+function roundList(finding: Partial<KeyFinding>): number[] {
+  if (finding.rounds && finding.rounds.length > 0) return finding.rounds;
+  if (finding.round != null) return [finding.round];
+  return [];
+}
+
+export function InsightCard({ finding, className, onRoundClick }: InsightCardProps) {
   const severity = (finding.severity ?? "").toUpperCase();
   const sev = SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.LOW;
   const reference = roundTickRef(finding);
+  const rounds = onRoundClick ? roundList(finding) : [];
 
   return (
     <Card className={cn("p-4", className)}>
@@ -62,13 +71,35 @@ export function InsightCard({ finding, className }: InsightCardProps) {
             {finding.category.replace(/_/g, " ")}
           </span>
         )}
-        {reference && (
+        {onRoundClick && rounds.length > 0 ? (
           <span
-            className="ml-auto text-[11px]"
-            style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-muted)" }}
+            className="ml-auto flex items-center gap-1.5 text-[11px]"
+            style={{ fontFamily: "var(--font-mono)" }}
           >
-            {reference}
+            {rounds.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => onRoundClick(r)}
+                title={`Jump to round ${r} in the replay`}
+                className="cursor-pointer text-[var(--color-text-muted)] underline decoration-dotted underline-offset-2 transition-colors hover:text-[var(--color-accent-primary)]"
+              >
+                R{r}
+              </button>
+            ))}
+            {finding.tick != null && (
+              <span style={{ color: "var(--color-text-muted)" }}>· tick {finding.tick}</span>
+            )}
           </span>
+        ) : (
+          reference && (
+            <span
+              className="ml-auto text-[11px]"
+              style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-muted)" }}
+            >
+              {reference}
+            </span>
+          )
         )}
       </div>
 

@@ -9,6 +9,8 @@ export interface ModeSwitchedReportProps {
   coaching?: CoachingResponse;
   /** Query still in flight — shows the skeleton without blocking surrounding UI. */
   isLoading?: boolean;
+  /** Deep link: clicking a finding's round reference jumps the replay there. */
+  onRoundClick?: (round: number) => void;
 }
 
 function ReportSkeleton() {
@@ -25,7 +27,7 @@ function ReportSkeleton() {
  * Picks the mode view from report_v2.mode. Skeleton while the report is still
  * cooking; graceful null for legacy cached reports that predate report_v2.
  */
-export function ModeSwitchedReport({ coaching, isLoading }: ModeSwitchedReportProps) {
+export function ModeSwitchedReport({ coaching, isLoading, onRoundClick }: ModeSwitchedReportProps) {
   if (isLoading || coaching?.status === "pending") return <ReportSkeleton />;
 
   const report = coaching?.coaching?.report_v2;
@@ -33,13 +35,13 @@ export function ModeSwitchedReport({ coaching, isLoading }: ModeSwitchedReportPr
 
   switch (report.mode) {
     case "TEAM_ANALYSIS":
-      return <TeamView report={report} />;
+      return <TeamView report={report} onRoundClick={onRoundClick} />;
     case "OPPOSITION_RESEARCH":
-      return <OppoResearchView report={report} />;
+      return <OppoResearchView report={report} onRoundClick={onRoundClick} />;
     case "PERSONAL_IMPROVEMENT":
     default:
       // Teasers can arrive with mode unset (build_teaser passes it through);
       // the personal layout is the safe default.
-      return <PersonalView report={report} />;
+      return <PersonalView report={report} onRoundClick={onRoundClick} />;
   }
 }

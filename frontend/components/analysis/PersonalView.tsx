@@ -10,7 +10,13 @@ import { bySeverity, reportState } from "./reportState";
 // Personal improvement: score/grade header, then drill-focused findings.
 // All three server states (full / FREE-redacted / teaser) are shapes the
 // SERVER decided on — this view just renders what arrived.
-export function PersonalView({ report }: { report: ReportV2 }) {
+export function PersonalView({
+  report,
+  onRoundClick,
+}: {
+  report: ReportV2;
+  onRoundClick?: (round: number) => void;
+}) {
   const state = reportState(report);
   const findings = report.key_findings ?? [];
   const summary = report.summary ?? { grade: "" };
@@ -58,7 +64,7 @@ export function PersonalView({ report }: { report: ReportV2 }) {
       {state === "full" && (
         <div className="space-y-3">
           {[...findings].sort(bySeverity).map((finding, i) => (
-            <InsightCard key={i} finding={finding} />
+            <InsightCard key={i} finding={finding} onRoundClick={onRoundClick} />
           ))}
           {findings.length === 0 && (
             <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
@@ -72,7 +78,7 @@ export function PersonalView({ report }: { report: ReportV2 }) {
         <div className="space-y-3">
           {/* The one takeaway the server kept in the FREE view. */}
           {findings.map((finding, i) => (
-            <InsightCard key={i} finding={finding} />
+            <InsightCard key={i} finding={finding} onRoundClick={onRoundClick} />
           ))}
           {report.paywalled_preview && <GatedInsightCard preview={report.paywalled_preview} />}
         </div>

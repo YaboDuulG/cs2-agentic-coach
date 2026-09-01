@@ -13,7 +13,13 @@ import { bySeverity, categoryHistogram, groupByCategory, reportState } from "./r
 // only — the TEAM_SCOUTING teaser arrives with findings already stripped.
 const EMPHASIZED = /BUY|ECON|TENDENC|DEFAULT|SETUP|PISTOL|FORCE/i;
 
-export function OppoResearchView({ report }: { report: ReportV2 }) {
+export function OppoResearchView({
+  report,
+  onRoundClick,
+}: {
+  report: ReportV2;
+  onRoundClick?: (round: number) => void;
+}) {
   const state = reportState(report);
   const findings = report.key_findings ?? [];
   const summary = report.summary ?? { grade: "" };
@@ -98,7 +104,7 @@ export function OppoResearchView({ report }: { report: ReportV2 }) {
               </h3>
               <div className="space-y-3">
                 {[...groups[category]].sort(bySeverity).map((finding, i) => (
-                  <InsightCard key={i} finding={finding} />
+                  <InsightCard key={i} finding={finding} onRoundClick={onRoundClick} />
                 ))}
               </div>
             </section>
@@ -108,7 +114,7 @@ export function OppoResearchView({ report }: { report: ReportV2 }) {
       {state === "redacted" && (
         <div className="space-y-3">
           {findings.map((finding, i) => (
-            <InsightCard key={i} finding={finding} />
+            <InsightCard key={i} finding={finding} onRoundClick={onRoundClick} />
           ))}
           {report.paywalled_preview && <GatedInsightCard preview={report.paywalled_preview} />}
         </div>

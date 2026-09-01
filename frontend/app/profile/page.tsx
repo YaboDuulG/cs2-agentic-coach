@@ -11,6 +11,7 @@ import {
   Crosshair, Clock, BarChart3, ArrowRight
 } from "lucide-react";
 import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
+import { PageSection, PageTransition } from "@/components/ui";
 import { PLAN_LIMITS } from "@/lib/flags";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { UploadModal } from "@/components/UploadModal";
@@ -22,6 +23,7 @@ interface Analysis {
   total_rounds: number;
   total_kills: number;
   source?: string;
+  is_recon?: boolean;
 }
 
 function getSourceBadge(source?: string) {
@@ -49,7 +51,10 @@ interface SteamProfile {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  done: "#22D3A0", processing: "var(--color-accent-primary)", queued: "var(--color-text-secondary)", failed: "var(--color-danger)",
+  done: "var(--color-success)",
+  processing: "var(--color-accent-primary)",
+  queued: "var(--color-text-secondary)",
+  failed: "var(--color-danger)",
 };
 
 function timeAgo(iso: string) {
@@ -233,10 +238,10 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen px-6 py-20" style={{ background: "var(--color-bg-primary)" }}>
       <CloudMotifBg />
-      <div className="relative max-w-5xl mx-auto">
+      <PageTransition className="relative max-w-5xl mx-auto">
 
         {/* ── Profile Header ── */}
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-10">
+        <PageSection className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-10">
           {/* Avatar */}
           <div className="relative">
             {steamProfile?.avatarfull ? (
@@ -306,11 +311,14 @@ export default function ProfilePage() {
               Resets on the 1st of each month
             </p>
           </div>
-        </div>
+        </PageSection>
 
-        <UlziiBorder className="mb-10" />
+        <PageSection>
+          <UlziiBorder className="mb-10" />
+        </PageSection>
 
         {/* ── Steam CS2 Player Dossier Card ── */}
+        <PageSection>
         {steamProfileLoading ? (
           <div className="card p-6 mb-8 flex items-center justify-center gap-3"
             style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
@@ -426,8 +434,9 @@ export default function ProfilePage() {
             </div>
           </div>
         ) : null}
+        </PageSection>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <PageSection className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
           {/* ── Teams panel ── */}
           <div>
@@ -588,59 +597,82 @@ export default function ProfilePage() {
                 <p style={{ color: "var(--color-text-secondary)", fontSize: "0.875rem", marginBottom: 20 }}>
                   Upload your first CS2 demo to see the Khan&apos;s verdict.
                 </p>
-                <button
-                  onClick={() => setIsUploadOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white cursor-pointer hover:opacity-90 transition-all focus:outline-none"
-                  style={{ background: "linear-gradient(135deg,#1B4F8A,var(--color-accent-primary))" }}
-                >
-                  Upload a Demo <ArrowRight size={14} />
-                </button>
+                <Link href="/" className="ds-btn ds-btn-primary ds-btn-md">
+                  Upload your first demo <ArrowRight size={14} />
+                </Link>
               </div>
             ) : (
               <div className="space-y-3">
-                {analyses.map(a => (
-                  <Link key={a.match_id} href={`/analysis/${a.match_id}`}
-                    className="rounded-2xl p-4 flex items-center justify-between group hover:border-[var(--color-accent-primary)]/40 transition-all hover:scale-[1.01]"
-                    style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)", display: "flex" }}>
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: "rgba(45,125,210,0.1)", border: "1px solid rgba(45,125,210,0.15)" }}>
-                        <MapPin size={18} color="var(--color-accent-primary)" />
+                {analyses.map(a => {
+                  const statusColor = STATUS_COLORS[a.status] ?? "var(--color-text-secondary)";
+                  return (
+                    <div key={a.match_id}
+                      className="relative rounded-2xl p-4 flex items-center justify-between group hover:border-[var(--color-accent-primary)]/40 transition-colors"
+                      style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ background: "var(--color-accent-soft)", border: "1px solid var(--color-border-primary)" }}>
+                          <MapPin size={18} color="var(--color-accent-primary)" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center flex-wrap gap-y-1">
+                            {/* Stretched link: the whole row opens the analysis. */}
+                            <Link href={`/analysis/${a.match_id}`}
+                              className="font-semibold text-[var(--color-text-primary)] after:absolute after:inset-0 after:rounded-2xl">
+                              {a.map || "Unknown Map"}
+                            </Link>
+                            {a.is_recon && (
+                              <span className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap"
+                                style={{
+                                  fontFamily: "var(--font-mono)",
+                                  color: "var(--color-accent-secondary)",
+                                  border: "1px solid var(--color-accent-secondary)",
+                                }}>
+                                Recon
+                              </span>
+                            )}
+                            {getSourceBadge(a.source)}
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            {a.total_rounds > 0 && (
+                              <span style={{ color: "var(--color-text-muted)", fontSize: "0.72rem", fontFamily: "var(--font-mono)" }}>{a.total_rounds} rounds</span>
+                            )}
+                            {a.total_kills > 0 && (
+                              <span style={{ color: "var(--color-text-muted)", fontSize: "0.72rem", fontFamily: "var(--font-mono)" }}>{a.total_kills} kills</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="flex items-center">
-                          <p style={{ color: "var(--color-text-primary)", fontWeight: 600 }}>{a.map || "Unknown Map"}</p>
-                          {getSourceBadge(a.source)}
+                      <div className="flex items-center gap-4 flex-shrink-0">
+                        {a.is_recon && (
+                          <Link href="/scouting"
+                            className="relative z-10 text-xs font-semibold text-[var(--color-accent-secondary)] hover:text-[var(--color-text-primary)] transition-colors whitespace-nowrap">
+                            Dossier →
+                          </Link>
+                        )}
+                        <div className="text-right">
+                          <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                            style={{
+                              color: statusColor,
+                              background: `color-mix(in srgb, ${statusColor} 10%, transparent)`,
+                              border: `1px solid color-mix(in srgb, ${statusColor} 35%, transparent)`,
+                            }}>
+                            {a.status}
+                          </span>
+                          <span className="mt-1" style={{ color: "var(--color-text-muted)", fontSize: "0.7rem", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center", gap: 3, justifyContent: "flex-end" }}>
+                            <Clock size={9} /> {a.created_at ? timeAgo(a.created_at) : "—"}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          {a.total_rounds > 0 && (
-                            <span style={{ color: "#4A6A8A", fontSize: "0.72rem" }}>{a.total_rounds} rounds</span>
-                          )}
-                          {a.total_kills > 0 && (
-                            <span style={{ color: "#4A6A8A", fontSize: "0.72rem" }}>{a.total_kills} kills</span>
-                          )}
-                        </div>
+                        <ChevronRight size={16} color="var(--color-text-muted)" />
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="flex items-center gap-1.5 justify-end">
-                          <div className="w-2 h-2 rounded-full" style={{ background: STATUS_COLORS[a.status] ?? "var(--color-text-secondary)" }} />
-                          <span style={{ fontSize: "0.75rem", color: STATUS_COLORS[a.status] ?? "var(--color-text-secondary)", fontWeight: 500 }}>{a.status}</span>
-                        </div>
-                        <span style={{ color: "#4A6A8A", fontSize: "0.7rem", display: "flex", alignItems: "center", gap: 3, justifyContent: "flex-end" }}>
-                          <Clock size={9} /> {a.created_at ? timeAgo(a.created_at) : "—"}
-                        </span>
-                      </div>
-                      <ChevronRight size={16} color="#4A6A8A" className="group-hover:text-white transition-colors" />
-                    </div>
-                  </Link>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
-        </div>
-      </div>
+        </PageSection>
+      </PageTransition>
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
     </div>
   );

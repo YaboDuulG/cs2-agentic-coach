@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Crosshair, MapPin } from "lucide-react";
 import { ModeSwitchedReport } from "@/components/analysis";
-import { Card } from "@/components/ui";
+import { Card, PageSection, PageTransition } from "@/components/ui";
 import { useCoaching } from "@/lib/api/hooks";
 
 // Same list endpoint the profile page uses (/api/analyses proxy → backend
@@ -54,25 +54,28 @@ export default function ScoutingPage() {
 
   return (
     <div className="min-h-screen px-6 py-16" style={{ background: "var(--color-bg-primary)" }}>
-      <div className="mx-auto max-w-5xl">
-        <header className="mb-8">
-          <div className="flex items-center gap-2">
-            <Crosshair size={16} style={{ color: "var(--color-accent-secondary)" }} />
-            <span
-              className="text-[10px] font-bold uppercase tracking-[0.2em]"
-              style={{ fontFamily: "var(--font-mono)", color: "var(--color-accent-secondary)" }}
-            >
-              Opposition research
-            </span>
-          </div>
-          <h1 className="section-heading mt-1" style={{ fontSize: "1.6rem" }}>
-            Scouting Dossiers
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--color-text-secondary)" }}>
-            Recon demos analyzed for opponent tendencies, buy-round behavior, and default setups.
-          </p>
-        </header>
+      <PageTransition className="mx-auto max-w-5xl">
+        <PageSection>
+          <header className="mb-8">
+            <div className="flex items-center gap-2">
+              <Crosshair size={16} style={{ color: "var(--color-accent-secondary)" }} />
+              <span
+                className="text-[10px] font-bold uppercase tracking-[0.2em]"
+                style={{ fontFamily: "var(--font-mono)", color: "var(--color-accent-secondary)" }}
+              >
+                Opposition research
+              </span>
+            </div>
+            <h1 className="section-heading mt-1" style={{ fontSize: "1.6rem" }}>
+              Scouting dossiers
+            </h1>
+            <p className="mt-1 text-sm" style={{ color: "var(--color-text-secondary)" }}>
+              Recon demos analyzed for opponent tendencies, buy-round behavior, and default setups.
+            </p>
+          </header>
+        </PageSection>
 
+        <PageSection>
         {loading ? (
           <div className="space-y-3" role="status" aria-label="Loading recon matches">
             <div className="card h-16 animate-pulse" />
@@ -177,7 +180,8 @@ export default function ScoutingPage() {
             </div>
           </div>
         )}
-      </div>
+        </PageSection>
+      </PageTransition>
     </div>
   );
 }

@@ -1,11 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
-import { Button } from "@/components/ui";
+import { SoyomboIcon, UlziiBorder } from "@/components/patterns/mongolian";
+import { Button, PageSection, PageTransition, SoyomboProgress } from "@/components/ui";
+import { ModeSwitchedReport } from "@/components/analysis";
+import { usePlayback } from "@/lib/stores/playback";
+import type { ReportV2 } from "@/lib/api/client";
 
 const DemoViewer = dynamic(() => import("@/components/minimap").then(m => m.DemoViewer), {
   ssr: false,
@@ -72,6 +75,8 @@ interface JobResult {
 }
 
 interface Coaching {
+  /** Structured mode-aware report (server-shaped; see components/analysis). */
+  report_v2?: ReportV2 | null;
   summary?: string;
   key_findings?: string[];
   economy_analysis?: string;
@@ -89,7 +94,8 @@ interface Coaching {
 
 const STATUS_CONFIG: Record<JobStatus, { label: string; color: string; icon: React.ReactNode }> = {
   queued:     { label: "Queued",    color: "#8BA7CC", icon: <Clock size={16} /> },
-  processing: { label: "Parsing…", color: "#2D7DD2", icon: <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#2D7DD2", borderTopColor: "transparent" }} /> },
+  // Static icon on purpose: the processing screen's only motion is SoyomboProgress.
+  processing: { label: "Parsing…", color: "#2D7DD2", icon: <Activity size={16} /> },
   done:       { label: "Complete", color: "#22D3A0", icon: <CheckCircle size={16} /> },
   failed:     { label: "Failed",   color: "#FF4D6D", icon: <AlertCircle size={16} /> },
 };
@@ -760,9 +766,21 @@ function KillHeatmap({ kills, mapName }: { kills: KillEvent[]; mapName?: string 
 }
 
 // --- AI Coaching Panel ---
-function CoachingPanel({ matchId }: { matchId: string }) {
+type CoachingStatus = "loading" | "pending" | "ready" | "error";
+
+function CoachingPanel({
+  matchId,
+  onFindingRound,
+  onCoachingState,
+}: {
+  matchId: string;
+  /** Deep link: a finding's round reference jumps the replay to that round. */
+  onFindingRound?: (round: number) => void;
+  /** Lets the page mirror this panel's poll (no second poll loop). */
+  onCoachingState?: (status: CoachingStatus, coaching: Coaching | null) => void;
+}) {
   const [coaching, setCoaching] = useState<Coaching | null>(null);
-  const [status, setStatus] = useState<"loading" | "pending" | "ready" | "error">("loading");
+  const [status, setStatus] = useState<CoachingStatus>("loading");
   const [activeSubTab, setActiveSubTab] = useState<"individual_report" | "notes">("individual_report");
   const [activeTeamTab, setActiveTeamTab] = useState<"team_strategy" | "coach_insights" | "player_reports" | "notes">("team_strategy");
   const [coachingMode, setCoachingMode] = useState<"individual" | "team">(() => {
@@ -866,6 +884,10 @@ function CoachingPanel({ matchId }: { matchId: string }) {
     return () => { stopped = true; };
   }, [matchId, status]);
 
+  // Mirror poll results up to the page (waiting screen stages, header grade).
+  useEffect(() => {
+    onCoachingState?.(status, coaching);
+  }, [status, coaching, onCoachingState]);
 
   const parseBold = (text: string) => {
     const parts = text.split(/\*\*([^\*]+)\*\*/g);
@@ -1049,6 +1071,20 @@ function CoachingPanel({ matchId }: { matchId: string }) {
         </div>
       ) : coaching ? (
         <div className="space-y-4">
+          {/* Mode-aware structured report (report_v2) leads; legacy markdown follows. */}
+          <ModeSwitchedReport
+            coaching={{ status: "ready", match_id: matchId, coaching }}
+            onRoundClick={onFindingRound}
+          />
+          {/* Legacy full-text report — collapsed when the structured report exists. */}
+          <details open={!coaching.report_v2}>
+            <summary
+              className="cursor-pointer select-none py-2 text-[11px] font-bold uppercase tracking-widest"
+              style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-secondary)" }}
+            >
+              Full text report
+            </summary>
+            <div className="mt-3 space-y-4">
           {isScribeFormat ? (
             <div>
               {coachingMode === "individual" ? (
@@ -1173,6 +1209,8 @@ function CoachingPanel({ matchId }: { matchId: string }) {
               </div>
             </div>
           )}
+            </div>
+          </details>
         </div>
       ) : null}
     </div>
@@ -2946,39 +2984,6 @@ function RoundTimeline({
   );
 }
 
-const COACHING_TIPS = [
-  {
-    icon: <Brain size={16} color="#C9A227" />,
-    quote: "An empire is not built in a single round. Force-buying when your teammates are broke destroys your economy.",
-    author: "Great Khan AI"
-  },
-  {
-    icon: <Lightbulb size={16} color="#2D7DD2" />,
-    quote: "A retake is a coordinated horde execute. Never enter the site one-by-one; wait for utility and push together.",
-    author: "Tactical Manual"
-  },
-  {
-    icon: <Shield size={16} color="#22D3A0" />,
-    quote: "Utility is the wall that shields your warriors. A single smoke grenade can delay an execute for 15 seconds.",
-    author: "Mirage Strategy"
-  },
-  {
-    icon: <Zap size={16} color="#eb5e28" />,
-    quote: "First contact determines the battle lines. A tactical retreat is better than giving away the opening death.",
-    author: "Sun Tzu of CS2"
-  },
-  {
-    icon: <Crosshair size={16} color="#FF4D6D" />,
-    quote: "Control your territory. Holding crossfires on defense prevents enemy lurkers from cutting off rotations.",
-    author: "Coaching Tip"
-  },
-  {
-    icon: <Layers size={16} color="#8BA7CC" />,
-    quote: "Information is victory. Listen to the audio comms and coordinate radar updates to spot rotates early.",
-    author: "Leader's Wisdom"
-  }
-];
-
 // --- Main Page ---
 export default function AnalysisPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -2990,19 +2995,50 @@ export default function AnalysisPage() {
   const [replayView, setReplayView] = useState<"tactical" | "3d">("tactical");
 
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
-  const [tipIndex, setTipIndex] = useState(0);
 
-  // Sync timer using local ticks — capped at 99:59 display
+  // Coaching state mirrored up from CoachingPanel's own poll — no second poll
+  // loop. `coachingSettled` latches true so a notes-triggered coaching re-run
+  // can never send a visible report back to the waiting screen.
+  const [coachingSettled, setCoachingSettled] = useState(false);
+  const [reportGrade, setReportGrade] = useState<string | null>(null);
+  const handleCoachingState = useCallback(
+    (s: "loading" | "pending" | "ready" | "error", c: Coaching | null) => {
+      if (s === "ready" || s === "error") setCoachingSettled(true);
+      const grade = c?.report_v2?.summary?.grade;
+      if (grade) setReportGrade(grade);
+    },
+    []
+  );
+
+  // Finding → replay deep link: park the shared playback store on the round,
+  // make sure the tactical viewer is mounted, and scroll to #replay.
+  const handleFindingRound = useCallback((round: number) => {
+    usePlayback.getState().setRound(round);
+    setSelectedRound(round);
+    setViewerMode("3d");
+    setReplayView("tactical");
+    document.getElementById("replay")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  // Seconds spent in the parse-done-but-coaching-pending phase, driving the
+  // Analyze→Report stage upgrade at ~45s (ticks in the shared interval below).
+  const [coachingWaitSeconds, setCoachingWaitSeconds] = useState(0);
+
+  // Sync timer using local ticks — capped at 99:59 display. Keeps ticking while
+  // the coaching report is still cooking (waiting-screen stages 2–3).
   useEffect(() => {
     const status = result?.status ?? "queued";
-    if (status === "done" || status === "failed") return;
+    if (status === "failed") return;
+    if (status === "done" && coachingSettled) return;
+    const coachingPending = status === "done" && !coachingSettled;
 
     const interval = setInterval(() => {
       setElapsedSeconds(prev => prev + 1);
+      if (coachingPending) setCoachingWaitSeconds(prev => prev + 1);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [result?.status]);
+  }, [result?.status, coachingSettled]);
 
   // Sync with backend elapsed_seconds — only use it to seed the timer on first
   // arrival; never let a stale large value override a running local counter.
@@ -3022,16 +3058,6 @@ export default function AnalysisPage() {
     }
   }, [elapsedSeconds, result?.status]);
 
-  // Coaching tips rotation
-  useEffect(() => {
-    const status = result?.status ?? "queued";
-    if (status === "done" || status === "failed") return;
-    const interval = setInterval(() => {
-      setTipIndex(prev => (prev + 1) % COACHING_TIPS.length);
-    }, 7000);
-    return () => clearInterval(interval);
-  }, [result?.status]);
-
   const formatTime = (totalSeconds: number) => {
     // Cap display at 99:59 — anything beyond means a backend stall
     const capped = Math.min(totalSeconds, 5999);
@@ -3042,39 +3068,18 @@ export default function AnalysisPage() {
 
   const status = result?.status ?? "queued";
 
-  // Smart progress value based on elapsed seconds
-  const progressPercent = useMemo(() => {
-    if (status === "done") return 100;
-    if (status === "failed") return 0;
-    const scale = 80;
-    const percent = Math.floor(100 * (1 - Math.exp(-elapsedSeconds / scale)));
-    return Math.min(98, Math.max(5, percent));
-  }, [elapsedSeconds, status]);
+  // Parse is done but the Great Khan hasn't reported back yet: stay on the
+  // waiting screen (stages 2–3) until the coaching poll settles.
+  const waitingForCoaching = status === "done" && !coachingSettled;
 
-  // Dynamic stages
-  const loaderStage = useMemo(() => {
-    if (elapsedSeconds < 25) {
-      return {
-        title: "Extracting Demo Package",
-        description: "Decompressing the CS2 replay file and extracting tick stream...",
-      };
-    } else if (elapsedSeconds < 70) {
-      return {
-        title: "Parsing Match Ticks",
-        description: "Scanning player positions, weapon logs, and round status...",
-      };
-    } else if (elapsedSeconds < 130) {
-      return {
-        title: "Analyzing Economy and Strategies",
-        description: "Calculating round values, utility detonations, and entry paths...",
-      };
-    } else {
-      return {
-        title: "Formulating Great Khan's AI Verdict",
-        description: "Synthesizing strategic advice and plotting tactical mistakes...",
-      };
-    }
-  }, [elapsedSeconds]);
+  // SoyomboProgress stage mapping — queued→0, processing→1, parse done but
+  // coaching pending→2 (→3 after ~45s of coaching-pending), settled→4
+  // (the report shows instead of the waiting screen).
+  const soyomboStage =
+    status === "queued" ? 0
+    : status === "processing" ? 1
+    : waitingForCoaching ? (coachingWaitSeconds >= 45 ? 3 : 2)
+    : 4;
 
   useEffect(() => {
     if (!jobId) return;
@@ -3127,154 +3132,110 @@ export default function AnalysisPage() {
     return { team1Name: team1, team2Name: team2 };
   }, [result]);
 
+  // Final score from the rounds data already in scope (CT–T).
+  const { ctWins, tWins } = useMemo(() => {
+    let ct = 0;
+    let t = 0;
+    for (const r of result?.rounds ?? []) {
+      if (r.winner === "CT") ct++;
+      else if (r.winner === "TERRORIST" || r.winner === "T") t++;
+    }
+    return { ctWins: ct, tWins: t };
+  }, [result?.rounds]);
+
   const cfg = STATUS_CONFIG[status];
+  const showDone = status === "done" && coachingSettled;
 
   return (
-    <div className="min-h-screen px-6 py-16 relative" style={{ background: "#080E1A" }}>
-      <CloudMotifBg />
+    <div className="min-h-screen px-6 py-16 relative" style={{ background: "var(--color-bg-primary)" }}>
       <div className="relative max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-10">
-          <SoyomboIcon size={36} color="#C9A227" />
-          <div>
-            <h1 className="heading-display" style={{ fontSize: "1.6rem" }}>
-              {result?.map ?? "Demo Analysis"}
-            </h1>
-            <div className="flex items-center gap-2 mt-1" style={{ color: cfg.color }}>
-              {cfg.icon}
-              <span style={{ fontSize: "0.875rem", fontWeight: 500 }}>{cfg.label}</span>
+        {/* Pre-report header (queued / processing / waiting / failed). The done
+            state renders its own match-debrief header below. */}
+        {!showDone && (
+          <>
+            <div className="flex items-center gap-4 mb-10">
+              <SoyomboIcon size={36} color="#C9A227" />
+              <div>
+                <h1 className="heading-display" style={{ fontSize: "1.6rem" }}>
+                  {result?.map ?? "Demo Analysis"}
+                </h1>
+                <div className="flex items-center gap-2 mt-1" style={{ color: cfg.color }}>
+                  {cfg.icon}
+                  <span style={{ fontSize: "0.875rem", fontWeight: 500 }}>{cfg.label}</span>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {result?.is_recon && (
-          <div className="mb-8 p-4 rounded-xl border border-[#C9A227]/30 bg-[#C9A227]/5 flex items-center gap-3">
-            <SoyomboIcon size={18} color="#C9A227" className="animate-pulse" />
-            <div className="text-left">
-              <h3 className="text-xs font-bold text-[#C9A227] uppercase tracking-wider font-mono">Ilchi Spy Scan Enabled</h3>
-              <p className="text-[11px] text-[#8BA7CC] mt-0.5">Opposition intelligence compiled. Standard Steam ID constraints bypassed.</p>
-            </div>
+            {result?.is_recon && (
+              <div className="mb-8 p-4 rounded-xl border border-[#C9A227]/30 bg-[#C9A227]/5 flex items-center gap-3">
+                <SoyomboIcon size={18} color="#C9A227" />
+                <div className="text-left">
+                  <h3 className="text-xs font-bold text-[#C9A227] uppercase tracking-wider font-mono">Ilchi Spy Scan Enabled</h3>
+                  <p className="text-[11px] text-[#8BA7CC] mt-0.5">Opposition intelligence compiled. Standard Steam ID constraints bypassed.</p>
+                </div>
+              </div>
+            )}
+
+            <UlziiBorder className="mb-10" />
+          </>
+        )}
+
+        {/* Waiting state — THE signature moment. The Soyombo mark assembles
+            stage by stage; nothing else on this screen moves. Covers parse
+            (queued/processing) AND the coaching wait after parse completes. */}
+        {(status === "queued" || status === "processing" || waitingForCoaching) && (
+          <div
+            className="card flex flex-col items-center justify-center gap-8 p-12 text-center"
+            style={{ minHeight: 480 }}
+          >
+            <h2 className="heading-display" style={{ fontSize: "1.5rem" }}>
+              The Khan is studying your demo
+            </h2>
+
+            <SoyomboProgress
+              stage={soyomboStage}
+              size={140}
+              detail={`Elapsed ${formatTime(elapsedSeconds)} · est. ~2.5 min total`}
+            />
+
+            {/* Escape hatch — shows after 3 min stuck */}
+            {elapsedSeconds > 180 && (
+              <div
+                className="w-full max-w-md p-4 rounded-xl flex flex-col items-center gap-3"
+                style={{
+                  border: "1px solid color-mix(in srgb, var(--color-warning) 30%, transparent)",
+                  background: "color-mix(in srgb, var(--color-warning) 5%, transparent)",
+                }}
+              >
+                <p className="text-xs text-center" style={{ color: "var(--color-warning)" }}>
+                  Taking longer than expected? The analysis may already be ready.
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    id="force-view-results-btn"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setCoachingSettled(true);
+                      setResult(prev => prev ? { ...prev, status: "done" } : prev);
+                    }}
+                  >
+                    View results now
+                  </Button>
+                  <Button id="reload-page-btn" size="sm" variant="ghost" onClick={() => window.location.reload()}>
+                    Retry
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        <UlziiBorder className="mb-10" />
-
-        {(status === "queued" || status === "processing") && (
-          <div className="card p-12 text-center relative overflow-hidden animate-pulse-glow" style={{ minHeight: 480, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            {/* Background Video */}
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover opacity-25 pointer-events-none"
-            >
-              <source src="https://cdn.pixabay.com/video/2021/08/04/83951-584742749_large.mp4" type="video/mp4" />
-              <source src="https://assets.mixkit.co/videos/preview/mixkit-smoke-in-the-dark-4848-large.mp4" type="video/mp4" />
-            </video>
-            <div className="absolute inset-0" style={{ background: "radial-gradient(circle at center, rgba(13,24,37,0.3) 0%, #0D1825 100%)" }} />
-
-            {/* Glowing Ulzii Motif Border Overlay */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#2D7DD2] to-transparent animate-pulse" />
-
-            {/* Content Container */}
-            <div className="relative z-10 space-y-8 flex flex-col items-center">
-              
-              {/* Pulsing Soyombo/Spinner Combo */}
-              <div className="relative flex items-center justify-center">
-                <div className="w-24 h-24 rounded-full border-4 border-slate-800 border-t-[#2D7DD2] border-r-[#FF4D6D] animate-spin" />
-                <div className="absolute animate-float">
-                  <SoyomboIcon size={42} color="#C9A227" className="animate-pulse" />
-                </div>
-              </div>
-
-              {/* Dynamic Loader Stage & Stage Progress */}
-              <div>
-                <span className="text-[10px] bg-[#2D7DD2]/10 border border-[#2D7DD2]/20 px-3 py-1 rounded-full text-[#2D7DD2] uppercase tracking-widest font-extrabold font-mono mb-2 inline-block">
-                  Stage: {loaderStage.title}
-                </span>
-                <h2 className="heading-display mt-2 mb-2" style={{ fontSize: "1.5rem" }}>
-                  The Khan is reading your demo…
-                </h2>
-                <p className="text-slate-400 text-sm max-w-md mx-auto">
-                  {loaderStage.description}
-                </p>
-              </div>
-
-              {/* Smart Progress Bar & Counters */}
-              <div className="w-full max-w-md space-y-2">
-                <div className="flex justify-between text-xs font-bold text-slate-400 font-mono">
-                  <span>Progress: {progressPercent}%</span>
-                  <span className="flex items-center gap-1.5">
-                    <Clock size={12} className="text-[#2D7DD2] animate-pulse" />
-                    Elapsed: {formatTime(elapsedSeconds)}
-                  </span>
-                </div>
-                <div className="w-full h-2.5 rounded-full bg-slate-950/60 overflow-hidden border border-white/5 p-0.5">
-                  <div 
-                    className="h-full rounded-full transition-all duration-1000 ease-out"
-                    style={{
-                      width: `${progressPercent}%`,
-                      background: "linear-gradient(90deg, #1B4F8A 0%, #2D7DD2 50%, #FF4D6D 100%)",
-                      boxShadow: "0 0 10px rgba(45,125,210,0.5)"
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-500 font-medium italic">
-                  <span>*Parsing time depends on demo size</span>
-                  <span>Est: ~2.5 mins total</span>
-                </div>
-              </div>
-
-              {/* Escape hatch — shows after 3 min stuck */}
-              {elapsedSeconds > 180 && (
-                <div className="w-full max-w-md p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 flex flex-col items-center gap-3">
-                  <p className="text-xs text-amber-400/90 text-center">
-                    Taking longer than expected? The analysis may already be ready.
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      id="force-view-results-btn"
-                      onClick={() => setResult(prev => prev ? { ...prev, status: "done" } : prev)}
-                      className="text-xs px-4 py-2 rounded-lg font-semibold"
-                      style={{ backgroundColor: "rgba(45,125,210,0.15)", border: "1px solid rgba(45,125,210,0.4)", color: "#5BA3E8" }}
-                    >
-                      View Results Now
-                    </button>
-                    <button
-                      id="reload-page-btn"
-                      onClick={() => window.location.reload()}
-                      className="text-xs px-4 py-2 rounded-lg font-semibold"
-                      style={{ backgroundColor: "rgba(255,77,109,0.1)", border: "1px solid rgba(255,77,109,0.3)", color: "#FF4D6D" }}
-                    >
-                      Retry
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Tips Carousel */}
-              <div 
-                key={tipIndex} 
-                className="animate-fade-in-up flex flex-col items-center gap-2 max-w-lg w-full p-4 rounded-xl bg-slate-950/65 border border-white/5 backdrop-blur-md"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-slate-900 border border-white/10 shrink-0">
-                    {COACHING_TIPS[tipIndex].icon}
-                  </div>
-                  <span className="text-[9px] text-[#C9A227] uppercase tracking-widest font-extrabold font-mono">
-                    Khan&apos;s Wisdom
-                  </span>
-                </div>
-                <p className="text-xs italic text-slate-200 px-3 text-center leading-relaxed">
-                  &ldquo;{COACHING_TIPS[tipIndex].quote}&rdquo;
-                </p>
-                <span className="text-[9px] text-slate-500 font-mono tracking-wider">
-                  &mdash; {COACHING_TIPS[tipIndex].author}
-                </span>
-              </div>
-
-            </div>
+        {/* Invisible pre-mount: keeps the coaching poll running while the
+            waiting screen shows stages 2–3, so stage 4 flips the report in. */}
+        {waitingForCoaching && (
+          <div hidden aria-hidden="true">
+            <CoachingPanel matchId={jobId} onCoachingState={handleCoachingState} />
           </div>
         )}
 
@@ -3286,10 +3247,101 @@ export default function AnalysisPage() {
           </div>
         )}
 
-        {status === "done" && result && (
-          <div className="space-y-6 animate-fade-in-up">
+        {showDone && result && (
+          <PageTransition className="space-y-6">
+            {/* Match debrief header */}
+            <PageSection>
+              <header>
+                <p
+                  className="text-[10px] font-bold uppercase tracking-[0.2em]"
+                  style={{ fontFamily: "var(--font-mono)", color: "var(--color-accent-secondary)" }}
+                >
+                  Match debrief
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <h1 className="heading-display" style={{ fontSize: "1.8rem" }}>
+                    {result.map ?? "Demo Analysis"}
+                  </h1>
+                  {(ctWins > 0 || tWins > 0) && (
+                    <span
+                      className="text-lg font-bold"
+                      style={{ fontFamily: "var(--font-mono)" }}
+                      title="Final score (CT–T)"
+                    >
+                      <span style={{ color: "var(--color-ct)" }}>CT {ctWins}</span>
+                      <span style={{ color: "var(--color-text-muted)" }}> – </span>
+                      <span style={{ color: "var(--color-danger)" }}>{tWins} T</span>
+                    </span>
+                  )}
+                  {reportGrade && (
+                    <span
+                      className="rounded-md px-2.5 py-0.5 text-base font-bold"
+                      style={{
+                        fontFamily: "var(--font-heading)",
+                        color: "var(--color-accent-secondary)",
+                        border: "1px solid var(--color-border-secondary)",
+                        background: "var(--color-secondary-soft)",
+                      }}
+                      title="Great Khan grade"
+                    >
+                      {reportGrade}
+                    </span>
+                  )}
+                  {result.is_recon && (
+                    <span
+                      className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        color: "var(--color-accent-secondary)",
+                        border: "1px solid var(--color-accent-secondary)",
+                      }}
+                    >
+                      Recon
+                    </span>
+                  )}
+                  {result.created_at && (
+                    <span
+                      className="ml-auto text-xs"
+                      style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-muted)" }}
+                    >
+                      {new Date(result.created_at).toLocaleDateString(undefined, {
+                        year: "numeric", month: "short", day: "numeric",
+                      })}
+                    </span>
+                  )}
+                </div>
+                <UlziiBorder className="mt-5" />
+              </header>
+            </PageSection>
+
+            {/* Section nav — plain anchors, sticky under the navbar */}
+            <PageSection>
+              <nav
+                aria-label="Report sections"
+                className="sticky top-16 z-20 flex items-center gap-6 rounded-lg px-4 py-2.5 backdrop-blur-md"
+                style={{
+                  background: "color-mix(in srgb, var(--color-bg-primary) 82%, transparent)",
+                  border: "1px solid var(--color-border-primary)",
+                }}
+              >
+                {[
+                  ["#report", "Report"],
+                  ["#replay", "Replay"],
+                  ["#rounds", "Rounds"],
+                ].map(([href, label]) => (
+                  <a
+                    key={href}
+                    href={href}
+                    className="text-[11px] font-mono uppercase tracking-widest transition-colors text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  >
+                    {label}
+                  </a>
+                ))}
+              </nav>
+            </PageSection>
+
             {/* Stat cards */}
-            <div className="grid grid-cols-3 gap-4">
+            <PageSection className="grid grid-cols-3 gap-4">
               {[
                 { icon: Layers,    label: "Rounds",   value: result.total_rounds ?? 0 },
                 { icon: Crosshair, label: "Kills",    value: result.total_kills ?? 0 },
@@ -3304,29 +3356,43 @@ export default function AnalysisPage() {
                   <div style={{ color: "#8BA7CC", fontSize: "0.8rem", marginTop: 2 }}>{label}</div>
                 </div>
               ))}
-            </div>
+            </PageSection>
 
-            {/* AI Coaching Panel */}
-            <CoachingPanel matchId={jobId} />
+            {/* AI Coaching Panel — the #report anchor */}
+            <PageSection>
+              <section id="report" style={{ scrollMarginTop: 120 }}>
+                <CoachingPanel
+                  matchId={jobId}
+                  onFindingRound={handleFindingRound}
+                  onCoachingState={handleCoachingState}
+                />
+              </section>
+            </PageSection>
 
-            {/* Round Timeline */}
+            {/* Round Timeline — the #rounds anchor */}
             {result.rounds && result.rounds.length > 0 && (
-              <RoundTimeline
-                rounds={result.rounds}
-                selectedRound={selectedRound}
-                onSelectRound={setSelectedRound}
-                team1Name={team1Name}
-                team2Name={team2Name}
-              />
+              <PageSection>
+                <section id="rounds" style={{ scrollMarginTop: 120 }}>
+                  <RoundTimeline
+                    rounds={result.rounds}
+                    selectedRound={selectedRound}
+                    onSelectRound={setSelectedRound}
+                    team1Name={team1Name}
+                    team2Name={team2Name}
+                  />
+                </section>
+              </PageSection>
             )}
 
             {/* Match Stats Panel */}
-            <MatchStatsPanel
-              stats={result.player_stats || {}}
-              result={result}
-              selectedRound={selectedRound}
-              onSelectRound={setSelectedRound}
-            />
+            <PageSection>
+              <MatchStatsPanel
+                stats={result.player_stats || {}}
+                result={result}
+                selectedRound={selectedRound}
+                onSelectRound={setSelectedRound}
+              />
+            </PageSection>
 
             {/* Filtered kills calculation for Heatmap and Feed */}
             {(() => {
@@ -3361,9 +3427,10 @@ export default function AnalysisPage() {
 
               return (
                 <>
-                  {/* Replay Viewer Toggle */}
+                  {/* Replay Viewer Toggle — the #replay anchor */}
                   {result.kills && result.kills.length > 0 && (
-                    <div className="card p-0 overflow-hidden mb-6">
+                    <PageSection>
+                    <section id="replay" style={{ scrollMarginTop: 120 }} className="card p-0 overflow-hidden mb-6">
                       <div className="border-b border-slate-800 p-4 flex items-center justify-between">
                         <div>
                           <h2 className="heading-display mb-1" style={{ fontSize: "1.1rem" }}>Kill Replay Viewer</h2>
@@ -3417,12 +3484,13 @@ export default function AnalysisPage() {
                           </div>
                         )}
                       </div>
-                    </div>
+                    </section>
+                    </PageSection>
                   )}
 
                   {/* Kill Feed */}
                   {result.kills && result.kills.length > 0 && (
-                    <div className="card p-6">
+                    <PageSection className="card p-6">
                       <h2 className="heading-display mb-4" style={{ fontSize: "1.1rem" }}>Kill Feed</h2>
                       <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
                         {filteredKills.slice(0, 50).map((k, i) => {
@@ -3446,7 +3514,7 @@ export default function AnalysisPage() {
                           );
                         })}
                       </div>
-                    </div>
+                    </PageSection>
                   )}
                 </>
               );
@@ -3454,15 +3522,17 @@ export default function AnalysisPage() {
 
             {/* Economy Chart */}
             {result.rounds && result.rounds.length > 0 && (
-              <EconomyChart
-                rounds={result.rounds}
-                selectedRound={selectedRound}
-                onSelectRound={setSelectedRound}
-                team1Name={team1Name}
-                team2Name={team2Name}
-              />
+              <PageSection>
+                <EconomyChart
+                  rounds={result.rounds}
+                  selectedRound={selectedRound}
+                  onSelectRound={setSelectedRound}
+                  team1Name={team1Name}
+                  team2Name={team2Name}
+                />
+              </PageSection>
             )}
-          </div>
+          </PageTransition>
         )}
       </div>
     </div>

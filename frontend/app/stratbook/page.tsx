@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import CS2PlanningBoard, { CS2PlanningBoardRef } from "../../components/CS2PlanningBoard";
 import { DiscordSyncSidebar } from "../../components/stratbook/DiscordSyncSidebar";
+import { PageSection, PageTransition } from "@/components/ui";
 import { Save, Bot } from "lucide-react";
 
 interface Team {
@@ -93,15 +94,24 @@ export default function StratbookPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        
+    <div className="min-h-screen p-8" style={{ background: "var(--color-bg-primary)" }}>
+      <PageTransition className="max-w-7xl mx-auto space-y-6">
+
+        <PageSection>
         <header className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">
-              DemoSage Stratbook
+            <span
+              className="text-[10px] font-bold uppercase tracking-[0.2em]"
+              style={{ fontFamily: "var(--font-mono)", color: "var(--color-accent-secondary)" }}
+            >
+              Team playbook
+            </span>
+            <h1 className="section-heading mt-1" style={{ fontSize: "1.6rem" }}>
+              Stratbook
             </h1>
-            <p className="text-slate-400 mt-1">Design and validate your custom CS2 setups.</p>
+            <p className="mt-1 text-sm" style={{ color: "var(--color-text-secondary)" }}>
+              Design and validate your custom CS2 setups.
+            </p>
           </div>
 
           <div className="flex items-center gap-4">
@@ -127,8 +137,9 @@ export default function StratbookPage() {
             </button>
           </div>
         </header>
+        </PageSection>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <PageSection className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="col-span-2">
             <CS2PlanningBoard ref={boardRef} selectedMap={map} />
           </div>
@@ -156,11 +167,11 @@ export default function StratbookPage() {
               </div>
             </div>
           </div>
-        </div>
+        </PageSection>
 
         {/* Team stratbook — server-synced strats with Discord status. */}
         {teams.length > 0 && (
-          <section className="space-y-4">
+          <PageSection className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">Team Stratbook</h2>
               <select
@@ -176,10 +187,10 @@ export default function StratbookPage() {
               </select>
             </div>
             <DiscordSyncSidebar teamId={teamId} />
-          </section>
+          </PageSection>
         )}
 
-      </div>
+      </PageTransition>
     </div>
   );
 }
