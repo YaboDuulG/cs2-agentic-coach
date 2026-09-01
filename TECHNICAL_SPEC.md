@@ -701,7 +701,7 @@ SHARED / UTILITY
 | `qdrant-quota-check.yml` | Nightly 03:00 UTC | Check vector counts, alert at 8M threshold |
 | `meta-snapshot.yml` | Weekly Mon 06:00 UTC | Generate weekly meta summary from pro matches |
 | `docker-build.yml` | Push to `main` | Build and push Go microservice images |
-| `deploy-staging.yml` | Push to `staging` | Deploy full stack to staging |
+| `deploy-staging.yml` | Push to `main` | Deploy full stack to the staging Cloud Run env (staging *branch* retired 2026-09) |
 | `deploy-prod.yml` | Release tag | Deploy to production with smoke tests |
 
 ---

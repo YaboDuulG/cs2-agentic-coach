@@ -62,16 +62,17 @@ Set `LOCAL_MODE=true` in `.env` to skip GCS and Cloud Tasks.
 
 ## Git workflow
 
-Work flows through three tiers: **a working (clean-up) branch → `staging` → `main`.**
+Two tiers: **a working (clean-up) branch → `main`.** (The `staging` *branch* was
+retired 2026-09; the staging *environment* on Cloud Run remains and now deploys
+from `main`.)
 
-- **Do development on a working branch, never directly on `staging` or `main`.** A
-  short-lived clean-up/feature branch is where commits happen.
-- **Merge the working branch into `staging` when it's ready.** `staging` is the
-  integration branch — the place changes come together and get exercised.
-- **Promote `staging` to `main` only after the work is verified on `staging`** and the
-  checks in the Commands section pass. `main` is the release branch.
-- **If `staging` or the working branch has fallen behind `main`, refresh it from `main`
-  first** (`git merge main`) so you build on current code.
+- **Do development on the working branch, never directly on `main`.** A short-lived
+  clean-up/feature branch is where commits happen.
+- **Merge to `main` only after the checks in the Commands section pass** on the
+  working branch and its CI run is green. `main` deploys (Cloud Run staging env via
+  deploy-staging.yml, Vercel production).
+- **If the working branch has fallen behind `main`, refresh it first**
+  (`git merge origin/main`) so the push to main stays fast-forward.
 - Same as everywhere: don't commit or push unless I ask. When I do, follow this path.
 
 <!-- Maintainer note: keep this under ~200 lines. Don't add anything derivable from the

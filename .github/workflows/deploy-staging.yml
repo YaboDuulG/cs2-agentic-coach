@@ -9,9 +9,11 @@
 
 name: Deploy — Cloud Run (Staging)
 
+# The staging *branch* is retired (workflow: working branch → main); this
+# deploys the staging Cloud Run environment from main.
 on:
   push:
-    branches: [staging]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
