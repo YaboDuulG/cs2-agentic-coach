@@ -422,11 +422,24 @@ def build_evidence_pack(
     for chunk in rag_context:
         add_example(None, chunk)
 
+    # Representative tick per round (the round's first contact) so report
+    # findings can carry a real tick — joined deterministically downstream,
+    # never invented by the LLM.
+    round_ticks: dict[int, int] = {}
+    try:
+        from db.models import FirstContact  # noqa: PLC0415
+
+        for fc in db.query(FirstContact).filter(FirstContact.match_id == match_id).all():
+            round_ticks[fc.round_num] = fc.tick
+    except Exception as e:
+        logger.warning(f"Could not load round ticks: {e}")
+
     pack = {
         "facts": facts,
         "baselines": baselines,
         "pro_examples": pro_examples,
         "flagged_rounds": flagged_rounds,
+        "round_ticks": round_ticks,
     }
     logger.info(
         f"[Evidence] match={match_id} facts={len(facts)} baselines={len(baselines)} "

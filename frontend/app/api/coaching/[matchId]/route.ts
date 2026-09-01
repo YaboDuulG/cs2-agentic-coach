@@ -10,12 +10,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ mat
   }
   const { matchId } = await params;
 
-  // Retrieve user's Steam ID from Clerk metadata
+  // Retrieve the user's Steam ID and plan from Clerk (server-side, trusted).
+  // The plan header drives server-side paywall redaction in the backend —
+  // publicMetadata is only writable via Clerk's backend API, never the client.
   let steamId = "";
+  let plan = "free";
   try {
     const clerk = await clerkClient();
     const user = await clerk.users.getUser(userId);
     steamId = (user.unsafeMetadata?.steam_id as string) ?? "";
+    plan = (user.publicMetadata?.plan as string) ?? "free";
   } catch (err) {
     console.error("Failed to fetch user metadata from Clerk:", err);
   }
@@ -26,6 +30,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ mat
       cache: "no-store",
       headers: {
         Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
+        "x-user-plan": plan,
       },
     }
   );
