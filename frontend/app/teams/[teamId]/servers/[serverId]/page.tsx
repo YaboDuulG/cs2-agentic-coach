@@ -25,6 +25,10 @@ import {
 } from "lucide-react";
 import { CloudMotifBg } from "@/components/patterns/mongolian";
 import { ServerControlPanel } from "@/components/ServerControlPanel";
+import { PhaseTimeline } from "@/components/stratbook/PhaseTimeline";
+import { PageSection, PageTransition, Spinner } from "@/components/ui";
+import { CanvasUtility } from "@/lib/api/client";
+import { useStratDetail, useStrats } from "@/lib/api/hooks";
 
 interface PracticeServer {
   id: string;
@@ -62,6 +66,160 @@ const MAPS = [
   { id: "de_anubis", name: "Anubis" },
   { id: "de_vertigo", name: "Vertigo" },
 ];
+
+// Same dot encoding as components/stratbook/StratCanvas.tsx.
+const UTILITY_DOT: Record<string, string> = {
+  smoke: "bg-slate-500",
+  flash: "bg-yellow-400",
+  he: "bg-orange-500",
+  molotov: "bg-red-600",
+};
+
+function UtilityRow({ util }: { util: CanvasUtility }) {
+  return (
+    <li
+      className="rounded-md border px-3 py-2"
+      style={{ background: "var(--color-bg-secondary)", borderColor: "var(--color-border-primary)" }}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-block h-2.5 w-2.5 rounded-full ${UTILITY_DOT[util.type] ?? "bg-slate-500"}`}
+          aria-hidden="true"
+        />
+        <span
+          className="text-[10px] font-bold uppercase tracking-wider"
+          style={{ color: "var(--color-text-primary)" }}
+        >
+          {util.type}
+        </span>
+        {util.callout && (
+          <span className="truncate text-xs" style={{ color: "var(--color-text-secondary)" }}>
+            {util.callout}
+          </span>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/**
+ * "Practice a strat" — the team's ACTIVE strats beside the live console.
+ * Uses PhaseTimeline + a compact utility list rather than StratCanvas:
+ * StratCanvas hardcodes a 3-column grid around the full planning board and
+ * doesn't fit a side column.
+ */
+function PracticeStratPanel({ teamId }: { teamId: string }) {
+  const strats = useStrats(teamId);
+  const [stratId, setStratId] = useState<string | null>(null);
+  const [stepIndex, setStepIndex] = useState(0);
+  const detail = useStratDetail(stratId);
+
+  const activeStrats = (strats.data ?? []).filter((s) => s.status === "ACTIVE");
+
+  const revisions = detail.data?.revisions ?? [];
+  const revision =
+    revisions.find((r) => r.id === detail.data?.current_revision_id) ??
+    revisions[revisions.length - 1] ??
+    null;
+  const steps = revision?.canvas?.steps ?? [];
+  const boundedIndex = Math.min(stepIndex, Math.max(0, steps.length - 1));
+  const step = steps[boundedIndex];
+
+  return (
+    <div
+      className="card p-5 h-fit"
+      style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}
+    >
+      <h2 className="heading-display mb-1" style={{ fontSize: "0.95rem" }}>
+        Practice a strat
+      </h2>
+      <p className="mb-4 text-xs" style={{ color: "var(--color-text-secondary)" }}>
+        Pick an active strat and run its steps on this server.
+      </p>
+
+      {strats.isPending ? (
+        <p className="flex items-center gap-2 text-xs" style={{ color: "var(--color-text-secondary)" }}>
+          <Spinner size={14} /> Loading strats…
+        </p>
+      ) : activeStrats.length === 0 ? (
+        <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+          No active strats yet. Approve one in the{" "}
+          <Link href="/stratbook" className="font-semibold text-[var(--color-accent-primary)] hover:text-[var(--color-text-primary)] transition-colors">
+            stratbook
+          </Link>
+          .
+        </p>
+      ) : (
+        <>
+          <select
+            aria-label="Active strat"
+            value={stratId ?? ""}
+            onChange={(e) => {
+              setStratId(e.target.value || null);
+              setStepIndex(0);
+            }}
+            className="w-full rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-accent-primary)]"
+            style={{
+              background: "var(--color-bg-secondary)",
+              border: "1px solid var(--color-border-primary)",
+              color: "var(--color-text-primary)",
+            }}
+          >
+            <option value="">Pick a strat…</option>
+            {activeStrats.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title} — {s.map_name}
+              </option>
+            ))}
+          </select>
+
+          {stratId && (
+            detail.isPending ? (
+              <p className="mt-4 flex items-center gap-2 text-xs" style={{ color: "var(--color-text-secondary)" }}>
+                <Spinner size={14} /> Loading strat…
+              </p>
+            ) : detail.isError || !detail.data ? (
+              <p className="mt-4 text-xs" style={{ color: "var(--color-danger)" }}>
+                Failed to load this strat.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <p
+                  className="text-[10px]"
+                  style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-muted)" }}
+                >
+                  {detail.data.map_name} · {detail.data.side} · {detail.data.buy_type.replace(/_/g, " ")}
+                </p>
+                <PhaseTimeline steps={steps} selectedStep={boundedIndex} onSelect={setStepIndex} />
+                {step && (
+                  <div>
+                    <p
+                      className="mb-2 text-[10px] font-bold uppercase tracking-wider"
+                      style={{ color: "var(--color-text-muted)" }}
+                    >
+                      Utility — {step.label}
+                    </p>
+                    {step.utility && step.utility.length > 0 ? (
+                      <ul className="space-y-2">
+                        {step.utility.map((util, i) => (
+                          <UtilityRow key={i} util={util} />
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                        No utility in this step.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function ServerDashboardPage() {
   const { teamId, serverId } = useParams<{ teamId: string; serverId: string }>();
@@ -283,9 +441,9 @@ export default function ServerDashboardPage() {
   const activeMap = MAPS.find(m => m.id === serverMap) || MAPS[0];
 
   return (
-    <div className="min-h-screen px-6 py-12" style={{ background: "#080E1A" }}>
+    <div className="min-h-screen px-6 py-12" style={{ background: "var(--color-bg-primary)" }}>
       <CloudMotifBg />
-      <div className="relative max-w-5xl mx-auto">
+      <div className="relative max-w-6xl mx-auto">
         
         {/* Navigation Breadcrumb */}
         <div className="flex items-center gap-2 mb-6 text-xs" style={{ color: "#4A6A8A" }}>
@@ -302,8 +460,8 @@ export default function ServerDashboardPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-20 gap-3">
-            <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#2D7DD2", borderTopColor: "transparent" }} />
-            <span style={{ color: "#8BA7CC" }} className="text-sm font-semibold">Retrieving server profile…</span>
+            <Spinner size={24} />
+            <span style={{ color: "var(--color-text-secondary)" }} className="text-sm font-semibold">Loading server…</span>
           </div>
         ) : !server || server.status === "terminated" ? (
           <div className="card p-10 text-center border-rose-500/20 bg-rose-500/5 max-w-md mx-auto mt-10">
@@ -320,31 +478,54 @@ export default function ServerDashboardPage() {
             </Link>
           </div>
         ) : (
-          <div className="space-y-6">
-            
-            {/* Dashboard Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-xl border border-white/10" style={{ background: "rgba(13,24,37,0.4)", backdropFilter: "blur(8px)" }}>
+          <PageTransition className="space-y-6">
+
+            {/* Header — standard page skeleton: eyebrow · display name · connect info */}
+            <PageSection className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-xl border bg-[var(--color-bg-card)] border-[var(--color-border-primary)] backdrop-blur-[8px]">
               <div className="flex items-start gap-4">
-                <div className="p-3.5 rounded-lg bg-[#2D7DD2]/10 border border-[#2D7DD2]/25 text-[#2D7DD2]">
+                <div className="p-3.5 rounded-lg" style={{ background: "var(--color-accent-soft)", border: "1px solid var(--color-border-primary)", color: "var(--color-accent-primary)" }}>
                   <Shield size={28} />
                 </div>
                 <div>
+                  <span
+                    className="text-[10px] font-bold uppercase tracking-[0.2em]"
+                    style={{ fontFamily: "var(--font-mono)", color: "var(--color-accent-secondary)" }}
+                  >
+                    Practice server
+                  </span>
                   <div className="flex items-center gap-3">
-                    <h1 className="text-xl font-black text-white tracking-wide uppercase">
-                      {serverName || "Zealous's server"}
+                    <h1 className="section-heading" style={{ fontSize: "1.4rem" }}>
+                      {serverName || `${activeMap.name} server`}
                     </h1>
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
-                      server.status === "active" 
-                        ? "bg-[#22D3A0]/15 text-[#22D3A0] border border-[#22D3A0]/20" 
-                        : "bg-yellow-500/15 text-yellow-500 border border-yellow-500/20"
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${server.status === "active" ? "bg-[#22D3A0]" : "bg-yellow-500"} animate-pulse`} />
-                      Server {server.status === "active" ? "On" : "Booting"}
+                    {/* Status is color-only: the chip transitions its colors, nothing pulses. */}
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider"
+                      style={{
+                        color: server.status === "active" ? "var(--color-success)" : "var(--color-warning)",
+                        background: `color-mix(in srgb, ${server.status === "active" ? "var(--color-success)" : "var(--color-warning)"} 12%, transparent)`,
+                        border: `1px solid color-mix(in srgb, ${server.status === "active" ? "var(--color-success)" : "var(--color-warning)"} 25%, transparent)`,
+                        transition: "color var(--dur-base) var(--ease-out), background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out)",
+                      }}
+                    >
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{
+                          background: server.status === "active" ? "var(--color-success)" : "var(--color-warning)",
+                          transition: "background-color var(--dur-base) var(--ease-out)",
+                        }}
+                      />
+                      {server.status === "active" ? "On" : "Booting"}
                     </span>
                   </div>
-                  <p className="text-xs text-[#8BA7CC] mt-1 leading-relaxed max-w-xl">
-                    Configure, manage, and monitor your team&apos;s on-demand practice server with real-time settings and configs.
-                  </p>
+                  {server.ip_address ? (
+                    <p className="mt-1 text-xs select-all" style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-secondary)" }}>
+                      connect {server.ip_address}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs leading-relaxed max-w-xl" style={{ color: "var(--color-text-secondary)" }}>
+                      Spinning up — the connect line appears when it&apos;s ready.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -371,7 +552,7 @@ export default function ServerDashboardPage() {
                   {isStopping ? "Stopping..." : "Stop"}
                 </button>
               </div>
-            </div>
+            </PageSection>
 
             {/* Error notifications */}
             {serverError && (
@@ -381,7 +562,7 @@ export default function ServerDashboardPage() {
             )}
 
             {/* Stats Overview Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <PageSection className="grid grid-cols-1 md:grid-cols-3 gap-6">
               
               {/* Game IP Card */}
               <div className="card p-5 flex flex-col justify-between">
@@ -475,7 +656,12 @@ export default function ServerDashboardPage() {
                 </div>
               </div>
 
-            </div>
+            </PageSection>
+
+            {/* Tabs + content beside "Practice a strat" — strat steps stay
+                visible next to the live console while the team practices. */}
+            <PageSection className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div className="lg:col-span-2 space-y-6">
 
             {/* Tabs Toggle (Settings vs Configs) */}
             <div className="flex border-b border-white/10">
@@ -867,7 +1053,13 @@ export default function ServerDashboardPage() {
             )}
             </div>
 
-          </div>
+            </div>
+
+            {/* Practice a strat — beside the console */}
+            <PracticeStratPanel teamId={teamId as string} />
+            </PageSection>
+
+          </PageTransition>
         )}
 
       </div>

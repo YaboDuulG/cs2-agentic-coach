@@ -5,10 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import {
-  ArrowLeft, Server, ChevronRight, MapPin, Clock, AlertTriangle,
-  Search, Crosshair, Shield, Zap, Target, Eye, BookOpen,
+  ArrowLeft, Server, ChevronRight, AlertTriangle,
+  Search, Crosshair, Shield, Zap, Target, Eye,
   RotateCcw, Dumbbell, Flame, Layers, Star
 } from "lucide-react";
+import { PageSection, PageTransition } from "@/components/ui";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -183,7 +184,7 @@ export default function TrainingPage() {
   const [updateWindowActive, setUpdateWindowActive] = useState(false);
   const [updateDetail, setUpdateDetail] = useState<string>("");
   const [server, setServer] = useState<ServerInfo | null>(null);
-  const [loadingServer, setLoadingServer] = useState(true);
+  const [, setLoadingServer] = useState(true);
   const [copied, setCopied] = useState<"connect" | "pass" | null>(null);
   const [activeTab, setActiveTab] = useState<"modes" | "stats">("modes");
   const [stats, setStats] = useState<TrainingStats | null>(null);
@@ -300,29 +301,20 @@ export default function TrainingPage() {
   return (
     <div style={{
       minHeight: "100vh",
-      backgroundColor: "#080E1A",
-      color: "#F0F4FF",
+      backgroundColor: "var(--color-bg-primary)",
+      color: "var(--color-text-primary)",
       fontFamily: "var(--font-inter, Inter, sans-serif)",
     }}>
+    <PageTransition>
 
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div style={{
-        backgroundColor: "#0D1825",
-        borderBottom: "1px solid #1E3A5F",
-        padding: "16px 24px",
-        display: "flex",
-        alignItems: "center",
-        gap: "16px",
-        position: "sticky",
-        top: 0,
-        zIndex: 50,
-      }}>
+      {/* ── Header — standard skeleton: eyebrow · display title · one-liner ── */}
+      <PageSection className="sticky top-0 z-50 flex items-center gap-4 border-b bg-[var(--color-bg-secondary)] border-[var(--color-border-primary)] px-6 py-4">
         <button
           onClick={() => router.push(`/teams/${teamId}`)}
           style={{
             background: "none",
             border: "none",
-            color: "#8BA7CC",
+            color: "var(--color-text-secondary)",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
@@ -336,17 +328,23 @@ export default function TrainingPage() {
         </button>
 
         <div style={{ flex: 1 }}>
-          <h1 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#F0F4FF" }}>
-            Training Server
+          <span
+            className="block text-[10px] font-bold uppercase tracking-[0.2em]"
+            style={{ fontFamily: "var(--font-mono)", color: "var(--color-accent-secondary)" }}
+          >
+            Team training
+          </span>
+          <h1 className="section-heading" style={{ margin: 0, fontSize: "1.15rem" }}>
+            Training server
           </h1>
-          <p style={{ margin: 0, fontSize: "13px", color: "#8BA7CC", marginTop: "2px" }}>
-            Launch a unified training server with access to all training modes: Defense, Prefire, and Grenade practice.
+          <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-secondary)", marginTop: "2px" }}>
+            Spin up a server for any training mode — defense, prefire, grenades, and more.
           </p>
         </div>
 
         {/* Search */}
         <div style={{ position: "relative", width: "220px" }}>
-          <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#8BA7CC" }} />
+          <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-secondary)" }} />
           <input
             id="training-search"
             value={search}
@@ -355,24 +353,25 @@ export default function TrainingPage() {
             style={{
               width: "100%",
               padding: "8px 8px 8px 32px",
-              backgroundColor: "#142135",
-              border: "1px solid #1E3A5F",
+              backgroundColor: "var(--color-bg-secondary)",
+              border: "1px solid var(--color-border-primary)",
               borderRadius: "8px",
-              color: "#F0F4FF",
+              color: "var(--color-text-primary)",
               fontSize: "13px",
               outline: "none",
             }}
           />
         </div>
-      </div>
+      </PageSection>
 
+      <PageSection>
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 24px 80px" }}>
 
         {/* ── Update Window Banner ─────────────────────────────── */}
         {updateWindowActive && (
           <div style={{
-            backgroundColor: "rgba(245, 158, 11, 0.12)",
-            border: "1px solid rgba(245, 158, 11, 0.4)",
+            backgroundColor: "color-mix(in srgb, var(--color-warning) 12%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-warning) 40%, transparent)",
             borderRadius: "10px",
             padding: "12px 16px",
             marginBottom: "20px",
@@ -380,10 +379,10 @@ export default function TrainingPage() {
             gap: "12px",
             alignItems: "flex-start",
           }}>
-            <AlertTriangle size={18} style={{ color: "#F59E0B", flexShrink: 0, marginTop: "1px" }} />
+            <AlertTriangle size={18} style={{ color: "var(--color-warning)", flexShrink: 0, marginTop: "1px" }} />
             <div>
-              <div style={{ fontWeight: 600, color: "#F59E0B", fontSize: "14px" }}>CS2 Update In Progress</div>
-              <div style={{ color: "#8BA7CC", fontSize: "13px", marginTop: "2px" }}>
+              <div style={{ fontWeight: 600, color: "var(--color-warning)", fontSize: "14px" }}>CS2 Update In Progress</div>
+              <div style={{ color: "var(--color-text-secondary)", fontSize: "13px", marginTop: "2px" }}>
                 {updateDetail || "A CS2 update was recently released. Server provisioning is paused while DatHost applies the update (~2h window). Try again shortly."}
               </div>
             </div>
@@ -393,8 +392,8 @@ export default function TrainingPage() {
         {/* ── Active Server Banner ─────────────────────────────── */}
         {server && (
           <div style={{
-            backgroundColor: "rgba(34, 211, 160, 0.08)",
-            border: "1px solid rgba(34, 211, 160, 0.3)",
+            backgroundColor: "color-mix(in srgb, var(--color-success) 8%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-success) 30%, transparent)",
             borderRadius: "12px",
             padding: "16px 20px",
             marginBottom: "20px",
@@ -403,11 +402,11 @@ export default function TrainingPage() {
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <div style={{
                   width: "8px", height: "8px", borderRadius: "50%",
-                  backgroundColor: "#22D3A0",
-                  boxShadow: "0 0 8px rgba(34, 211, 160, 0.6)",
+                  backgroundColor: "var(--color-success)",
+                  boxShadow: "0 0 8px color-mix(in srgb, var(--color-success) 60%, transparent)",
                   animation: "pulse 2s infinite",
                 }} />
-                <span style={{ fontWeight: 700, color: "#22D3A0", fontSize: "15px" }}>
+                <span style={{ fontWeight: 700, color: "var(--color-success)", fontSize: "15px" }}>
                   Server Active — {TRAINING_MODES.find(m => m.key === server.mode)?.label || server.mode}
                 </span>
               </div>
@@ -417,10 +416,10 @@ export default function TrainingPage() {
                 disabled={spinning}
                 style={{
                   padding: "6px 14px",
-                  backgroundColor: "rgba(255, 77, 109, 0.15)",
-                  border: "1px solid rgba(255, 77, 109, 0.4)",
+                  backgroundColor: "color-mix(in srgb, var(--color-danger) 15%, transparent)",
+                  border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
                   borderRadius: "6px",
-                  color: "#FF4D6D",
+                  color: "var(--color-danger)",
                   fontSize: "13px",
                   cursor: spinning ? "not-allowed" : "pointer",
                   fontWeight: 600,
@@ -432,8 +431,8 @@ export default function TrainingPage() {
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               {server.ip_address && (
                 <div style={{
-                  backgroundColor: "#0D1825",
-                  border: "1px solid #1E3A5F",
+                  backgroundColor: "var(--color-bg-card)",
+                  border: "1px solid var(--color-border-primary)",
                   borderRadius: "8px",
                   padding: "10px 14px",
                   display: "flex",
@@ -442,20 +441,20 @@ export default function TrainingPage() {
                   flex: 1,
                   minWidth: "200px",
                 }}>
-                  <Server size={14} style={{ color: "#5BA3E8" }} />
-                  <span style={{ fontSize: "13px", color: "#8BA7CC" }}>connect</span>
-                  <code style={{ fontSize: "13px", color: "#F0F4FF", flex: 1 }}>{server.ip_address}</code>
+                  <Server size={14} style={{ color: "var(--color-accent-electric)" }} />
+                  <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>connect</span>
+                  <code style={{ fontSize: "13px", color: "var(--color-text-primary)", flex: 1 }}>{server.ip_address}</code>
                   <button
                     onClick={() => copyText(`connect ${server.ip_address}; password ${server.server_password}`, "connect")}
-                    style={{ background: "none", border: "none", color: copied === "connect" ? "#22D3A0" : "#8BA7CC", cursor: "pointer", fontSize: "12px" }}
+                    style={{ background: "none", border: "none", color: copied === "connect" ? "var(--color-success)" : "var(--color-text-secondary)", cursor: "pointer", fontSize: "12px" }}
                   >
                     {copied === "connect" ? "✓ Copied" : "Copy"}
                   </button>
                 </div>
               )}
               <div style={{
-                backgroundColor: "#0D1825",
-                border: "1px solid #1E3A5F",
+                backgroundColor: "var(--color-bg-card)",
+                border: "1px solid var(--color-border-primary)",
                 borderRadius: "8px",
                 padding: "10px 14px",
                 display: "flex",
@@ -463,11 +462,11 @@ export default function TrainingPage() {
                 gap: "10px",
                 minWidth: "180px",
               }}>
-                <span style={{ fontSize: "13px", color: "#8BA7CC" }}>Password</span>
-                <code style={{ fontSize: "13px", color: "#F0F4FF" }}>{server.server_password}</code>
+                <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>Password</span>
+                <code style={{ fontSize: "13px", color: "var(--color-text-primary)" }}>{server.server_password}</code>
                 <button
                   onClick={() => copyText(server.server_password, "pass")}
-                  style={{ background: "none", border: "none", color: copied === "pass" ? "#22D3A0" : "#8BA7CC", cursor: "pointer", fontSize: "12px" }}
+                  style={{ background: "none", border: "none", color: copied === "pass" ? "var(--color-success)" : "var(--color-text-secondary)", cursor: "pointer", fontSize: "12px" }}
                 >
                   {copied === "pass" ? "✓" : "Copy"}
                 </button>
@@ -479,8 +478,8 @@ export default function TrainingPage() {
         {/* ── Launch Bar ───────────────────────────────────────── */}
         {!server && (
           <div style={{
-            backgroundColor: "#0D1825",
-            border: "1px solid #1E3A5F",
+            backgroundColor: "var(--color-bg-card)",
+            border: "1px solid var(--color-border-primary)",
             borderRadius: "12px",
             padding: "16px 20px",
             marginBottom: "24px",
@@ -495,8 +494,8 @@ export default function TrainingPage() {
               alignItems: "center",
               gap: "8px",
               padding: "8px 14px",
-              backgroundColor: "#142135",
-              border: "1px solid #1E3A5F",
+              backgroundColor: "var(--color-bg-secondary)",
+              border: "1px solid var(--color-border-primary)",
               borderRadius: "8px",
               flex: "1",
               minWidth: "160px",
@@ -504,11 +503,11 @@ export default function TrainingPage() {
               {activeMode ? (
                 <>
                   {/* @ts-expect-error - LucideIcon expects size but TS inference fails here */}
-                  <activeMode.icon size={14} style={{ color: "#2D7DD2" }} />
-                  <span style={{ fontSize: "13px", color: "#F0F4FF" }}>{activeMode.label}</span>
+                  <activeMode.icon size={14} style={{ color: "var(--color-accent-primary)" }} />
+                  <span style={{ fontSize: "13px", color: "var(--color-text-primary)" }}>{activeMode.label}</span>
                 </>
               ) : (
-                <span style={{ fontSize: "13px", color: "#8BA7CC" }}>← Select a mode below</span>
+                <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>← Select a mode below</span>
               )}
             </div>
 
@@ -519,10 +518,10 @@ export default function TrainingPage() {
               onChange={(e) => setRegion(e.target.value)}
               style={{
                 padding: "8px 12px",
-                backgroundColor: "#142135",
-                border: "1px solid #1E3A5F",
+                backgroundColor: "var(--color-bg-secondary)",
+                border: "1px solid var(--color-border-primary)",
                 borderRadius: "8px",
-                color: "#F0F4FF",
+                color: "var(--color-text-primary)",
                 fontSize: "13px",
                 cursor: "pointer",
                 outline: "none",
@@ -540,10 +539,10 @@ export default function TrainingPage() {
               onChange={(e) => setMap(e.target.value)}
               style={{
                 padding: "8px 12px",
-                backgroundColor: "#142135",
-                border: "1px solid #1E3A5F",
+                backgroundColor: "var(--color-bg-secondary)",
+                border: "1px solid var(--color-border-primary)",
                 borderRadius: "8px",
-                color: "#F0F4FF",
+                color: "var(--color-text-primary)",
                 fontSize: "13px",
                 cursor: "pointer",
                 outline: "none",
@@ -561,10 +560,10 @@ export default function TrainingPage() {
               disabled={!selectedMode || spinning || updateWindowActive}
               style={{
                 padding: "10px 24px",
-                backgroundColor: (!selectedMode || updateWindowActive) ? "#142135" : "#2D7DD2",
-                border: (!selectedMode || updateWindowActive) ? "1px solid #1E3A5F" : "none",
+                backgroundColor: (!selectedMode || updateWindowActive) ? "var(--color-bg-secondary)" : "var(--color-accent-primary)",
+                border: (!selectedMode || updateWindowActive) ? "1px solid var(--color-border-primary)" : "none",
                 borderRadius: "8px",
-                color: (!selectedMode || updateWindowActive) ? "#4A6A8A" : "#fff",
+                color: (!selectedMode || updateWindowActive) ? "var(--color-text-muted)" : "#fff",
                 fontSize: "14px",
                 fontWeight: 700,
                 cursor: (!selectedMode || spinning || updateWindowActive) ? "not-allowed" : "pointer",
@@ -591,12 +590,12 @@ export default function TrainingPage() {
         {/* Error message */}
         {error && (
           <div style={{
-            backgroundColor: "rgba(255, 77, 109, 0.1)",
-            border: "1px solid rgba(255, 77, 109, 0.3)",
+            backgroundColor: "color-mix(in srgb, var(--color-danger) 10%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-danger) 30%, transparent)",
             borderRadius: "8px",
             padding: "12px 16px",
             marginBottom: "16px",
-            color: "#FF4D6D",
+            color: "var(--color-danger)",
             fontSize: "13px",
           }}>
             {error}
@@ -604,7 +603,7 @@ export default function TrainingPage() {
         )}
 
         {/* ── Tabs ─────────────────────────────────────────────── */}
-        <div style={{ display: "flex", gap: "4px", marginBottom: "20px", borderBottom: "1px solid #1E3A5F", paddingBottom: "0" }}>
+        <div style={{ display: "flex", gap: "4px", marginBottom: "20px", borderBottom: "1px solid var(--color-border-primary)", paddingBottom: "0" }}>
           {(["modes", "stats"] as const).map((tab) => (
             <button
               key={tab}
@@ -618,8 +617,8 @@ export default function TrainingPage() {
                 padding: "10px 16px",
                 background: "none",
                 border: "none",
-                borderBottom: activeTab === tab ? "2px solid #2D7DD2" : "2px solid transparent",
-                color: activeTab === tab ? "#2D7DD2" : "#8BA7CC",
+                borderBottom: activeTab === tab ? "2px solid var(--color-accent-primary)" : "2px solid transparent",
+                color: activeTab === tab ? "var(--color-accent-primary)" : "var(--color-text-secondary)",
                 fontSize: "14px",
                 fontWeight: activeTab === tab ? 600 : 400,
                 cursor: "pointer",
@@ -656,14 +655,14 @@ export default function TrainingPage() {
                     borderRadius: "12px",
                     overflow: "hidden",
                     cursor: "pointer",
-                    border: isSelected ? "2px solid #2D7DD2" : "2px solid transparent",
+                    border: isSelected ? "2px solid var(--color-accent-primary)" : "2px solid transparent",
                     outline: "none",
                     textAlign: "left",
                     padding: 0,
                     background: "none",
                     transition: "border-color 0.2s, transform 0.15s",
                     transform: isSelected ? "scale(1.01)" : "scale(1)",
-                    boxShadow: isSelected ? "0 0 24px rgba(45,125,210,0.35)" : "none",
+                    boxShadow: isSelected ? "0 0 24px color-mix(in srgb, var(--color-accent-primary) 35%, transparent)" : "none",
                   }}
                 >
                   {/* Background image */}
@@ -681,8 +680,8 @@ export default function TrainingPage() {
                     position: "absolute",
                     inset: 0,
                     background: isSelected
-                      ? "linear-gradient(to top, rgba(4,20,50,0.92) 0%, rgba(4,20,50,0.5) 60%, rgba(45,125,210,0.08) 100%)"
-                      : "linear-gradient(to top, rgba(8,14,26,0.92) 0%, rgba(8,14,26,0.55) 60%, transparent 100%)",
+                      ? "linear-gradient(to top, color-mix(in srgb, var(--color-bg-secondary) 92%, transparent) 0%, color-mix(in srgb, var(--color-bg-secondary) 50%, transparent) 60%, color-mix(in srgb, var(--color-accent-primary) 8%, transparent) 100%)"
+                      : "linear-gradient(to top, color-mix(in srgb, var(--color-bg-primary) 92%, transparent) 0%, color-mix(in srgb, var(--color-bg-primary) 55%, transparent) 60%, transparent 100%)",
                     transition: "background 0.2s",
                   }} />
 
@@ -694,8 +693,8 @@ export default function TrainingPage() {
                     width: "32px",
                     height: "32px",
                     borderRadius: "50%",
-                    backgroundColor: isSelected ? "#2D7DD2" : "rgba(13,24,37,0.85)",
-                    border: "1px solid " + (isSelected ? "#5BA3E8" : "rgba(30,58,95,0.8)"),
+                    backgroundColor: isSelected ? "var(--color-accent-primary)" : "color-mix(in srgb, var(--color-bg-secondary) 85%, transparent)",
+                    border: "1px solid " + (isSelected ? "var(--color-accent-electric)" : "var(--color-border-strong)"),
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -703,7 +702,7 @@ export default function TrainingPage() {
                     backdropFilter: "blur(4px)",
                   }}>
                     {/* @ts-expect-error - LucideIcon expects size but TS inference fails here */}
-                    <Icon size={15} style={{ color: isSelected ? "#fff" : "#5BA3E8" }} />
+                    <Icon size={15} style={{ color: isSelected ? "#fff" : "var(--color-accent-electric)" }} />
                   </div>
 
                   {/* Label + arrow */}
@@ -720,7 +719,7 @@ export default function TrainingPage() {
                       <div style={{
                         fontSize: "15px",
                         fontWeight: 700,
-                        color: "#F0F4FF",
+                        color: "var(--color-text-primary)",
                         letterSpacing: "0.01em",
                         textShadow: "0 1px 4px rgba(0,0,0,0.8)",
                       }}>
@@ -731,10 +730,10 @@ export default function TrainingPage() {
                           <span key={tag} style={{
                             fontSize: "10px",
                             padding: "2px 6px",
-                            backgroundColor: "rgba(45,125,210,0.25)",
+                            backgroundColor: "color-mix(in srgb, var(--color-accent-primary) 25%, transparent)",
                             borderRadius: "4px",
-                            color: "#5BA3E8",
-                            border: "1px solid rgba(45,125,210,0.2)",
+                            color: "var(--color-accent-electric)",
+                            border: "1px solid color-mix(in srgb, var(--color-accent-primary) 20%, transparent)",
                           }}>{tag}</span>
                         ))}
                       </div>
@@ -743,7 +742,7 @@ export default function TrainingPage() {
                       width: "28px",
                       height: "28px",
                       borderRadius: "50%",
-                      backgroundColor: isSelected ? "#2D7DD2" : "rgba(30,58,95,0.6)",
+                      backgroundColor: isSelected ? "var(--color-accent-primary)" : "color-mix(in srgb, var(--color-bg-secondary) 60%, transparent)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -758,7 +757,7 @@ export default function TrainingPage() {
                   <div className="mode-hover-overlay" style={{
                     position: "absolute",
                     inset: 0,
-                    backgroundColor: "rgba(45,125,210,0)",
+                    backgroundColor: "transparent",
                     transition: "background-color 0.2s",
                     pointerEvents: "none",
                   }} />
@@ -772,11 +771,11 @@ export default function TrainingPage() {
         {activeTab === "stats" && (
           <div>
             {loadingStats ? (
-              <div style={{ textAlign: "center", padding: "40px", color: "#4A6A8A" }}>Loading stats…</div>
+              <div style={{ textAlign: "center", padding: "40px", color: "var(--color-text-muted)" }}>Loading stats…</div>
             ) : !stats || stats.total_sessions === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", color: "#4A6A8A" }}>
+              <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--color-text-muted)" }}>
                 <Target size={40} style={{ marginBottom: "16px", opacity: 0.4 }} />
-                <div style={{ fontSize: "16px", fontWeight: 600, color: "#8BA7CC" }}>No sessions yet</div>
+                <div style={{ fontSize: "16px", fontWeight: 600, color: "var(--color-text-secondary)" }}>No sessions yet</div>
                 <div style={{ fontSize: "13px", marginTop: "8px" }}>Start your first training session to see stats here.</div>
               </div>
             ) : (
@@ -792,42 +791,42 @@ export default function TrainingPage() {
                       : "—", icon: "⭐" },
                   ].map(({ label, value, icon }) => (
                     <div key={label} style={{
-                      backgroundColor: "#0D1825",
-                      border: "1px solid #1E3A5F",
+                      backgroundColor: "var(--color-bg-card)",
+                      border: "1px solid var(--color-border-primary)",
                       borderRadius: "10px",
                       padding: "14px 16px",
                     }}>
                       <div style={{ fontSize: "20px", marginBottom: "6px" }}>{icon}</div>
-                      <div style={{ fontSize: "20px", fontWeight: 700, color: "#F0F4FF" }}>{value}</div>
-                      <div style={{ fontSize: "11px", color: "#8BA7CC", marginTop: "2px" }}>{label}</div>
+                      <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary)" }}>{value}</div>
+                      <div style={{ fontSize: "11px", color: "var(--color-text-secondary)", marginTop: "2px" }}>{label}</div>
                     </div>
                   ))}
                 </div>
 
                 {/* Session history table */}
-                <div style={{ backgroundColor: "#0D1825", border: "1px solid #1E3A5F", borderRadius: "10px", overflow: "hidden" }}>
-                  <div style={{ padding: "12px 16px", borderBottom: "1px solid #1E3A5F", fontSize: "13px", fontWeight: 600, color: "#8BA7CC" }}>Session History</div>
+                <div style={{ backgroundColor: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)", borderRadius: "10px", overflow: "hidden" }}>
+                  <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-border-primary)", fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>Session History</div>
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                       <thead>
-                        <tr style={{ borderBottom: "1px solid #1E3A5F" }}>
+                        <tr style={{ borderBottom: "1px solid var(--color-border-primary)" }}>
                           {["Mode", "Map", "Region", "Date", "Duration", "Analysis"].map(h => (
-                            <th key={h} style={{ padding: "8px 16px", textAlign: "left", color: "#4A6A8A", fontWeight: 600, whiteSpace: "nowrap" }}>{h}</th>
+                            <th key={h} style={{ padding: "8px 16px", textAlign: "left", color: "var(--color-text-muted)", fontWeight: 600, whiteSpace: "nowrap" }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {stats.sessions.slice(0, 20).map((s) => (
-                          <tr key={s.id} style={{ borderBottom: "1px solid rgba(30,58,95,0.4)" }}>
-                            <td style={{ padding: "10px 16px", color: "#F0F4FF" }}>
+                          <tr key={s.id} style={{ borderBottom: "1px solid var(--color-border-primary)" }}>
+                            <td style={{ padding: "10px 16px", color: "var(--color-text-primary)" }}>
                               {TRAINING_MODES.find(m => m.key === s.mode)?.label ?? s.mode}
                             </td>
-                            <td style={{ padding: "10px 16px", color: "#8BA7CC", fontFamily: "monospace" }}>{s.map_name}</td>
-                            <td style={{ padding: "10px 16px", color: "#8BA7CC" }}>{s.region.toUpperCase()}</td>
-                            <td style={{ padding: "10px 16px", color: "#8BA7CC", whiteSpace: "nowrap" }}>
+                            <td style={{ padding: "10px 16px", color: "var(--color-text-secondary)", fontFamily: "monospace" }}>{s.map_name}</td>
+                            <td style={{ padding: "10px 16px", color: "var(--color-text-secondary)" }}>{s.region.toUpperCase()}</td>
+                            <td style={{ padding: "10px 16px", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>
                               {new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </td>
-                            <td style={{ padding: "10px 16px", color: s.duration_seconds ? "#22D3A0" : "#4A6A8A" }}>
+                            <td style={{ padding: "10px 16px", color: s.duration_seconds ? "var(--color-success)" : "var(--color-text-muted)" }}>
                               {s.duration_seconds
                                 ? `${Math.floor(s.duration_seconds / 60)}m ${s.duration_seconds % 60}s`
                                 : "—"}
@@ -839,7 +838,7 @@ export default function TrainingPage() {
                                   style={{
                                     background: "none",
                                     border: "none",
-                                    color: "#2D7DD2",
+                                    color: "var(--color-accent-primary)",
                                     cursor: "pointer",
                                     padding: 0,
                                     fontWeight: 600,
@@ -851,7 +850,7 @@ export default function TrainingPage() {
                                   View Analysis
                                 </button>
                               ) : (
-                                <span style={{ color: "#4A6A8A" }}>—</span>
+                                <span style={{ color: "var(--color-text-muted)" }}>—</span>
                               )}
                             </td>
                           </tr>
@@ -866,6 +865,8 @@ export default function TrainingPage() {
         )}
 
       </div>
+      </PageSection>
+    </PageTransition>
 
       {/* ── Global Styles ─────────────────────────────────────── */}
       <style>{`
@@ -877,10 +878,10 @@ export default function TrainingPage() {
           50% { opacity: 0.5; }
         }
         button[id^="mode-card-"]:hover .mode-hover-overlay {
-          background-color: rgba(45, 125, 210, 0.06) !important;
+          background-color: color-mix(in srgb, var(--color-accent-primary) 6%, transparent) !important;
         }
-        select option { background: #142135; }
-        input::placeholder { color: #4A6A8A; }
+        select option { background: var(--color-bg-secondary); }
+        input::placeholder { color: var(--color-text-muted); }
       `}</style>
     </div>
   );

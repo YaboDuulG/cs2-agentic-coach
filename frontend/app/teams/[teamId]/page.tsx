@@ -4,8 +4,8 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { 
-  Users, Copy, Check, ArrowLeft, MapPin, Crosshair, Clock, MessageSquare, BookOpen, Search, ChevronDown, ChevronUp, Send,
+import {
+  Users, ArrowLeft, MapPin, Crosshair, Clock, MessageSquare, BookOpen, Search, ChevronDown, ChevronRight, ChevronUp, Send,
   Settings, LayoutDashboard, Lock, Shield, Key, CreditCard, AlertTriangle, Trash2, Camera, Upload
 } from "lucide-react";
 import { CloudMotifBg } from "@/components/patterns/mongolian";
@@ -13,6 +13,9 @@ import { TeamIcon, getDevilFruit } from "@/components/TeamIcon";
 import { UploadModal } from "@/components/UploadModal";
 import { AddStrategyModal } from "@/components/AddStrategyModal";
 import CS2PlanningBoard from "@/components/CS2PlanningBoard";
+import { DiscordSyncSidebar } from "@/components/stratbook/DiscordSyncSidebar";
+import { Button, Modal, PageSection, PageTransition, Spinner } from "@/components/ui";
+import { useServerModes } from "@/lib/api/hooks";
 
 interface TeamDetail {
   team_id: string;
@@ -63,6 +66,34 @@ const STATUS_COLORS: Record<string, string> = {
   done: "var(--color-success)", processing: "var(--color-accent-primary)", queued: "var(--color-text-secondary)", failed: "var(--color-danger)",
 };
 
+// "Freeform" is the backend's default `practice` mode — the most permissive
+// config (sv_cheats, infinite ammo; see TRAINING_MODE_CONFIGS in
+// services/warlord/dathost_client.py). It's shown first under its user-side
+// name and deduped from the mode list fetched from /api/servers/modes.
+const FREEFORM_MODE = "practice";
+
+const MODE_LABELS: Record<string, string> = {
+  [FREEFORM_MODE]: "Freeform",
+  prefire: "Prefire",
+  defense: "Defense",
+  tradefire: "Tradefire",
+  spray: "Spray control",
+  awp: "AWP",
+  aimtrainer: "Aim trainer",
+  promode: "Pro mode",
+  grenade: "Grenade learner",
+  retake: "Retake",
+};
+
+function modeLabel(key: string): string {
+  return MODE_LABELS[key] ?? key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+const SERVER_STATUS_COLORS: Record<string, string> = {
+  active: "var(--color-success)",
+  booting: "var(--color-warning)",
+};
+
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const h = Math.floor(diff / 3600000);
@@ -81,9 +112,11 @@ export default function TeamDetailPage() {
   const [servers, setServers] = useState<PracticeServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [spinningUp, setSpinningUp] = useState(false);
-  const [region, setRegion] = useState("dfw"); // dfw = Dallas (default)
-  const [copied, setCopied] = useState(false);
+  const [region] = useState("dfw"); // dfw = Dallas (default)
   const [serverError, setServerError] = useState<string | null>(null);
+  const [isSpinUpOpen, setIsSpinUpOpen] = useState(false);
+  const [selectedMode, setSelectedMode] = useState(FREEFORM_MODE);
+  const serverModes = useServerModes();
 
   const [showInviteBox, setShowInviteBox] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -229,14 +262,14 @@ export default function TeamDetailPage() {
     return () => clearInterval(interval);
   }, [teamId, user, servers]);
 
-  async function spinUpServer() {
+  async function spinUpServer(mode: string) {
     setSpinningUp(true);
     setServerError(null);
     try {
       const res = await fetch(`/api/teams/${teamId}/servers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "practice", region }),
+        body: JSON.stringify({ mode, region }),
       });
 
       let data;
@@ -248,7 +281,9 @@ export default function TeamDetailPage() {
 
       if (res.ok) {
         setServers([...servers, data]);
-        router.push(`/teams/${teamId}/servers/${data.id}`);
+        // Stay on the hub: the new row shows provisioning state (the existing
+        // 5s poll picks up the booting → active transition) and links onward.
+        setIsSpinUpOpen(false);
       } else {
         const errorDetail = data.detail || data.error || "";
         if (errorDetail.includes("401") || errorDetail.toLowerCase().includes("unauthorized")) {
@@ -262,13 +297,6 @@ export default function TeamDetailPage() {
       setServerError("An error occurred during server startup.");
     }
     setSpinningUp(false);
-  }
-
-  function copyInvite() {
-    if (!team) return;
-    navigator.clipboard.writeText(team.invite_code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   async function handleUpdateName() {
@@ -350,13 +378,13 @@ export default function TeamDetailPage() {
       <CloudMotifBg />
       <div className="relative max-w-5xl mx-auto z-10">
         {/* Back */}
-        <Link href="/teams" className="inline-flex items-center gap-2 mb-6 text-sm hover:text-white transition-colors" style={{ color: "#4A6A8A" }}>
+        <Link href="/teams" className="inline-flex items-center gap-2 mb-6 text-sm hover:text-white transition-colors" style={{ color: "var(--color-text-muted)" }}>
           <ArrowLeft size={14} /> All Teams
         </Link>
 
         {loading ? (
           <div className="flex items-center gap-3 py-12">
-            <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--color-accent-primary)", borderTopColor: "transparent" }} />
+            <Spinner size={20} />
             <span style={{ color: "var(--color-text-secondary)" }}>Loading team…</span>
           </div>
         ) : !team ? (
@@ -364,29 +392,37 @@ export default function TeamDetailPage() {
             <p style={{ color: "var(--color-danger)" }}>Team not found or you are not a member.</p>
           </div>
         ) : (
-          <>
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <PageTransition>
+            {/* Header — standard page skeleton: eyebrow · display name · one-liner */}
+            <PageSection>
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div className="flex items-center gap-4">
                 <TeamIcon teamId={team.team_id} name={team.name} logoUrl={team.logo_url} size="lg" />
                 <div>
+                  <span
+                    className="text-[10px] font-bold uppercase tracking-[0.2em]"
+                    style={{ fontFamily: "var(--font-mono)", color: "var(--color-accent-secondary)" }}
+                  >
+                    Team hub
+                  </span>
                   <div className="flex items-center gap-2.5">
-                    <h1 className="heading-display text-white" style={{ fontSize: "1.8rem" }}>{team.name}</h1>
+                    <h1 className="section-heading" style={{ fontSize: "1.6rem" }}>{team.name}</h1>
                     {isOwner && (
                       <span className="rounded px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase border bg-yellow-500/10 border-yellow-500/20 text-[var(--color-accent-secondary)]">
                         Captain
                       </span>
                     )}
                   </div>
-                  <p className="mt-1" style={{ color: "var(--color-text-secondary)", fontSize: "0.875rem" }}>
-                    {team.members.length} member{team.members.length !== 1 ? "s" : ""}
+                  <p className="mt-1 text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                    {team.members.length} member{team.members.length !== 1 ? "s" : ""} · roster, practice servers, and playbook in one place.
                   </p>
                 </div>
               </div>
-            </div>
+            </header>
+            </PageSection>
 
             {/* Tab switchers */}
-            <div className="flex gap-6 border-b border-[var(--color-border-primary)] mb-8">
+            <PageSection className="flex gap-6 border-b border-[var(--color-border-primary)] mb-8">
               <button
                 onClick={() => setActiveTab("overview")}
                 className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 select-none ${
@@ -427,12 +463,14 @@ export default function TeamDetailPage() {
               >
                 <Settings size={14} /> Settings
               </button>
-            </div>
+            </PageSection>
 
+            <PageSection>
             {activeTab === "overview" && (
-              /* ── OVERVIEW VIEW ── */
+              /* ── TEAM HUB ── */
+              <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Members panel */}
+                {/* Roster */}
                 <div className="card p-5 h-fit" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
                   <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>
                     <Users size={14} className="inline mr-2" />Members
@@ -444,14 +482,14 @@ export default function TeamDetailPage() {
                           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold font-mono" style={{ background: "rgba(45,125,210,0.15)", color: "var(--color-accent-primary)", border: "1px solid rgba(45,125,210,0.2)" }}>
                             {m.user_id.slice(-2).toUpperCase()}
                           </div>
-                          <span style={{ color: "var(--color-text-primary)", fontSize: "0.8rem", fontFamily: "JetBrains Mono" }}>
+                          <span style={{ color: "var(--color-text-primary)", fontSize: "0.8rem", fontFamily: "var(--font-mono)" }}>
                             {m.user_id === user.id ? "You" : `···${m.user_id.slice(-6)}`}
                           </span>
                         </div>
                         <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{
-                          background: m.role === "owner" ? "rgba(201,162,39,0.1)" : "rgba(45,125,210,0.08)",
-                          color: m.role === "owner" ? "var(--color-accent-secondary)" : "#4A6A8A",
-                          border: `1px solid ${m.role === "owner" ? "rgba(201,162,39,0.2)" : "var(--color-border-primary)"}`,
+                          background: m.role === "owner" ? "var(--color-secondary-soft)" : "var(--color-accent-soft)",
+                          color: m.role === "owner" ? "var(--color-accent-secondary)" : "var(--color-text-muted)",
+                          border: `1px solid ${m.role === "owner" ? "var(--color-border-secondary)" : "var(--color-border-primary)"}`,
                         }}>{m.role === "owner" ? "captain" : m.role}</span>
                       </div>
                     ))}
@@ -466,14 +504,14 @@ export default function TeamDetailPage() {
                       
                       {showInviteBox && (
                         <div className="mt-2.5 p-3 rounded-lg border border-[var(--color-border-primary)] bg-[var(--color-bg-primary)]/90 text-[11px] flex flex-col gap-1.5 animate-fadeIn relative">
-                          <button 
+                          <button
                             onClick={() => setShowInviteBox(false)}
-                            className="absolute top-2 right-2 text-slate-500 hover:text-slate-300 text-[10px]"
+                            className="absolute top-2 right-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] text-[10px]"
                           >
                             ✕
                           </button>
                           <div className="flex justify-between items-center pr-4">
-                            <span className="text-slate-500 font-medium">Invite Code:</span>
+                            <span className="font-medium" style={{ color: "var(--color-text-muted)" }}>Invite code:</span>
                             <span className="font-mono font-bold text-[var(--color-text-primary)] tracking-widest select-all">{team.invite_code}</span>
                           </div>
                           {inviteCopied && (
@@ -485,144 +523,197 @@ export default function TeamDetailPage() {
                   </div>
                 </div>
 
-                {/* Training Server panel */}
-                <div className="card p-5 h-fit" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
-                  <h2 className="heading-display mb-4" style={{ fontSize: "0.95rem" }}>
-                    <Crosshair size={14} className="inline mr-2" /> Training Server
-                  </h2>
-
-                  {/* Active server quick info */}
-                  {servers.filter(s => s.status !== "terminated").map(s => (
-                    <div key={s.id} className="rounded-lg bg-white/5 p-4 border border-white/10 flex flex-col gap-3 mb-3">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${s.status === 'active' ? 'bg-[var(--color-success)] animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-200">{s.mode} Server</span>
-                        </div>
-                        <span className={`text-xs px-2 py-0.5 rounded font-mono ${s.status === 'active' ? 'bg-[var(--color-success)]/10 text-[var(--color-success)] border border-[var(--color-success)]/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
-                          {s.status}
-                        </span>
-                      </div>
-                      {s.ip_address ? (
-                        <div className="bg-black/40 p-2.5 rounded text-xs font-mono text-[var(--color-text-primary)] break-all select-all border border-white/5">
-                          connect {s.ip_address}; password {s.server_password}
-                        </div>
-                      ) : (
-                        <div className="text-xs text-[var(--color-text-secondary)] italic">Provisioning server instance...</div>
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Training modes launcher */}
-                  <Link
-                    href={`/teams/${teamId}/training`}
-                    style={{
-                      display: "block",
-                      borderRadius: "10px",
-                      overflow: "hidden",
-                      position: "relative",
-                      minHeight: "120px",
-                      textDecoration: "none",
-                      background: "linear-gradient(135deg, #0D1825 0%, #142135 100%)",
-                      border: "1px solid var(--color-border-primary)",
-                      marginTop: servers.filter(s => s.status !== "terminated").length > 0 ? "8px" : "0",
-                    }}
-                  >
-                    {/* Mode previews */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", height: "80px", overflow: "hidden" }}>
-                      {["defense","prefire","grenade"].map((m) => (
-                        <div key={m} style={{ position: "relative", overflow: "hidden" }}>
-                          <img src={`/training_${m}.png`} alt={m} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.7 }} />
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ padding: "12px 14px", background: "linear-gradient(to top, rgba(8,14,26,0.95) 0%, rgba(8,14,26,0.6) 100%)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div>
-                          <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-text-primary)" }}>Open Training Modes</div>
-                          <div style={{ fontSize: "11px", color: "var(--color-text-secondary)", marginTop: "2px" }}>Defense · Prefire · AWP · Grenades · Retake + more</div>
-                        </div>
-                        <div style={{
-                          width: "28px", height: "28px", borderRadius: "50%",
-                          backgroundColor: "var(--color-accent-primary)",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          flexShrink: 0,
-                        }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="m9 18 6-6-6-6"/></svg>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-
-                {/* Analyses feed */}
+                {/* Team analyses */}
                 <div className="md:col-span-2">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="heading-display" style={{ fontSize: "0.95rem" }}>Team Analyses</h2>
-                    <button
-                      onClick={() => setIsUploadModalOpen(true)}
-                      className="rounded-lg bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary)]/85 px-4 py-2 text-xs font-bold text-white transition-all select-none shadow-md flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Upload size={13} /> Upload Match
-                    </button>
+                    <h2 className="heading-display" style={{ fontSize: "0.95rem" }}>Team analyses</h2>
+                    <Button size="sm" onClick={() => setIsUploadModalOpen(true)}>
+                      <Upload size={13} /> Upload a demo
+                    </Button>
                   </div>
                   {analyses.length === 0 ? (
                     <div className="card p-8 text-center" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
                       <MapPin size={32} color="var(--color-border-primary)" className="mx-auto mb-3" />
-                      <p style={{ color: "var(--color-text-secondary)", fontSize: "0.875rem", marginBottom: "1rem" }}>No analyses yet. Have a teammate upload a demo!</p>
-                      <button
-                        onClick={() => setIsUploadModalOpen(true)}
-                        className="mx-auto rounded-lg bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary)]/85 px-4 py-2 text-xs font-bold text-white transition-all select-none shadow-md flex items-center gap-1.5 cursor-pointer w-fit"
-                      >
-                        <Upload size={13} /> Upload Match
-                      </button>
+                      <p className="text-sm mb-4" style={{ color: "var(--color-text-secondary)" }}>No team analyses yet. Upload a demo to get the first report.</p>
+                      <Button size="sm" className="mx-auto" onClick={() => setIsUploadModalOpen(true)}>
+                        <Upload size={13} /> Upload a demo
+                      </Button>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {analyses.map(a => (
-                        <Link
-                          key={a.match_id}
-                          href={`/analysis/${a.match_id}`}
-                          className="card p-4 flex items-center justify-between group hover:border-[var(--color-accent-primary)]/40 transition-all hover:scale-[1.005]"
-                          style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(45,125,210,0.1)", border: "1px solid rgba(45,125,210,0.15)" }}>
-                              <MapPin size={16} color="var(--color-accent-primary)" />
-                            </div>
-                            <div>
-                              <p style={{ color: "var(--color-text-primary)", fontWeight: 600, fontSize: "0.9rem" }}>{a.map || "Unknown Map"}</p>
-                              <div className="flex items-center gap-3 mt-0.5">
-                                {a.total_rounds > 0 && (
-                                  <span style={{ color: "#4A6A8A", fontSize: "0.72rem" }}>{a.total_rounds} rounds</span>
-                                )}
-                                {a.total_kills > 0 && (
-                                  <span style={{ color: "#4A6A8A", fontSize: "0.72rem", display: "flex", alignItems: "center", gap: 3 }}>
-                                    <Crosshair size={10} /> {a.total_kills} kills
+                      {analyses.map(a => {
+                        const statusColor = STATUS_COLORS[a.status] ?? "var(--color-text-secondary)";
+                        return (
+                          <div
+                            key={a.match_id}
+                            className="relative rounded-2xl p-4 flex items-center justify-between group hover:border-[var(--color-accent-primary)]/40 transition-colors"
+                            style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}
+                          >
+                            <div className="flex items-center gap-4 min-w-0">
+                              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "var(--color-accent-soft)", border: "1px solid var(--color-border-primary)" }}>
+                                <MapPin size={16} color="var(--color-accent-primary)" />
+                              </div>
+                              <div className="min-w-0">
+                                {/* Stretched link: the whole row opens the analysis. */}
+                                <Link
+                                  href={`/analysis/${a.match_id}`}
+                                  className="font-semibold text-[var(--color-text-primary)] after:absolute after:inset-0 after:rounded-2xl"
+                                  style={{ fontSize: "0.9rem" }}
+                                >
+                                  {a.map || "Unknown Map"}
+                                </Link>
+                                <div className="flex items-center gap-3 mt-0.5">
+                                  {a.total_rounds > 0 && (
+                                    <span style={{ color: "var(--color-text-muted)", fontSize: "0.72rem", fontFamily: "var(--font-mono)" }}>{a.total_rounds} rounds</span>
+                                  )}
+                                  {a.total_kills > 0 && (
+                                    <span style={{ color: "var(--color-text-muted)", fontSize: "0.72rem", fontFamily: "var(--font-mono)" }}>{a.total_kills} kills</span>
+                                  )}
+                                  <span style={{ color: "var(--color-text-muted)", fontSize: "0.72rem", fontFamily: "var(--font-mono)" }}>
+                                    ···{a.user_id?.slice(-6) ?? "?"}
                                   </span>
-                                )}
-                                <span style={{ color: "#4A6A8A", fontSize: "0.72rem", fontFamily: "JetBrains Mono" }}>
-                                  ···{a.user_id?.slice(-6) ?? "?"}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              <div className="text-right">
+                                <span
+                                  className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                                  style={{
+                                    color: statusColor,
+                                    background: `color-mix(in srgb, ${statusColor} 10%, transparent)`,
+                                    border: `1px solid color-mix(in srgb, ${statusColor} 35%, transparent)`,
+                                  }}
+                                >
+                                  {a.status}
+                                </span>
+                                <span className="mt-1" style={{ color: "var(--color-text-muted)", fontSize: "0.7rem", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center", gap: 3, justifyContent: "flex-end" }}>
+                                  <Clock size={9} /> {a.created_at ? timeAgo(a.created_at) : "—"}
                                 </span>
                               </div>
+                              <ChevronRight size={16} color="var(--color-text-muted)" />
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-right">
-                              <div className="flex items-center gap-1.5 justify-end">
-                                <div className="w-2 h-2 rounded-full" style={{ background: STATUS_COLORS[a.status] ?? "var(--color-text-secondary)" }} />
-                                <span style={{ fontSize: "0.75rem", color: STATUS_COLORS[a.status] ?? "var(--color-text-secondary)", fontWeight: 500 }}>{a.status}</span>
-                              </div>
-                              <span style={{ color: "#4A6A8A", fontSize: "0.7rem", display: "flex", alignItems: "center", gap: 3, justifySelf: "flex-end" }}>
-                                <Clock size={9} /> {a.created_at ? timeAgo(a.created_at) : "–"}
-                              </span>
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Practice servers */}
+              <section>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="heading-display" style={{ fontSize: "0.95rem" }}>
+                    <Crosshair size={14} className="inline mr-2" /> Practice servers
+                  </h2>
+                  <Button size="sm" onClick={() => { setServerError(null); setIsSpinUpOpen(true); }}>
+                    Spin up a server
+                  </Button>
+                </div>
+
+                {serverError && !isSpinUpOpen && (
+                  <p
+                    className="mb-3 rounded-lg border p-3 text-xs font-semibold"
+                    style={{
+                      color: "var(--color-danger)",
+                      borderColor: "color-mix(in srgb, var(--color-danger) 30%, transparent)",
+                      background: "color-mix(in srgb, var(--color-danger) 8%, transparent)",
+                    }}
+                  >
+                    {serverError}
+                  </p>
+                )}
+
+                {servers.filter(s => s.status !== "terminated").length === 0 ? (
+                  <div className="card p-6 text-center" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
+                    <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                      No servers running. Spin one up and the whole team can join.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {servers.filter(s => s.status !== "terminated").map(s => {
+                      const statusColor = SERVER_STATUS_COLORS[s.status] ?? "var(--color-text-secondary)";
+                      return (
+                        <Link
+                          key={s.id}
+                          href={`/teams/${teamId}/servers/${s.id}`}
+                          className="rounded-2xl p-4 flex items-center justify-between gap-4 hover:border-[var(--color-accent-primary)]/40 transition-colors"
+                          style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              {/* Status changes are color-only: dot and chip transition, nothing pulses. */}
+                              <span
+                                className="w-2 h-2 rounded-full"
+                                style={{ background: statusColor, transition: "background-color var(--dur-base) var(--ease-out)" }}
+                              />
+                              <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                                {modeLabel(s.mode)} server
+                              </span>
+                              <span
+                                className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                                style={{
+                                  color: statusColor,
+                                  background: `color-mix(in srgb, ${statusColor} 10%, transparent)`,
+                                  border: `1px solid color-mix(in srgb, ${statusColor} 35%, transparent)`,
+                                  transition: "color var(--dur-base) var(--ease-out), background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out)",
+                                }}
+                              >
+                                {s.status}
+                              </span>
+                            </div>
+                            {s.ip_address ? (
+                              <p className="mt-1.5 text-xs truncate select-all" style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-secondary)" }}>
+                                connect {s.ip_address}; password {s.server_password}
+                              </p>
+                            ) : (
+                              <p className="mt-1.5 text-xs flex items-center gap-2" style={{ color: "var(--color-text-muted)" }}>
+                                <Spinner size={12} /> Spinning up — the connect line appears when it&apos;s ready.
+                              </p>
+                            )}
+                          </div>
+                          <ChevronRight size={16} color="var(--color-text-muted)" className="flex-shrink-0" />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <Link
+                  href={`/teams/${teamId}/training`}
+                  className="mt-3 rounded-2xl p-4 flex items-center justify-between gap-4 hover:border-[var(--color-accent-primary)]/40 transition-colors"
+                  style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}
+                >
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Open training modes</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--color-text-secondary)" }}>Defense · Prefire · AWP · Grenades · Retake + more</p>
+                  </div>
+                  <ChevronRight size={16} color="var(--color-text-muted)" className="flex-shrink-0" />
+                </Link>
+              </section>
+
+              {/* Stratbook */}
+              <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="card p-5 h-fit" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
+                  <h2 className="heading-display mb-3" style={{ fontSize: "0.95rem" }}>
+                    <BookOpen size={14} className="inline mr-2" /> Stratbook
+                  </h2>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                    Your team&apos;s plays, versioned and synced with Discord. Approve a strat here and it goes live for the whole roster.
+                  </p>
+                  <Link
+                    href="/stratbook"
+                    className="mt-3 inline-block text-xs font-semibold text-[var(--color-accent-primary)] hover:text-[var(--color-text-primary)] transition-colors"
+                  >
+                    Open stratbook →
+                  </Link>
+                </div>
+                <div className="md:col-span-2">
+                  <DiscordSyncSidebar teamId={teamId} />
+                </div>
+              </section>
               </div>
             )}
 
@@ -1278,7 +1369,8 @@ export default function TeamDetailPage() {
                 </div>
               </div>
             )}
-          </>
+            </PageSection>
+          </PageTransition>
         )}
       </div>
       <UploadModal
@@ -1295,6 +1387,89 @@ export default function TeamDetailPage() {
         teamId={teamId}
         onSuccess={fetchStrategies}
       />
+      <Modal
+        open={isSpinUpOpen}
+        onClose={() => { if (!spinningUp) setIsSpinUpOpen(false); }}
+        label="Spin up a server"
+      >
+        <h2 className="heading-display" style={{ fontSize: "1.1rem" }}>Spin up a server</h2>
+        <p className="mt-1 text-xs" style={{ color: "var(--color-text-secondary)" }}>
+          Pick a mode. The server takes about a minute to come up, and every teammate gets the connect line.
+        </p>
+
+        {serverModes.data?.update_window_active && (
+          <p
+            className="mt-3 rounded-lg border p-3 text-xs font-semibold"
+            style={{
+              color: "var(--color-warning)",
+              borderColor: "color-mix(in srgb, var(--color-warning) 30%, transparent)",
+              background: "color-mix(in srgb, var(--color-warning) 8%, transparent)",
+            }}
+          >
+            {serverModes.data.update_detail || "A CS2 update is rolling out — servers can't start until it finishes."}
+          </p>
+        )}
+
+        <div role="radiogroup" aria-label="Server mode" className="mt-4 max-h-[320px] space-y-2 overflow-y-auto pr-1">
+          {[
+            // Freeform first: the backend's default `practice` mode under its
+            // user-side name (see FREEFORM_MODE above); deduped from the list.
+            { key: FREEFORM_MODE, description: "Open practice — cheats on, infinite ammo, no ruleset." },
+            ...(serverModes.data?.modes ?? []).filter(m => m.key !== FREEFORM_MODE),
+          ].map(m => {
+            const isSelected = selectedMode === m.key;
+            return (
+              <button
+                key={m.key}
+                role="radio"
+                aria-checked={isSelected}
+                onClick={() => setSelectedMode(m.key)}
+                className="w-full cursor-pointer rounded-md border px-3 py-2.5 text-left transition-colors"
+                style={{
+                  background: isSelected ? "var(--color-accent-soft)" : "var(--color-bg-secondary)",
+                  borderColor: isSelected ? "var(--color-border-strong)" : "var(--color-border-primary)",
+                }}
+              >
+                <span className="block text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                  {modeLabel(m.key)}
+                </span>
+                <span className="mt-0.5 block text-xs" style={{ color: "var(--color-text-secondary)" }}>
+                  {m.description}
+                </span>
+              </button>
+            );
+          })}
+          {serverModes.isPending && (
+            <p className="flex items-center gap-2 py-2 text-xs" style={{ color: "var(--color-text-secondary)" }}>
+              <Spinner size={14} /> Loading modes…
+            </p>
+          )}
+        </div>
+
+        {serverError && (
+          <p className="mt-3 text-xs font-semibold" style={{ color: "var(--color-danger)" }}>
+            {serverError}
+          </p>
+        )}
+
+        <div className="mt-5 flex justify-end gap-3">
+          <Button variant="secondary" disabled={spinningUp} onClick={() => setIsSpinUpOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={spinningUp || Boolean(serverModes.data?.update_window_active)}
+            onClick={() => spinUpServer(selectedMode)}
+          >
+            {spinningUp ? (
+              <>
+                <Spinner size={14} /> Spinning up…
+              </>
+            ) : (
+              "Spin up server"
+            )}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

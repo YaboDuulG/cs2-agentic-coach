@@ -45,6 +45,22 @@ export function useStratTransition(teamId: string | null) {
   });
 }
 
+export function useStratDetail(stratId: string | null) {
+  return useQuery({
+    queryKey: ["strat", stratId],
+    queryFn: () => api.stratDetail(stratId as string),
+    enabled: Boolean(stratId),
+  });
+}
+
+export function useServerModes() {
+  return useQuery({
+    queryKey: ["server-modes"],
+    queryFn: () => api.serverModes(),
+    staleTime: 60_000, // mode list is static; update-window flag can lag a minute
+  });
+}
+
 export function useCheckout() {
   return useMutation({
     mutationFn: (plan: string) => api.checkout(plan),

@@ -108,6 +108,45 @@ export interface StratSummary {
   updated_at: string;
 }
 
+export interface StratRevision {
+  id: string;
+  revision_no: number;
+  canvas: StratCanvasJson;
+  description: string;
+  author_id: string | null;
+  source: string;
+  created_at: string;
+}
+
+// GET /api/strats/{id} — summary plus every revision with its parsed canvas.
+export interface StratDetail extends StratSummary {
+  current_revision_id: string | null;
+  revisions: StratRevision[];
+}
+
+// Practice servers (api/routes/servers.py ServerResponse).
+export interface PracticeServerInfo {
+  id: string;
+  status: string;
+  ip_address: string | null;
+  rcon_password: string;
+  server_password: string;
+  mode: string;
+  expires_at: string;
+}
+
+export interface TrainingModeInfo {
+  key: string;
+  description: string;
+  game_mode: string;
+}
+
+export interface ServerModesResponse {
+  modes: TrainingModeInfo[];
+  update_window_active: boolean;
+  update_detail?: string;
+}
+
 async function get<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
@@ -128,6 +167,14 @@ async function post<T>(url: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function del<T>(url: string): Promise<T> {
+  const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) {
+    throw new ApiError(res.status, await res.text());
+  }
+  return res.json() as Promise<T>;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -142,6 +189,14 @@ export const api = {
     get<RoundTelemetry>(`/api/jobs/${matchId}/rounds/${round}/telemetry`),
   coaching: (matchId: string) => get<CoachingResponse>(`/api/coaching/${matchId}`),
   strats: (teamId: string) => get<StratSummary[]>(`/api/teams/${teamId}/strats`),
+  stratDetail: (stratId: string) => get<StratDetail>(`/api/strats/${stratId}`),
+  serverModes: () => get<ServerModesResponse>(`/api/servers/modes`),
+  teamServers: (teamId: string) =>
+    get<PracticeServerInfo[]>(`/api/teams/${teamId}/servers`),
+  createServer: (teamId: string, body: { mode: string; region: string; map?: string }) =>
+    post<PracticeServerInfo>(`/api/teams/${teamId}/servers`, body),
+  terminateServer: (serverId: string) =>
+    del<{ status: string }>(`/api/servers/${serverId}`),
   stratTransition: (stratId: string, status: StratStatus) =>
     post<StratSummary>(`/api/strats/${stratId}/transition`, { status }),
   stratBindCode: (stratId: string) =>
