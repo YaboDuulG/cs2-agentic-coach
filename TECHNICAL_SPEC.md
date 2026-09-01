@@ -920,6 +920,10 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 | **Analysis modes** | PERSONAL_IMPROVEMENT / TEAM_ANALYSIS / OPPOSITION_RESEARCH derived from match facts (2026-09) | Mode shifts synthesis focus + audiences; derived from is_recon/team context, never LLM-guessed |
 | **Coaching Report Schema (report_v2)** | mode + summary{score,grade,headline} + key_findings{round,tick,category,severity,observation,benchmark,drill} (2026-09) | Score/grade computed from tactician metrics, ticks joined from first-contact evidence, benchmarks composed from cited B*/P* items — the LLM never grades or invents ticks |
 | **Tier gating** | services/billing: read-time redaction, FREE = grade+summary+1 broad takeaway (2026-09) | Full report always cached; paywalled data OMITTED server-side (never client-hidden); upgrades unlock instantly. Plan flows via x-user-plan set by the trusted Next.js server route from Clerk; moves to user_entitlements table per refactor plan §3 |
+| **Stratbook state machine** | strats + strat_revisions: DRAFT→IN_REVIEW→ACTIVE→ARCHIVED; new revision on ACTIVE re-enters review (2026-09) | Changes to a live strat always pass review before the team runs them; TeamPlaybook rows backfilled as ACTIVE rev-1 |
+| **Discord integration** | HTTP Interactions endpoint, not a gateway bot (2026-09) | Slash commands/buttons/modals over signed HTTPS: no discord.js/nextcord dep, no 4th always-on service, Cloud Run scale-to-zero. Ed25519 verify via the cryptography package (fails closed outside LOCAL_MODE). Trade-off: no free-text @mention listening — AI refinement is /strat adapt in-thread |
+| **Discord tenancy** | HMAC bind codes: web issues `team_id.hmac12` (DISCORD_WEBHOOK_SECRET); /strat bind ties one guild↔one team (2026-09) | A guild cannot attach to a team without its signed code; every interaction resolves guild→team before touching data |
+| **Discord sync transport** | Transactional sync_outbox drained by the worker (SKIP LOCKED) (2026-09) | HTTP handlers only INSERT (same transaction as the strat change) — a Discord outage never blocks a web/interaction response; retries with attempt cap |
 
 ---
 

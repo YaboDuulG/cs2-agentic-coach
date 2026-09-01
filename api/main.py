@@ -24,6 +24,7 @@ from api.routes import (
     presign,
     servers,
     stratbook,
+    strats,
     teams,
     training_sessions,
     upload,
@@ -123,6 +124,11 @@ app.include_router(
 )
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["Webhooks"])
 app.include_router(discord.router, prefix="/api/discord", tags=["Discord"])
+# Discord interactions endpoint — authenticated by Ed25519 request signatures,
+# NOT Clerk (Discord is the caller), so no get_current_user dependency here.
+from services.discord_bot import interactions as discord_interactions  # noqa: E402
+
+app.include_router(discord_interactions.router, prefix="/api/discord", tags=["Discord"])
 app.include_router(
     chat.router, prefix="/api/chat", tags=["Chat"], dependencies=[Depends(get_current_user)]
 )
@@ -130,6 +136,12 @@ app.include_router(
     stratbook.router,
     prefix="/api/stratbook",
     tags=["Stratbook"],
+    dependencies=[Depends(get_current_user)],
+)
+app.include_router(
+    strats.router,
+    prefix="/api/strats",
+    tags=["Strats"],
     dependencies=[Depends(get_current_user)],
 )
 

@@ -131,8 +131,32 @@ def main() -> None:
                 claimed_any = True
                 coach_pool.submit(_run_coach, coach_job.id, coach_job.match_id)
 
+        # Drain one Discord sync-outbox item per loop (module 3): HTTP
+        # handlers only insert; a Discord outage never blocks a response.
+        claimed_any = _drain_outbox(worker_id) or claimed_any
+
         if not claimed_any:
             time.sleep(POLL_INTERVAL_SECONDS)
+
+
+def _drain_outbox(worker_id: str) -> bool:
+    """Docstring for _drain_outbox."""
+    from db.outbox import claim_next, complete, fail  # noqa: PLC0415
+
+    with SessionLocal() as db:
+        item = claim_next(db, worker_id)
+        if item is None:
+            return False
+        try:
+            from services.discord_bot.sync import process_outbox_item  # noqa: PLC0415
+
+            process_outbox_item(db, item)
+            complete(db, item)
+        except Exception as e:
+            logger.exception(f"Outbox item {item.id} ({item.kind}) failed")
+            db.rollback()
+            fail(db, item, str(e))
+    return True
 
 
 if __name__ == "__main__":

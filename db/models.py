@@ -782,3 +782,134 @@ class ProStratArchetype(Base):
     def __repr__(self) -> str:
         """Docstring for __repr__."""
         return f"<ProStratArchetype {self.label} map={self.map_name} side={self.side}>"
+
+
+# ---------------------------------------------------------------------------
+# Stratbook — versioned team strats with a review state machine, plus the
+# Discord binding and sync outbox (module 3). Transition rules live in
+# services/stratbook/service.py; these rows are pure data.
+# ---------------------------------------------------------------------------
+
+
+class StratStatus(str, enum.Enum):
+    """Docstring for StratStatus."""
+    DRAFT = "DRAFT"
+    IN_REVIEW = "IN_REVIEW"
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+
+
+class Strat(Base):
+    """Docstring for Strat."""
+    __tablename__ = "strats"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(128), nullable=False)
+    map_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    side: Mapped[str] = mapped_column(String(8), nullable=False, default="T")  # T | CT
+    buy_type: Mapped[str] = mapped_column(String(16), nullable=False, default="full_buy")
+    status: Mapped[str] = mapped_column(
+        Enum(StratStatus), nullable=False, default=StratStatus.DRAFT, index=True
+    )
+    current_revision_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Discord thread this strat syncs with (set on first outbound post)
+    discord_thread_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    created_by: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    revisions: Mapped[list["StratRevision"]] = relationship(
+        "StratRevision", back_populates="strat", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        """Docstring for __repr__."""
+        return f"<Strat {self.id} {self.title} map={self.map_name} status={self.status}>"
+
+
+class StratRevision(Base):
+    """Docstring for StratRevision."""
+    __tablename__ = "strat_revisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    strat_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("strats.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    revision_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Canvas schema (validated in services/stratbook/service.py):
+    # {steps: [{t, label, positions, utility: [...]}], callouts: [{name, x, y}]}
+    canvas_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Utility lineup list [{type, callout, from:{x,y}, to:{x,y}}] for embeds
+    utility_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    author_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="web")  # web|discord|ai
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    strat: Mapped["Strat"] = relationship("Strat", back_populates="revisions")
+
+
+class TeamDiscordLink(Base):
+    """
+    Binds ONE Discord guild/channel to a team. Created only through the
+    HMAC-signed bind-code flow (services/discord_bot), so a Discord server
+    cannot attach itself to a team it doesn't own the code for.
+    """
+
+    __tablename__ = "team_discord_links"
+
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True
+    )
+    guild_id: Mapped[str] = mapped_column(String(32), nullable=False, unique=True, index=True)
+    channel_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    bound_by: Mapped[str] = mapped_column(String(64), nullable=False)  # discord user id
+    bound_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+
+class OutboxStatus(str, enum.Enum):
+    """Docstring for OutboxStatus."""
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
+class SyncOutbox(Base):
+    """
+    Transactional outbox for Discord sync and AI refinement work. HTTP
+    handlers only INSERT here (same transaction as the strat change) and
+    return immediately; the worker drains it with FOR UPDATE SKIP LOCKED —
+    a Discord outage never blocks a web or interaction response.
+    """
+
+    __tablename__ = "sync_outbox"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # strat_upsert | strat_status | discord_reply | ai_adapt
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    status: Mapped[str] = mapped_column(
+        Enum(OutboxStatus), nullable=False, default=OutboxStatus.PENDING, index=True
+    )
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
