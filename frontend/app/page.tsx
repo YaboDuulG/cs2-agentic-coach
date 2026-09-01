@@ -9,6 +9,7 @@ import { useTheme } from "@/lib/themes";
 import { Variants, motion, useReducedMotion } from "framer-motion";
 import { Target, BarChart3, Shield, Brain, ChevronRight, Users, BookOpen, Crosshair } from "lucide-react";
 import { Card, PageSection, PageTransition, Spinner } from "@/components/ui";
+import { PlanUpsellCard } from "@/components/paywall";
 
 // Entrances: fade-up under 300ms with a strong ease-out; reduced motion keeps
 // the fade and drops the movement.
@@ -386,6 +387,11 @@ function CommandCenter() {
               </Link>
             </div>
           </Card>
+        </PageSection>
+
+        {/* Plan-aware enticement: names what the next tier unlocks; hidden for Team tier */}
+        <PageSection className="mb-6">
+          <PlanUpsellCard />
         </PageSection>
 
         {/* Quick routes onward */}
