@@ -11,7 +11,7 @@ Coaching endpoint — triggers Great Khan AI analysis and returns cached results
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,7 @@ async def trigger_coaching(match_id: str, db: Session = Depends(get_session)):
 @router.get("/{match_id}", summary="Get cached coaching notes for a match")
 async def get_coaching(
     match_id: str,
+    request: Request,
     user_id: str | None = None,
     uploader_steam_id: str | None = None,
 db: Session = Depends(get_session)):
@@ -107,10 +108,19 @@ db: Session = Depends(get_session)):
                 "coach_report": match.coaching_notes,
             }
 
+        # Tier gating at read time: paywalled insights are omitted from the
+        # payload server-side (never hidden client-side). The x-user-plan
+        # header is set by the trusted Next.js server route from Clerk.
+        from services.billing import redact_coaching_payload, resolve_tier  # noqa: PLC0415
+
+        tier = resolve_tier(request.headers.get("x-user-plan"))
+        coaching_data = redact_coaching_payload(coaching_data, tier)
+
         return {
             "status": "ready",
             "match_id": match_id,
             "coaching": coaching_data,
+            "tier": tier.value,
             "is_recon": getattr(match, "is_recon", False),
         }
     except HTTPException:
@@ -121,7 +131,7 @@ db: Session = Depends(get_session)):
 
 
 @router.get("/{match_id}/player/{player_name}", summary="Get coaching notes for a specific player")
-async def get_player_coaching(match_id: str, player_name: str, user_id: str | None = None, db: Session = Depends(get_session)):
+async def get_player_coaching(match_id: str, player_name: str, request: Request, user_id: str | None = None, db: Session = Depends(get_session)):
     """Return only the Player Report section for a specific player."""
     try:
         from db.models import Match  # noqa: PLC0415
@@ -144,6 +154,20 @@ async def get_player_coaching(match_id: str, player_name: str, user_id: str | No
         if player_name not in player_reports:
             raise HTTPException(
                 status_code=404, detail=f"No report found for player {player_name}"
+            )
+
+        # Per-player deep dives are premium content.
+        from services.billing import Tier, resolve_tier  # noqa: PLC0415
+
+        if resolve_tier(request.headers.get("x-user-plan")) is not Tier.PREMIUM:
+            return JSONResponse(
+                status_code=402,
+                content={
+                    "status": "locked",
+                    "match_id": match_id,
+                    "player": player_name,
+                    "upgrade_cta": "Player deep-dives are a premium feature.",
+                },
             )
 
         return {
