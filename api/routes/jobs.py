@@ -312,3 +312,92 @@ async def get_job_status(
     except Exception as e:
         logger.error(f"Job status query failed for {match_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch job status.")
+
+
+@router.get(
+    "/{match_id}/rounds/{round_num}/telemetry",
+    summary="Per-round telemetry for the 2D demo viewer",
+)
+async def get_round_telemetry(
+    match_id: str,
+    round_num: int,
+    user_id: str | None = None,
+    db: Session = Depends(get_session),
+):
+    """
+    Everything the minimap scrubber needs for one round: sampled player
+    trajectories (tick-keyed), kills, and grenade events. Round numbers are
+    canonical post-GameStateGate, so no display remapping is applied here.
+    """
+    import json  # noqa: PLC0415
+
+    owner = db.execute(
+        text("SELECT user_id, team_id, map_name, tickrate FROM matches WHERE match_id = :id"),
+        {"id": match_id},
+    ).fetchone()
+    if owner is None:
+        raise HTTPException(status_code=404, detail="Match not found")
+    match_user_id, match_team_id, map_name, tickrate = owner
+    if match_team_id:
+        if not user_id:
+            raise HTTPException(status_code=403, detail="Team match requires authentication.")
+        member = db.execute(
+            text("SELECT 1 FROM team_members WHERE team_id = :t AND user_id = :u"),
+            {"t": match_team_id, "u": user_id},
+        ).fetchone()
+        if not member:
+            raise HTTPException(status_code=403, detail="Not a member of this team.")
+    elif match_user_id and match_user_id != user_id:
+        raise HTTPException(status_code=403, detail="This match belongs to another user.")
+
+    trajectories = db.execute(
+        text(
+            "SELECT player, team, positions_json FROM trajectories"
+            " WHERE match_id = :id AND round_num = :rn"
+        ),
+        {"id": match_id, "rn": round_num},
+    ).fetchall()
+    kills = db.execute(
+        text(
+            "SELECT attacker, victim, weapon, tick, headshot, attacker_x, attacker_y,"
+            " victim_x, victim_y, attacker_steamid, victim_steamid FROM kills"
+            " WHERE match_id = :id AND round_num = :rn ORDER BY tick"
+        ),
+        {"id": match_id, "rn": round_num},
+    ).fetchall()
+    grenades = db.execute(
+        text(
+            "SELECT thrower, grenade_type, tick, throw_x, throw_y FROM grenades"
+            " WHERE match_id = :id AND round_num = :rn ORDER BY tick"
+        ),
+        {"id": match_id, "rn": round_num},
+    ).fetchall()
+
+    players = []
+    for t in trajectories:
+        try:
+            points = json.loads(t[2] or "[]")
+        except Exception:
+            points = []
+        players.append({"player": t[0], "team": t[1] or "", "points": points})
+
+    return {
+        "match_id": match_id,
+        "round": round_num,
+        "map": map_name,
+        "tickrate": tickrate or 64,
+        "players": players,
+        "kills": [
+            {
+                "attacker": k[0], "victim": k[1], "weapon": k[2], "tick": k[3],
+                "headshot": bool(k[4]), "attacker_x": k[5], "attacker_y": k[6],
+                "victim_x": k[7], "victim_y": k[8],
+                "attacker_steamid": k[9], "victim_steamid": k[10],
+            }
+            for k in kills
+        ],
+        "grenades": [
+            {"thrower": g[0], "type": g[1], "tick": g[2], "x": g[3], "y": g[4]}
+            for g in grenades
+        ],
+    }

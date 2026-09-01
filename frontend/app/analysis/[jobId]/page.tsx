@@ -5,6 +5,16 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
+import { Button } from "@/components/ui";
+
+const DemoViewer = dynamic(() => import("@/components/minimap").then(m => m.DemoViewer), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[400px] flex items-center justify-center text-slate-400">
+      <div className="w-8 h-8 border-4 border-[#2D7DD2] border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  )
+});
 
 const Viewer3D = dynamic(() => import("@/components/Viewer3D").then(m => m.Viewer3D), {
   ssr: false,
@@ -2977,6 +2987,7 @@ export default function AnalysisPage() {
   const [activeTab, setActiveTab] = useState<"stats" | "logs">("stats");
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [viewerMode, setViewerMode] = useState<"2d" | "3d">("2d");
+  const [replayView, setReplayView] = useState<"tactical" | "3d">("tactical");
 
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [tipIndex, setTipIndex] = useState(0);
@@ -3378,7 +3389,32 @@ export default function AnalysisPage() {
                         {viewerMode === "2d" ? (
                           <KillHeatmap kills={filteredKills} mapName={result.map} />
                         ) : (
-                          <Viewer3D kills={filteredKills} mapName={result.map} selectedRound={selectedRound} />
+                          <div>
+                            <div className="p-4 pb-0 flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant={replayView === "tactical" ? "primary" : "secondary"}
+                                onClick={() => setReplayView("tactical")}
+                              >
+                                2D Tactical
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={replayView === "3d" ? "primary" : "secondary"}
+                                onClick={() => setReplayView("3d")}
+                              >
+                                3D Replay
+                              </Button>
+                            </div>
+                            {replayView === "tactical" ? (
+                              <DemoViewer
+                                matchId={jobId}
+                                totalRounds={result.total_rounds ?? (result.rounds?.length ?? 0)}
+                              />
+                            ) : (
+                              <Viewer3D kills={filteredKills} mapName={result.map} selectedRound={selectedRound} />
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

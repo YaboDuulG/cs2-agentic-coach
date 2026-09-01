@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Cinzel, Inter, JetBrains_Mono } from "next/font/google";
 import { Navbar } from "@/components/Navbar";
+import { Providers } from "@/components/Providers";
 import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme-config";
 import "./globals.css";
 
@@ -30,8 +31,10 @@ export default function RootLayout({
         <body suppressHydrationWarning className="antialiased">
           {/* Apply a saved non-default theme before first paint to avoid a palette flash. */}
           <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
-          <Navbar />
-          {children}
+          <Providers>
+            <Navbar />
+            {children}
+          </Providers>
         </body>
       </html>
     </ClerkProvider>

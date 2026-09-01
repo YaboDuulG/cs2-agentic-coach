@@ -930,6 +930,11 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 | **Team seats** | members inherit team-scoped entitlements from a TEAM-tier owner (2026-09) | team_analysis/scouting/stratbook only, and only on that team's resources; personal full_coaching is not inherited |
 | **Entitlement cache** | in-process TTL (60s) invalidated by the sync endpoint — deliberately no Redis (2026-09) | The constraint's intent (no Stripe per request) is met by DB authority; a second stateful service isn't warranted, and TTL bounds cross-instance staleness |
 | **Teaser payloads** | Team/Oppo reports without the tier return mode+grade+category histogram only (2026-09) | Tactical specifics (observations, rounds, ticks, drills) are omitted server-side, never client-filtered; upgrade metadata included |
+| **Frontend data layer** | Zustand (playback) + TanStack Query (server cache) added; shadcn/ui rejected (2026-09) | Playback tick state must not re-render analytics UI — canvas reads the store in a rAF loop with zero React state; Query replaces hand-rolled poll loops. shadcn would fork the existing token-native ui primitives |
+| **2D demo viewer** | components/minimap + /rounds/{n}/telemetry endpoint (2026-09) | Radar canvas at 60fps isolation, interpolated 2s-sampled trails; documented approximations: bounding-box map projection (pending per-map radar calibration), motion-derived vision cones (no view angles in telemetry) |
+| **Mode dashboard + paywall UX** | Personal/Team/OppoResearch views + GatedInsightCard driven ONLY by server payload state (2026-09) | Components visualize what the server already omitted (full / FREE-redacted / teaser shapes from services/billing); no client-side gating. Recharts (specific imports only) for the category radar |
+| **Side colors** | Semantic --color-ct / --color-t tokens per theme (2026-09) | Khan maps them to its own blue/gold; other themes use the module-5 palette (#4A90E2/#E58E26). Prompt's slate/zinc repaint rejected — the token system stays |
+| **Route groups** | (auth)/(dashboard) regrouping deferred (2026-09) | URL-neutral cosmetic move; deferred as a mechanical pass rather than churning a 3k-line page mid-feature. New pages (/scouting) added flat to match |
 
 ---
 

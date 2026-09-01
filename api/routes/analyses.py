@@ -27,7 +27,7 @@ async def list_analyses(user_id: str = "", db: Session = Depends(get_session)):
     try:
         rows = db.execute(
             text("""
-                    SELECT match_id, map_name, status, created_at
+                    SELECT match_id, map_name, status, created_at, is_recon
                     FROM matches
                     WHERE user_id = :user_id AND team_id IS NULL
                     ORDER BY created_at DESC
@@ -42,6 +42,8 @@ async def list_analyses(user_id: str = "", db: Session = Depends(get_session)):
                 "map": r[1],
                 "status": r[2],
                 "created_at": r[3].isoformat() if r[3] else None,
+                # Scouting page filters on this to list opposition-research demos
+                "is_recon": bool(r[4]),
             }
             for r in rows
         ]

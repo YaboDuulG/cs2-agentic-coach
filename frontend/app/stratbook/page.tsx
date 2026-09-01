@@ -1,8 +1,14 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import CS2PlanningBoard, { CS2PlanningBoardRef } from "../../components/CS2PlanningBoard";
+import { DiscordSyncSidebar } from "../../components/stratbook/DiscordSyncSidebar";
 import { Save, Bot } from "lucide-react";
+
+interface Team {
+  team_id: string;
+  name: string;
+}
 
 export default function StratbookPage() {
   const boardRef = useRef<CS2PlanningBoardRef>(null);
@@ -10,6 +16,22 @@ export default function StratbookPage() {
   const [title, setTitle] = useState("");
   const [critique, setCritique] = useState("");
   const [isCritiquing, setIsCritiquing] = useState(false);
+
+  // The page is user-strategy-only; team strats appear when a team is selectable.
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamId, setTeamId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/teams")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((t) => {
+        if (Array.isArray(t)) {
+          setTeams(t);
+          setTeamId((prev) => prev ?? t[0]?.team_id ?? null);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSave = async () => {
     if (!boardRef.current) return;
@@ -135,6 +157,27 @@ export default function StratbookPage() {
             </div>
           </div>
         </div>
+
+        {/* Team stratbook — server-synced strats with Discord status. */}
+        {teams.length > 0 && (
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Team Stratbook</h2>
+              <select
+                value={teamId ?? ""}
+                onChange={(e) => setTeamId(e.target.value || null)}
+                className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+              >
+                {teams.map((t) => (
+                  <option key={t.team_id} value={t.team_id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <DiscordSyncSidebar teamId={teamId} />
+          </section>
+        )}
 
       </div>
     </div>
