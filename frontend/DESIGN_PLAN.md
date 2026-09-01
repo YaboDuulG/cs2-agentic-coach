@@ -230,3 +230,50 @@ removed, token-driven, 300ms/50ms-stagger entrances honoring reduced motion),
 AddStrategyModal, CS2PlanningBoard, Viewer3D chrome. Also fixed: the
 `--font-mono` self-reference in the old globals.css that silently disabled
 JetBrains Mono everywhere.
+
+---
+
+## 8. Flow refactor (v3) — one journey, not islands
+
+Planned against Emil Kowalski's animation decision framework (frequency gates,
+orchestrated moments over scattered effects, spatial consistency) + the
+frontend-design skill (hero as thesis, one signature element, quality floor).
+
+### The journey
+
+```
+Landing (thesis) ──sign up──▶ COMMAND CENTER (logged-in home)
+                                │  upload hero + recent analyses + mode-aware
+                                │  quick routes (Teams/Stratbook/Scouting)
+                                ▼ upload
+                              ANALYSIS
+                                │  waiting = SoyomboProgress (THE signature
+                                │  moment: Parse→Compare→Analyze→Report,
+                                │  the mark assembles stage by stage)
+                                ▼ ready
+                                header (map · score · grade) + section nav:
+                                Report (ModeSwitchedReport) · Replay (2D/3D)
+                                · Rounds — findings deep-link onward:
+                                recon → /scouting, team → /stratbook
+```
+
+Every page answers: where am I, what happened, where do I go next.
+Analyses list rows carry grade + status and lead to the analysis; empty
+states point at the one action that fills them.
+
+### Motion budget (Emil's frequency gate, applied)
+
+| Surface | Frequency | Motion |
+|---|---|---|
+| Navbar links, mode toggle | 100+/day | none beyond press feedback |
+| Page enter | tens/day | one 300ms fade-up, 50ms stagger, ease-out token — the SAME everywhere (spatial consistency); reduced-motion → fade only |
+| Upload dropzone | occasional | existing calm rings; drag feedback only |
+| **Processing screen** | rare + long attention | the delight budget lives HERE: SoyomboProgress — flame→sun→moon→bars light up as pipeline stages complete; current stage pulses |
+| Report reveal | occasional | staggered card entrance once, on data arrival |
+
+### Navbar as the flow's spine
+
+Left: mark + wordmark → home. Center (md+): Dashboard · Analyses · Teams ·
+Stratbook · Scouting with active states. Right: Upload as the primary CTA
+button (the product's one verb, visible everywhere), mode toggle, plan chip,
+avatar. Mobile menu keeps parity.

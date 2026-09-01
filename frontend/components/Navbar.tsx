@@ -7,7 +7,17 @@ import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
 import { Upload, Shield, Compass, Menu, X } from "lucide-react";
 import { SoyomboIcon } from "@/components/patterns/mongolian";
 import { UploadModal } from "@/components/UploadModal";
+import { Button } from "@/components/ui";
 import { useTheme } from "@/lib/themes";
+
+// The flow's spine: every page of the journey is one click away.
+const NAV_LINKS = [
+  { href: "/", label: "Dashboard" },
+  { href: "/profile", label: "Analyses" },
+  { href: "/teams", label: "Teams" },
+  { href: "/stratbook", label: "Stratbook" },
+  { href: "/scouting", label: "Scouting" },
+];
 
 export function Navbar() {
   const pathname = usePathname();
@@ -53,8 +63,12 @@ export function Navbar() {
         ? "var(--color-accent-primary)"
         : "var(--color-text-muted)";
 
-  const linkStyle = (href: string): React.CSSProperties => ({
-    color: pathname === href ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+  // Exact match for the dashboard, prefix match for sections.
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  const linkColor = (active: boolean): React.CSSProperties => ({
+    color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
     transition: "color var(--dur-press) ease",
   });
 
@@ -86,9 +100,9 @@ export function Navbar() {
           backdropFilter: "blur(14px)",
         }}
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
           {/* Logo — the mark is part of the theme's identity layer */}
-          <Link href="/" className="flex items-center gap-2.5 group">
+          <Link href="/" className="flex items-center gap-2.5 group flex-shrink-0">
             {def.motifs ? (
               <SoyomboIcon size={26} color="var(--color-accent-secondary)" />
             ) : (
@@ -102,52 +116,73 @@ export function Navbar() {
             </span>
           </Link>
 
-          <div className="flex items-center gap-3">
-            {user && (
-              <div
-                className="flex items-center rounded-lg p-0.5 shadow-inner mr-1 z-10 border"
-                style={{ background: "var(--color-bg-primary)", borderColor: "var(--color-border-primary)" }}
-              >
-                {modeButton("individual", "Individual")}
-                {modeButton("team", "Team")}
-              </div>
-            )}
+          {/* Center nav — the journey's stops. Active = text-primary + a static
+              2px accent underline; no animated indicator (100+/day surface). */}
+          {user && (
+            <div className="hidden md:flex items-center gap-1 text-sm font-medium">
+              {NAV_LINKS.map(link => {
+                const active = isActive(link.href);
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="relative px-3 py-2"
+                    style={linkColor(active)}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {link.label}
+                    {active && (
+                      <span
+                        aria-hidden
+                        className="absolute left-3 right-3 bottom-0 h-0.5 rounded-full"
+                        style={{ background: "var(--color-accent-primary)" }}
+                      />
+                    )}
+                  </Link>
+                );
+              })}
+              {isAdmin && (
+                <Link
+                  href="/settings/admin"
+                  className="flex items-center gap-1 px-3 py-2 font-bold"
+                  style={{ color: "var(--color-danger)" }}
+                  title="Admin Dashboard"
+                >
+                  <Shield size={12} />
+                  Admin
+                </Link>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 flex-shrink-0">
             {user ? (
               <>
-                <div className="hidden md:flex items-center gap-5 mr-3 text-sm font-medium">
-                  <button
-                    onClick={() => setIsUploadOpen(true)}
-                    className="flex items-center gap-1.5 cursor-pointer"
-                    style={{ color: "var(--color-text-secondary)", transition: "color var(--dur-press) ease" }}
-                  >
-                    <Upload size={13} /> Upload
-                  </button>
-                  <Link href="/profile" style={linkStyle("/profile")}>
-                    My Analyses
-                  </Link>
-                  <Link href="/teams" style={linkStyle("/teams")}>
-                    Teams
-                  </Link>
-                  {plan !== "pro" && (
-                    <Link href="/billing" style={linkStyle("/billing")}>
-                      Pricing
-                    </Link>
-                  )}
-                  {isAdmin && (
-                    <Link
-                      href="/settings/admin"
-                      className="flex items-center gap-1 font-bold"
-                      style={{ color: "var(--color-danger)" }}
-                      title="Admin Dashboard"
-                    >
-                      <Shield size={12} />
-                      Admin
-                    </Link>
-                  )}
+                {/* The product's one verb — always visible */}
+                <Button variant="primary" size="sm" onClick={() => setIsUploadOpen(true)}>
+                  <Upload size={14} /> Upload
+                </Button>
+                <div
+                  className="flex items-center rounded-lg p-0.5 shadow-inner z-10 border"
+                  style={{ background: "var(--color-bg-primary)", borderColor: "var(--color-border-primary)" }}
+                >
+                  {modeButton("individual", "Individual")}
+                  {modeButton("team", "Team")}
                 </div>
-                <span className="text-xs font-semibold font-mono hidden sm:inline" style={{ color: planColor }}>
-                  {planLabel}
-                </span>
+                {plan !== "pro" ? (
+                  <Link
+                    href="/billing"
+                    className="text-xs font-semibold font-mono hidden sm:inline"
+                    style={{ color: planColor }}
+                    title="Plans & pricing"
+                  >
+                    {planLabel}
+                  </Link>
+                ) : (
+                  <span className="text-xs font-semibold font-mono hidden sm:inline" style={{ color: planColor }}>
+                    {planLabel}
+                  </span>
+                )}
                 <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }} />
                 <button
                   className="ds-btn ds-btn-ghost ds-btn-icon md:hidden"
@@ -161,7 +196,7 @@ export function Navbar() {
             ) : (
               <>
                 <div className="hidden md:flex items-center gap-5 mr-2 text-sm font-medium">
-                  <Link href="/billing" style={linkStyle("/billing")}>
+                  <Link href="/billing" style={linkColor(isActive("/billing"))}>
                     Pricing
                   </Link>
                 </div>
@@ -176,7 +211,7 @@ export function Navbar() {
           </div>
         </div>
 
-        {/* Mobile menu — the md-hidden links, one per row */}
+        {/* Mobile menu — parity with the center nav, plus Upload and Admin */}
         {menuOpen && user && (
           <div
             className="md:hidden border-t px-6 py-3 flex flex-col gap-1"
@@ -189,17 +224,24 @@ export function Navbar() {
             >
               <Upload size={14} /> Upload a demo
             </button>
-            <Link href="/profile" className="py-2.5 text-sm font-medium" onClick={closeMenu} style={linkStyle("/profile")}>
-              My Analyses
-            </Link>
-            <Link href="/teams" className="py-2.5 text-sm font-medium" onClick={closeMenu} style={linkStyle("/teams")}>
-              Teams
-            </Link>
-            <Link href="/stratbook" className="py-2.5 text-sm font-medium" onClick={closeMenu} style={linkStyle("/stratbook")}>
-              Stratbook
-            </Link>
+            {NAV_LINKS.map(link => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="py-2.5 text-sm font-medium"
+                onClick={closeMenu}
+                style={linkColor(isActive(link.href))}
+              >
+                {link.label}
+              </Link>
+            ))}
             {plan !== "pro" && (
-              <Link href="/billing" className="py-2.5 text-sm font-medium" onClick={closeMenu} style={linkStyle("/billing")}>
+              <Link
+                href="/billing"
+                className="py-2.5 text-sm font-medium"
+                onClick={closeMenu}
+                style={linkColor(isActive("/billing"))}
+              >
                 Pricing
               </Link>
             )}
@@ -207,6 +249,7 @@ export function Navbar() {
               <Link
                 href="/settings/admin"
                 className="py-2.5 text-sm font-bold flex items-center gap-1.5"
+                onClick={closeMenu}
                 style={{ color: "var(--color-danger)" }}
               >
                 <Shield size={13} /> Admin

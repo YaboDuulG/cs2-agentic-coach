@@ -481,3 +481,20 @@
     transition: none !important;
   }
 }
+
+/* Signature-moment pulse for the SoyomboProgress active element — opacity
+   only, so it survives prefers-reduced-motion semantics; still stilled by
+   the decorative kill-switch pattern below for strict reduce. */
+.soyombo-active {
+  animation: soyombo-pulse 1.6s ease-in-out infinite;
+}
+@keyframes soyombo-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.8; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .soyombo-active {
+    animation: none;
+    opacity: 0.6 !important;
+  }
+}

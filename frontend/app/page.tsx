@@ -1,13 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useUser, SignUpButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { UploadZone } from "@/components/UploadZone";
 import { UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
 import { useTheme } from "@/lib/themes";
 import { Variants, motion, useReducedMotion } from "framer-motion";
-import { Target, BarChart3, Shield, Brain, ChevronRight } from "lucide-react";
-import { Spinner } from "@/components/ui";
+import { Target, BarChart3, Shield, Brain, ChevronRight, Users, BookOpen, Crosshair } from "lucide-react";
+import { Card, PageSection, PageTransition, Spinner } from "@/components/ui";
 
 // Entrances: fade-up under 300ms with a strong ease-out; reduced motion keeps
 // the fade and drops the movement.
@@ -66,44 +67,7 @@ export default function HomePage() {
   }
 
   if (user) {
-    return (
-      <div className="min-h-screen pb-24" style={{ background: "var(--gradient-hero)" }}>
-        <motion.main
-          initial="hidden"
-          animate="visible"
-          variants={stagger}
-          className="pt-24 md:pt-32 px-6 max-w-4xl mx-auto flex flex-col items-center"
-        >
-          <motion.h1
-            variants={fadeUp}
-            className="section-heading text-center mb-3"
-          >
-            Upload a demo
-          </motion.h1>
-          <motion.p
-            variants={fadeUp}
-            className="text-center max-w-xl mb-4"
-            style={{ color: "var(--color-text-secondary)" }}
-          >
-            Drop your latest match below. The report lands in{" "}
-            <Link href="/profile" className="underline underline-offset-4" style={{ color: "var(--color-accent-primary)" }}>
-              My Analyses
-            </Link>{" "}
-            when it&apos;s ready.
-          </motion.p>
-
-          {def.motifs && (
-            <motion.div variants={fadeUp} className="w-full max-w-md mb-10">
-              <UlziiBorder />
-            </motion.div>
-          )}
-
-          <motion.div variants={fadeUp} className="w-full max-w-2xl">
-            <UploadZone />
-          </motion.div>
-        </motion.main>
-      </div>
-    );
+    return <CommandCenter />;
   }
 
   return (
@@ -234,6 +198,221 @@ export default function HomePage() {
       >
         <p>© 2026 DemoSage. Built for Counter-Strike 2.</p>
       </footer>
+    </div>
+  );
+}
+
+// ─── Command Center — the logged-in home ───────────────────────────────────
+
+/** Row shape returned by /api/analyses (same endpoint the profile page uses). */
+interface AnalysisRow {
+  match_id: string;
+  map: string;
+  status: string;
+  created_at: string;
+  is_recon?: boolean;
+}
+
+const QUICK_ROUTES = [
+  { href: "/teams", icon: Users, title: "Teams", desc: "Rosters & team demos" },
+  { href: "/stratbook", icon: BookOpen, title: "Stratbook", desc: "Draw and approve strats" },
+  { href: "/scouting", icon: Crosshair, title: "Scouting", desc: "Opposition dossiers" },
+];
+
+// complete → success, failed → danger, everything in flight → warning.
+function statusToken(status: string): string {
+  const s = status.toLowerCase();
+  if (s === "complete" || s === "done") return "var(--color-success)";
+  if (s === "failed" || s === "error") return "var(--color-danger)";
+  return "var(--color-warning)";
+}
+
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function StatusChip({ status }: { status: string }) {
+  const token = statusToken(status);
+  return (
+    <span
+      className="rounded-full px-2 py-0.5 text-[10px] font-mono font-semibold uppercase tracking-wide whitespace-nowrap"
+      style={{
+        color: token,
+        background: `color-mix(in srgb, ${token} 12%, transparent)`,
+        border: `1px solid color-mix(in srgb, ${token} 30%, transparent)`,
+      }}
+    >
+      {status}
+    </span>
+  );
+}
+
+function CommandCenter() {
+  const { def } = useTheme();
+
+  // Same read pattern as Navbar: lazy localStorage init + the coachingModeChange bus.
+  const [coachingMode, setCoachingMode] = useState<"individual" | "team">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("coaching_mode");
+      if (saved === "individual" || saved === "team") return saved;
+    }
+    return "individual";
+  });
+
+  const [analyses, setAnalyses] = useState<AnalysisRow[]>([]);
+  const [loadingAnalyses, setLoadingAnalyses] = useState(true);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<"individual" | "team">).detail;
+      if (detail === "individual" || detail === "team") setCoachingMode(detail);
+    };
+    window.addEventListener("coachingModeChange", handler);
+    return () => window.removeEventListener("coachingModeChange", handler);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/analyses")
+      .then(r => r.json())
+      .catch(() => [])
+      .then(data => {
+        if (cancelled) return;
+        setAnalyses(Array.isArray(data) ? data : []);
+        setLoadingAnalyses(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const recent = analyses.slice(0, 5);
+
+  return (
+    <div className="min-h-screen pb-24" style={{ background: "var(--gradient-hero)" }}>
+      <PageTransition className="pt-24 md:pt-28 px-6 max-w-6xl mx-auto">
+        {/* Header */}
+        <PageSection className="mb-10">
+          <p
+            className="text-xs font-mono font-semibold uppercase tracking-[0.2em] mb-3"
+            style={{ color: "var(--color-accent-secondary)" }}
+          >
+            War room
+          </p>
+          <h1 className="section-heading mb-2">Ready when you are</h1>
+          <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+            {coachingMode === "team" ? "Team" : "Individual"} coaching mode — switch it in the top bar.
+          </p>
+        </PageSection>
+
+        {/* Upload hero + recent analyses */}
+        <PageSection className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12 items-stretch">
+          <Card className="p-6">
+            <p className="text-sm mb-4" style={{ color: "var(--color-text-secondary)" }}>
+              Drop your latest match — the report lands in Analyses.
+            </p>
+            <UploadZone defaultMode={coachingMode} />
+          </Card>
+
+          <Card className="p-6 flex flex-col">
+            <h2 className="text-base font-bold tracking-wide mb-4">Recent analyses</h2>
+
+            {loadingAnalyses ? (
+              <div className="space-y-2" aria-hidden>
+                {[0, 1, 2].map(i => (
+                  <div
+                    key={i}
+                    className="h-11 rounded-lg border"
+                    style={{
+                      background: "var(--color-bg-secondary)",
+                      borderColor: "var(--color-border-primary)",
+                      opacity: 0.5,
+                    }}
+                  />
+                ))}
+              </div>
+            ) : recent.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center py-10 text-center">
+                <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                  <span className="hidden lg:inline" aria-hidden>← </span>
+                  No matches yet — your first upload starts here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recent.map(a => (
+                  <Link
+                    key={a.match_id}
+                    href={`/analysis/${a.match_id}`}
+                    className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 border border-[var(--color-border-primary)] hover:border-[var(--color-border-strong)] transition-colors"
+                    style={{ background: "var(--color-bg-secondary)" }}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="truncate text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
+                        {a.map || "Unknown map"}
+                      </span>
+                      {a.is_recon && (
+                        <span
+                          className="rounded px-1.5 py-0.5 text-[10px] font-mono font-bold tracking-wide whitespace-nowrap"
+                          style={{
+                            color: "var(--color-accent-secondary)",
+                            border: "1px solid color-mix(in srgb, var(--color-accent-secondary) 45%, transparent)",
+                          }}
+                        >
+                          RECON
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <StatusChip status={a.status} />
+                      <span className="font-mono text-xs" style={{ color: "var(--color-text-muted)" }}>
+                        {shortDate(a.created_at)}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-auto pt-4">
+              <Link
+                href="/profile"
+                className="text-xs font-semibold"
+                style={{ color: "var(--color-accent-primary)" }}
+              >
+                All analyses →
+              </Link>
+            </div>
+          </Card>
+        </PageSection>
+
+        {/* Quick routes onward */}
+        {def.motifs && (
+          <PageSection className="mb-6">
+            <UlziiBorder />
+          </PageSection>
+        )}
+        <PageSection className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {QUICK_ROUTES.map(route => (
+            <Link key={route.href} href={route.href} className="block">
+              <Card className="p-5 h-full border-[var(--color-border-primary)] hover:border-[var(--color-border-strong)] transition-colors">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center mb-4 border"
+                  style={{ background: "var(--color-accent-soft)", borderColor: "var(--color-border-primary)" }}
+                >
+                  <route.icon size={18} style={{ color: "var(--color-accent-primary)" }} />
+                </div>
+                <h3 className="text-base font-semibold tracking-wide mb-1">{route.title}</h3>
+                <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                  {route.desc}
+                </p>
+              </Card>
+            </Link>
+          ))}
+        </PageSection>
+      </PageTransition>
     </div>
   );
 }
