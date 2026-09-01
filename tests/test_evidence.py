@@ -311,3 +311,50 @@ class TestProExamples:
         round_linked = [p for p in pack["pro_examples"] if p["round_ref"] is not None]
         assert len(round_linked) == MAX_FLAGGED_ROUNDS * 2
         assert pack["flagged_rounds"] == list(range(1, MAX_FLAGGED_ROUNDS + 1))
+
+    @patch("db.rag.retrieve_similar_chunks")
+    @patch("services.rag_engine.retrieval.retrieve_pro_comps")
+    def test_hybrid_retrieval_is_primary_and_carries_attribution(
+        self, mock_hybrid, mock_legacy, db_session
+    ):
+        """When the archetype library answers, the legacy path is not used and
+        the example carries pro_match_id for the citation contract."""
+        mock_hybrid.return_value = [
+            {
+                "id": "pt-1",
+                "text": "Vitality CT B hold vs force",
+                "score": 0.03,
+                "source": "hltv_pro_match",
+                "pro_match_id": "hltv-2377810",
+                "metadata": {"map": "de_mirage"},
+            }
+        ]
+        pack = build_evidence_pack(
+            db_session, TEST_MATCH_ID, _scout_out(), _tactical_analysis(), []
+        )
+
+        assert mock_legacy.call_count == 0
+        linked = [p for p in pack["pro_examples"] if p["round_ref"] is not None]
+        assert linked
+        assert linked[0]["detail"] == "Vitality CT B hold vs force"
+        assert linked[0]["pro_match_id"] == "hltv-2377810"
+        # Filters derived from the round's actual state reach the hybrid call
+        kwargs = mock_hybrid.call_args.kwargs
+        assert kwargs["map_name"] == "mirage"
+        assert kwargs["side"] in ("CT", "T")
+
+    @patch("db.rag.retrieve_similar_chunks")
+    @patch("services.rag_engine.retrieval.retrieve_pro_comps", return_value=[])
+    def test_empty_hybrid_falls_back_to_legacy(self, mock_hybrid, mock_legacy, db_session):
+        """An empty archetype library degrades to the legacy corpus search."""
+        mock_legacy.return_value = [
+            {"content": "legacy chunk", "source": "hltv_pro_match", "score": 0.9}
+        ]
+        pack = build_evidence_pack(
+            db_session, TEST_MATCH_ID, _scout_out(), _tactical_analysis(), []
+        )
+        assert mock_hybrid.call_count > 0
+        assert mock_legacy.call_count > 0
+        linked = [p for p in pack["pro_examples"] if p["round_ref"] is not None]
+        assert linked[0]["detail"] == "legacy chunk"
+        assert linked[0]["pro_match_id"] is None

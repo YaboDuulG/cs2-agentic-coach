@@ -112,8 +112,45 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 
 	result := &ParseResult{MatchID: matchID}
 
+	// Phase gating: only events from live rounds are recorded. Warmup, knife
+	// round, pauses, restarts, and postgame are stripped and counted; a fresh
+	// match start after data was recorded discards the earlier (fake) match.
+	gate := NewGameStateGate(
+		func() bool {
+			return len(result.Kills) > 0 || len(result.Rounds) > 0 ||
+				len(result.Grenades) > 0 || len(result.Positions) > 0
+		},
+		func() {
+			result.Kills = nil
+			result.Rounds = nil
+			result.Grenades = nil
+			result.Positions = nil
+		},
+	)
+
+	p.RegisterEventHandler(func(e events.IsWarmupPeriodChanged) {
+		gate.SetWarmup(e.NewIsWarmupPeriod)
+	})
+	p.RegisterEventHandler(func(e events.MatchStartedChanged) {
+		gate.SetMatchStarted(e.NewIsStarted)
+	})
+	p.RegisterEventHandler(func(e events.AnnouncementWinPanelMatch) {
+		gate.MatchEnded(int64(p.CurrentFrame()))
+	})
+	// Timeouts / technical pauses keep IsMatchStarted true but manifest as
+	// extended freezetime; without this, idle positions and pause-time events
+	// would be recorded as live play. All freezetime is non-live (players are
+	// frozen); long spans are reported as pauses in the summary.
+	p.RegisterEventHandler(func(e events.RoundFreezetimeChanged) {
+		gate.SetFreezetime(e.NewIsFreezetime, int64(p.CurrentFrame()), p.TickRate())
+	})
+
 	// Kill events
 	p.RegisterEventHandler(func(e events.Kill) {
+		if !gate.IsLive() {
+			gate.CountStripped()
+			return
+		}
 		attacker := ""
 		victim := ""
 		if e.Killer != nil {
@@ -150,6 +187,10 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 
 	// Round end events
 	p.RegisterEventHandler(func(e events.RoundEnd) {
+		if !gate.IsLive() {
+			gate.CountStripped()
+			return
+		}
 		gs := p.GameState()
 		tEcon := gs.TeamTerrorists().CurrentEquipmentValue()
 		ctEcon := gs.TeamCounterTerrorists().CurrentEquipmentValue()
@@ -179,6 +220,10 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 	})
 
 	p.RegisterEventHandler(func(e events.GrenadeProjectileDestroy) {
+		if !gate.IsLive() {
+			gate.CountStripped()
+			return
+		}
 		throwerID := ""
 		if e.Projectile.Thrower != nil {
 			throwerID = fmt.Sprintf("%d", e.Projectile.Thrower.SteamID64)
@@ -199,7 +244,7 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 
 	lastPosTick := 0
 	p.RegisterEventHandler(func(e events.FrameDone) {
-		if p.GameState().IsMatchStarted() && p.CurrentFrame()-lastPosTick > int(p.TickRate()*2) {
+		if gate.IsLive() && p.CurrentFrame()-lastPosTick > int(p.TickRate()*2) {
 			lastPosTick = p.CurrentFrame()
 			for _, player := range p.GameState().Participants().Playing() {
 				steamId := ""
@@ -227,6 +272,7 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 	header := p.Header()
 	result.MapName = header.MapName
 	result.Tickrate = int(p.TickRate())
+	result.PhaseSummary = &gate.Summary
 
 	return result, nil
 }

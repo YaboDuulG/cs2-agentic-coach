@@ -26,6 +26,7 @@ import enum
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Enum,
     Float,
@@ -97,6 +98,9 @@ class Match(Base):
     gcs_audio_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     gcs_parsed_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     player_stats_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # GameStateGate observability: what the parser stripped (warmup/postgame
+    # events, restarts discarded, pause intervals) — JSON, see services/demo-parser.
+    phase_summary_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     parse_duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(UTC)
@@ -663,3 +667,118 @@ class ProBaseline(Base):
     def __repr__(self) -> str:
         """Docstring for __repr__."""
         return f"<ProBaseline {self.metric} map={self.map_name} side={self.side} value={self.value}>"
+
+
+# ---------------------------------------------------------------------------
+# Pro meta registry — HLTV S/A-tier ingestion for the RAG engine
+# (services/rag_engine). Demo binaries never land in the DB: the *_uri
+# columns hold object-storage URIs only.
+# ---------------------------------------------------------------------------
+
+
+class ProTournament(Base):
+    """Docstring for ProTournament."""
+    __tablename__ = "pro_tournaments"
+    __table_args__ = (CheckConstraint("tier IN ('S', 'A')", name="ck_pro_tournaments_tier"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    hltv_event_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    tier: Mapped[str] = mapped_column(String(1), nullable=False)  # 'S' | 'A'
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    matches: Mapped[list["ProMatch"]] = relationship(
+        "ProMatch", back_populates="tournament", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        """Docstring for __repr__."""
+        return f"<ProTournament {self.hltv_event_id} tier={self.tier} name={self.name}>"
+
+
+class ProMatch(Base):
+    """Docstring for ProMatch."""
+    __tablename__ = "pro_matches"
+
+    hltv_match_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    tournament_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("pro_tournaments.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    team_a: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    team_b: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    map_name: Mapped[str] = mapped_column(String(64), nullable=False, default="unknown")
+    played_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Object-storage URI of the raw .dem — never the bytes themselves.
+    demo_gcs_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Object-storage URI of the parsed ParseResult JSON.
+    parsed_gcs_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    patch_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # NULL = queued for ingestion; set once archetypes are extracted + vectorized.
+    ingested_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+
+    tournament: Mapped["ProTournament"] = relationship("ProTournament", back_populates="matches")
+    rounds: Mapped[list["ProRound"]] = relationship(
+        "ProRound", back_populates="pro_match", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        """Docstring for __repr__."""
+        return f"<ProMatch {self.hltv_match_id} {self.team_a} vs {self.team_b} map={self.map_name}>"
+
+
+class ProRound(Base):
+    """Docstring for ProRound."""
+    __tablename__ = "pro_rounds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    pro_match_id: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("pro_matches.hltv_match_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    round_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    side: Mapped[str] = mapped_column(String(8), nullable=False, default="")  # CT | T
+    buy_type: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    round_type: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    winner: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    archetype_label: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    metrics_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+
+    pro_match: Mapped["ProMatch"] = relationship("ProMatch", back_populates="rounds")
+
+    def __repr__(self) -> str:
+        """Docstring for __repr__."""
+        return f"<ProRound match={self.pro_match_id} r{self.round_num} {self.side} {self.archetype_label}>"
+
+
+class ProStratArchetype(Base):
+    """
+    One vectorizable pro-strat pattern (e.g. "Mirage A-Execute with 2 Smokes")
+    aggregated from ProRound telemetry. summary_text is what gets embedded;
+    qdrant_point_id links back to the pro_playbook collection point.
+    """
+
+    __tablename__ = "pro_strat_archetypes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    label: Mapped[str] = mapped_column(String(128), nullable=False)
+    map_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    side: Mapped[str] = mapped_column(String(8), nullable=False, default="")  # CT | T
+    buy_type: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    round_type: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    team_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    patch_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    summary_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    metrics_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    qdrant_point_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    def __repr__(self) -> str:
+        """Docstring for __repr__."""
+        return f"<ProStratArchetype {self.label} map={self.map_name} side={self.side}>"

@@ -367,12 +367,17 @@ def build_evidence_pack(
             {
                 "id": f"P{len(pro_examples) + 1}",
                 "round_ref": round_ref,
-                "detail": chunk.get("content", ""),
+                # Hybrid retrieval returns "text"; the legacy path returns "content".
+                "detail": chunk.get("text") or chunk.get("content", ""),
                 "source": chunk.get("source") or "hltv_pro_match",
+                # Attribution for the citation contract — present on archetype
+                # chunks from the rag_engine, None on legacy corpus chunks.
+                "pro_match_id": chunk.get("pro_match_id"),
             }
         )
 
     from db.rag import retrieve_similar_chunks  # noqa: PLC0415
+    from services.rag_engine.retrieval import retrieve_pro_comps  # noqa: PLC0415
 
     for rn in flagged_rounds:
         hist = round_history.get(rn) or {}
@@ -385,13 +390,31 @@ def build_evidence_pack(
         buy_tier = eco_r.get("ct_type") if side == "CT" else eco_r.get("t_type")
         outcome = "won" if winner and side == winner else "lost"
         query = f"pro CS2 {map_name} {side} side {buy_tier or 'unknown buy'} round {outcome} tactics"
+
+        # Primary: hybrid (BM25 + dense, strict metadata filters) over the pro
+        # archetype library — returns attributed chunks with pro_match_id.
+        chunks: list[dict[str, Any]] = []
         try:
-            chunks = retrieve_similar_chunks(
-                db, query=query, limit=CHUNKS_PER_ROUND, source="hltv_pro_match"
+            chunks = retrieve_pro_comps(
+                db,
+                query,
+                map_name=map_name if map_name != "unknown" else None,
+                side=side if side in ("CT", "T") else None,
+                buy_type=buy_tier,
+                top_k=CHUNKS_PER_ROUND,
             )
         except Exception as e:
-            logger.error(f"Situation retrieval failed for round {rn}: {e}")
-            chunks = []
+            logger.error(f"Hybrid retrieval failed for round {rn}: {e}")
+        # Fallback: legacy corpus search, so coaching keeps pro context while
+        # the archetype library is still empty.
+        if not chunks:
+            try:
+                chunks = retrieve_similar_chunks(
+                    db, query=query, limit=CHUNKS_PER_ROUND, source="hltv_pro_match"
+                )
+            except Exception as e:
+                logger.error(f"Situation retrieval failed for round {rn}: {e}")
+                chunks = []
         for chunk in chunks:
             add_example(rn, chunk)
 

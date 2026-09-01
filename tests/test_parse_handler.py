@@ -58,6 +58,15 @@ FAKE_PARSE_RESULT = {
         {"round": 1, "tick": 228, "steam_id": "111", "x": 5.0, "y": 6.0, "z": 7.0, "is_alive": True},
         {"round": 1, "tick": 100, "steam_id": "222", "x": 9.0, "y": 9.0, "z": 9.0, "is_alive": True},
     ],
+    # GameStateGate strip report (warmup kills, one tech pause, knife restart)
+    "phase_summary": {
+        "warmup_events_stripped": 12,
+        "paused_events_stripped": 1,
+        "postgame_events_stripped": 3,
+        "pregame_events_stripped": 0,
+        "restarts_discarded": 1,
+        "pauses": [{"start_tick": 10000, "end_tick": 21520, "kind": "pause"}],
+    },
 }
 
 
@@ -157,3 +166,34 @@ def test_missing_gcs_uri_raises(db_session):
     db_session.commit()
     with pytest.raises(RuntimeError, match="gcs_demo_uri"):
         handle_parse_job(db_session, TEST_MATCH_ID)
+
+
+def test_phase_summary_persisted(parsed):
+    """The gate's strip report lands on the match row for observability."""
+    import json
+
+    match = parsed.query(Match).one()
+    assert match.phase_summary_json is not None
+    summary = json.loads(match.phase_summary_json)
+    assert summary["warmup_events_stripped"] == 12
+    assert summary["restarts_discarded"] == 1
+    assert summary["pauses"][0]["end_tick"] == 21520
+
+
+def test_all_warmup_demo_fails_loudly(db_session):
+    """A demo with zero live rounds after gating must fail, not produce an
+    empty-but-plausible report."""
+    empty_result = {
+        "match_id": TEST_MATCH_ID,
+        "map_name": "de_mirage",
+        "tickrate": 64,
+        "rounds": [],
+        "kills": [],
+        "grenades": [],
+        "positions": [],
+        "phase_summary": {"warmup_events_stripped": 55, "restarts_discarded": 0, "pauses": []},
+    }
+    with patch("services.worker.parse_handler._call_parser", return_value=empty_result):
+        with pytest.raises(RuntimeError, match="no live rounds"):
+            handle_parse_job(db_session, TEST_MATCH_ID)
+    assert db_session.query(Match).one().status != MatchStatus.COMPLETE
