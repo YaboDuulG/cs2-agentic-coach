@@ -57,10 +57,10 @@ func TestFullDemoLifecycle(t *testing.T) {
 
 	// Round 1: freezetime then live.
 	gate.SetFreezetime(true, 1000, 64)
-	rec.record(gate) // buy-time event — stripped
+	rec.record(gate)                    // buy-time event — stripped
 	gate.SetFreezetime(false, 1960, 64) // 15s — normal, not a pause
-	rec.record(gate) // live kill
-	rec.record(gate) // live kill
+	rec.record(gate)                    // live kill
+	rec.record(gate)                    // live kill
 
 	// Technical pause: freezetime that runs 3 minutes.
 	gate.SetFreezetime(true, 10000, 64)

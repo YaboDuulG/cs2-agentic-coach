@@ -17,9 +17,10 @@ os.environ["DATABASE_URL_TEST"] = "sqlite:///:memory:"
 from agents.scribe.evidence import (
     MAX_FLAGGED_ROUNDS,
     build_evidence_pack,
+    compute_pro_baselines,
     seed_default_baselines,
 )
-from db.models import Base, ProBaseline
+from db.models import Base, ProBaseline, RoundFeature
 
 TEST_MATCH_ID = "test-match-evidence"
 
@@ -358,3 +359,168 @@ class TestProExamples:
         linked = [p for p in pack["pro_examples"] if p["round_ref"] is not None]
         assert linked[0]["detail"] == "legacy chunk"
         assert linked[0]["pro_match_id"] is None
+
+
+TELEMETRY_V2_KINDS = {
+    "opening_flash",
+    "opening_zone",
+    "util_damage",
+    "team_flash",
+    "trade_spacing",
+    "exec_sync",
+}
+
+TELEMETRY_V2_METRICS = {
+    "util_damage_per_round",
+    "enemy_blind_seconds_per_flash",
+    "team_flash_seconds_per_round",
+    "trade_window_s",
+    "trade_success_rate",
+    "exec_sync_score",
+    "opening_flash_assist_rate",
+}
+
+
+def _seed_round_features(db_session):
+    """Three fabricated telemetry-v2 rounds: a flash-assisted opening win, a dry
+    loss at Inferno_Banana with a heavy team flash, and a second Banana loss."""
+    rows = [
+        RoundFeature(
+            match_id=TEST_MATCH_ID,
+            round_num=1,
+            side_focus="T",
+            opening_duel_won=True,
+            opening_zone="Inferno_Mid",
+            opening_flash_assist=True,
+            util_damage=150,
+            enemy_blind_seconds=4.0,
+            team_blind_seconds=0.0,
+            trade_success_rate=1.0,
+            avg_trade_window_s=1.8,
+            exec_sync_score=0.9,
+        ),
+        RoundFeature(
+            match_id=TEST_MATCH_ID,
+            round_num=2,
+            side_focus="T",
+            opening_duel_won=False,
+            opening_zone="Inferno_Banana",
+            opening_flash_assist=False,
+            util_damage=30,
+            enemy_blind_seconds=0.5,
+            team_blind_seconds=2.5,
+            trade_success_rate=0.0,
+            avg_trade_window_s=4.2,
+            exec_sync_score=0.3,
+        ),
+        RoundFeature(
+            match_id=TEST_MATCH_ID,
+            round_num=3,
+            side_focus="T",
+            opening_duel_won=False,
+            opening_zone="Inferno_Banana",
+            opening_flash_assist=False,
+            util_damage=60,
+            enemy_blind_seconds=1.0,
+            team_blind_seconds=0.7,
+            trade_success_rate=0.5,
+            avg_trade_window_s=3.0,
+            exec_sync_score=None,
+        ),
+    ]
+    db_session.add_all(rows)
+    db_session.commit()
+
+
+class TestTelemetryV2Facts:
+    """Facts and baselines derived from RoundFeature telemetry-v2 aggregates."""
+
+    @patch("db.rag.retrieve_similar_chunks", return_value=[])
+    def test_opening_flash_fact(self, mock_retrieve, db_session):
+        """Flash-assist rate covers every round with an opening duel."""
+        _seed_round_features(db_session)
+        pack = build_evidence_pack(
+            db_session, TEST_MATCH_ID, _scout_out(), _tactical_analysis(), []
+        )
+        fact = next(f for f in pack["facts"] if f["kind"] == "opening_flash")
+        assert "1 of 3 opening duels" in fact["detail"]
+        assert fact["value"] == pytest.approx(1 / 3, abs=1e-4)
+        assert fact["rounds"] == [1, 2, 3]
+
+    @patch("db.rag.retrieve_similar_chunks", return_value=[])
+    def test_opening_zone_fact_names_repeat_loss_zone(self, mock_retrieve, db_session):
+        """The most frequent lost-opening zone is called out by canonical name."""
+        _seed_round_features(db_session)
+        pack = build_evidence_pack(
+            db_session, TEST_MATCH_ID, _scout_out(), _tactical_analysis(), []
+        )
+        fact = next(f for f in pack["facts"] if f["kind"] == "opening_zone")
+        assert "Inferno_Banana" in fact["detail"]
+        assert fact["rounds"] == [2, 3]
+        assert fact["value"] == 2.0
+
+    @patch("db.rag.retrieve_similar_chunks", return_value=[])
+    def test_utility_facts_and_team_flash_rounds(self, mock_retrieve, db_session):
+        """Avg util damage plus the team-flash callout with the offending rounds."""
+        _seed_round_features(db_session)
+        pack = build_evidence_pack(
+            db_session, TEST_MATCH_ID, _scout_out(), _tactical_analysis(), []
+        )
+        util = next(f for f in pack["facts"] if f["kind"] == "util_damage")
+        assert util["value"] == 80.0  # (150 + 30 + 60) / 3
+        assert util["rounds"] == [1, 2, 3]
+
+        team_flash = next(f for f in pack["facts"] if f["kind"] == "team_flash")
+        assert "blinded teammates for 3.2s total" in team_flash["detail"]
+        assert team_flash["value"] == pytest.approx(3.2)
+        assert team_flash["rounds"] == [2, 3]  # only rounds with team_blind_seconds > 0
+
+    @patch("db.rag.retrieve_similar_chunks", return_value=[])
+    def test_trade_and_exec_sync_facts(self, mock_retrieve, db_session):
+        """Trade fact carries the worst rounds by success rate; sync the worst two."""
+        _seed_round_features(db_session)
+        pack = build_evidence_pack(
+            db_session, TEST_MATCH_ID, _scout_out(), _tactical_analysis(), []
+        )
+        trade = next(f for f in pack["facts"] if f["kind"] == "trade_spacing")
+        assert trade["value"] == 0.5  # mean of 1.0, 0.0, 0.5
+        assert "average trade window 3.0s" in trade["detail"]
+        assert trade["rounds"] == [1, 2, 3]  # only 3 rounds, so all are the "worst 3"
+
+        sync = next(f for f in pack["facts"] if f["kind"] == "exec_sync")
+        assert sync["value"] == pytest.approx(0.6)  # mean of 0.9 and 0.3 (round 3 is null)
+        assert sync["rounds"] == [1, 2]
+
+    @patch("db.rag.retrieve_similar_chunks", return_value=[])
+    def test_new_baselines_seeded_and_paired(self, mock_retrieve, db_session):
+        """The telemetry-v2 bootstrap baselines resolve into the pack via lookup."""
+        seed_default_baselines(db_session)
+        _seed_round_features(db_session)
+        pack = build_evidence_pack(
+            db_session, TEST_MATCH_ID, _scout_out(), _tactical_analysis(), []
+        )
+        metrics = {b["metric"] for b in pack["baselines"]}
+        assert TELEMETRY_V2_METRICS <= metrics
+        util_bl = next(b for b in pack["baselines"] if b["metric"] == "util_damage_per_round")
+        assert util_bl["value"] == 85.0
+        assert util_bl["unit"] == "hp"
+        assert util_bl["source"] == "bootstrap default, replace with pro round_features distributions"
+        # B-ids stay sequential with the new metrics mixed in
+        assert [b["id"] for b in pack["baselines"]] == [
+            f"B{i + 1}" for i in range(len(pack["baselines"]))
+        ]
+
+    @patch("db.rag.retrieve_similar_chunks", return_value=[])
+    def test_zero_round_features_changes_nothing(self, mock_retrieve, db_session):
+        """No RoundFeature rows → no telemetry facts, no telemetry baselines."""
+        seed_default_baselines(db_session)
+        pack = build_evidence_pack(
+            db_session, TEST_MATCH_ID, _scout_out(), _tactical_analysis(), []
+        )
+        assert not TELEMETRY_V2_KINDS & {f["kind"] for f in pack["facts"]}
+        assert not TELEMETRY_V2_METRICS & {b["metric"] for b in pack["baselines"]}
+
+    def test_compute_pro_baselines_stub_returns_zero(self, db_session):
+        """No pro round_features exist yet, so the upgrade pass is a no-op."""
+        seed_default_baselines(db_session)
+        assert compute_pro_baselines(db_session) == 0

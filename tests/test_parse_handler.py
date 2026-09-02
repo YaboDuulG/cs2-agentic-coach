@@ -58,6 +58,20 @@ FAKE_PARSE_RESULT = {
         {"round": 1, "tick": 228, "steam_id": "111", "x": 5.0, "y": 6.0, "z": 7.0, "is_alive": True},
         {"round": 1, "tick": 100, "steam_id": "222", "x": 9.0, "y": 9.0, "z": 9.0, "is_alive": True},
     ],
+    "damages": [
+        {"round": 1, "tick": 190, "attacker_steam_id": "111", "victim_steam_id": "222",
+         "weapon": "ak47", "hp_damage": 27, "armor_damage": 8, "hitgroup": "head",
+         "is_utility": False},
+        {"round": 1, "tick": 160, "attacker_steam_id": "111", "victim_steam_id": "444",
+         "weapon": "HE Grenade", "hp_damage": 42, "armor_damage": 12, "hitgroup": "generic",
+         "is_utility": True},
+    ],
+    "flashes": [
+        {"round": 1, "tick": 150, "thrower_steam_id": "111", "blinded_steam_id": "222",
+         "blind_duration": 2.4, "is_teammate": False},
+        {"round": 1, "tick": 150, "thrower_steam_id": "111", "blinded_steam_id": "333",
+         "blind_duration": 1.1, "is_teammate": True},
+    ],
     # GameStateGate strip report (warmup kills, one tech pause, knife restart)
     "phase_summary": {
         "warmup_events_stripped": 12,
@@ -197,3 +211,47 @@ def test_all_warmup_demo_fails_loudly(db_session):
         with pytest.raises(RuntimeError, match="no live rounds"):
             handle_parse_job(db_session, TEST_MATCH_ID)
     assert db_session.query(Match).one().status != MatchStatus.COMPLETE
+
+
+def test_damage_and_flash_events_persisted(parsed):
+    """Telemetry v2 rows land with utility and team-flash flags intact."""
+    from db.models import Damage, FlashEventRow
+
+    damages = parsed.query(Damage).order_by(Damage.tick).all()
+    assert len(damages) == 2
+    assert damages[0].is_utility is True and damages[0].hp_damage == 42
+    assert damages[1].hitgroup == "head"
+
+    flashes = parsed.query(FlashEventRow).all()
+    assert len(flashes) == 2
+    assert any(f.is_teammate for f in flashes)
+    assert max(f.blind_duration for f in flashes) == 2.4
+
+
+def test_round_features_written(db_session):
+    """features_v2 rows land per (round, side) with plausible aggregates."""
+    from db.models import RoundFeature
+    from services.tactician.zones import seed_default_zones
+
+    seed_default_zones(db_session)  # the worker runner does this at startup
+    with patch("services.worker.parse_handler._call_parser", return_value=FAKE_PARSE_RESULT):
+        handle_parse_job(db_session, TEST_MATCH_ID)
+
+    rows = db_session.query(RoundFeature).all()
+    assert {(r.round_num, r.side_focus) for r in rows} == {
+        (1, "T"), (1, "CT"), (2, "T"), (2, "CT"),
+    }
+    round1 = [r for r in rows if r.round_num == 1]
+    # Sides are derived from the kill graph, so assert per-round sums and the
+    # won/lost split rather than which steamid landed on which side.
+    assert sum(r.util_damage for r in round1) == 42  # the HE damage event
+    assert sum(r.enemy_blind_seconds for r in round1) == pytest.approx(2.4)
+    assert sum(r.team_blind_seconds for r in round1) == pytest.approx(1.1)
+    assert sorted(r.opening_duel_won for r in round1) == [False, True]
+    # Round 1's first-contact victim died at (0, 0) → inside Mirage_Mid.
+    assert all(r.opening_zone == "Mirage_Mid" for r in round1)
+
+    # Re-running the handler replaces, not duplicates (delete-then-insert).
+    with patch("services.worker.parse_handler._call_parser", return_value=FAKE_PARSE_RESULT):
+        handle_parse_job(db_session, TEST_MATCH_ID)
+    assert db_session.query(RoundFeature).count() == 4

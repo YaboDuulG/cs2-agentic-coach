@@ -34,6 +34,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -947,3 +948,96 @@ class Subscription(Base):
     def __repr__(self) -> str:
         """Docstring for __repr__."""
         return f"<Subscription {self.user_id} plan={self.plan} status={self.status}>"
+
+
+# ---------------------------------------------------------------------------
+# Telemetry v2 (DATA_ARCHITECTURE §2) — canonical zones, damage and flash
+# events, and per-round tactical aggregates. Event tables start as plain
+# indexed tables; hash partitioning waits for volumes that need it
+# (deviation from the blueprint DDL, logged there).
+# ---------------------------------------------------------------------------
+
+
+class MapZone(Base):
+    """Canonical callout zones — the coordinate→language bridge. All
+    LLM-visible text speaks in zone_keys, never raw coordinates."""
+
+    __tablename__ = "map_zones"
+    __table_args__ = (UniqueConstraint("map_name", "zone_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    map_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    zone_key: Mapped[str] = mapped_column(String(64), nullable=False)  # 'Inferno_Banana_Car'
+    display_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    min_x: Mapped[float] = mapped_column(Float, nullable=False)
+    min_y: Mapped[float] = mapped_column(Float, nullable=False)
+    max_x: Mapped[float] = mapped_column(Float, nullable=False)
+    max_y: Mapped[float] = mapped_column(Float, nullable=False)
+    # Disambiguates stacked verticality (Nuke A/B); NULL = any height
+    z_floor: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 'site' | 'choke' | 'mid' | 'spawn' | '' — smoke-coverage uses 'choke'
+    tag: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+
+
+class Damage(Base):
+    """Docstring for Damage."""
+    __tablename__ = "damages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    round_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    tick: Mapped[int] = mapped_column(Integer, nullable=False)
+    attacker_steamid: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    victim_steamid: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    weapon: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    hp_damage: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    armor_damage: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # head/chest/stomach/left_arm/right_arm/left_leg/right_leg/generic —
+    # the crosshair-placement proxy
+    hitgroup: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    is_utility: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class FlashEventRow(Base):
+    """One blinded player per flash detonation, with the real blind duration."""
+
+    __tablename__ = "flash_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    round_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    tick: Mapped[int] = mapped_column(Integer, nullable=False)
+    thrower_steamid: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    blinded_steamid: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    blind_duration: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)  # seconds
+    is_teammate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class RoundFeature(Base):
+    """Per-round, per-side tactical aggregates — what the evidence pack,
+    dashboards, and benchmarks read so the hot path never scans events."""
+
+    __tablename__ = "round_features"
+    __table_args__ = (UniqueConstraint("match_id", "round_num", "side_focus"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    round_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    side_focus: Mapped[str] = mapped_column(String(4), nullable=False)  # CT | T
+    opening_duel_won: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    opening_zone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    opening_flash_assist: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    util_damage: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    enemy_blind_seconds: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    team_blind_seconds: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    smoke_coverage_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trade_success_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_trade_window_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    exec_sync_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    archetype_label: Mapped[str | None] = mapped_column(String(128), nullable=True)

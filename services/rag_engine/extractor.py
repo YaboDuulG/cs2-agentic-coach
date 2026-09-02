@@ -25,6 +25,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 import math
 
+from services.tactician.zones import ZoneBox, default_zones_for
+
 TRADE_WINDOW_SECONDS = 5.0
 TRADE_RADIUS_UNITS = 600.0
 UTILITY_WINDOW_SECONDS = 20.0
@@ -32,45 +34,43 @@ EXECUTE_MIN_NADES = 3
 PISTOL_ROUNDS = (1, 13)
 BOMB_SITE_ZONES = ("A", "B")
 
-# Approximate per-map anchor points and zone bounds (min_x, min_y, max_x, max_y).
-MAP_GEOMETRY: dict[str, dict] = {
-    "de_mirage": {
-        "t_spawn": (1200.0, -1600.0),
-        "ct_spawn": (-2100.0, -1000.0),
-        "zones": {
-            "A": (-1200.0, -2700.0, 100.0, -1500.0),
-            "B": (-2600.0, 0.0, -1400.0, 1000.0),
-            "mid": (-1000.0, -1200.0, 0.0, 0.0),
-        },
-    },
-    "de_inferno": {
-        "t_spawn": (-1500.0, 300.0),
-        "ct_spawn": (2400.0, 1900.0),
-        "zones": {
-            "A": (1500.0, 100.0, 2700.0, 1100.0),
-            "B": (100.0, 2400.0, 1200.0, 3700.0),
-            "banana": (-300.0, 1200.0, 500.0, 2400.0),
-        },
-    },
-    "de_nuke": {
-        "t_spawn": (-2000.0, -1200.0),
-        "ct_spawn": (2600.0, -900.0),
-        "zones": {
-            "A": (200.0, -1400.0, 1200.0, -300.0),
-            "B": (300.0, -300.0, 1100.0, 600.0),
-            "ramp": (-500.0, -2200.0, 700.0, -1400.0),
-        },
-    },
-    "de_anubis": {
-        "t_spawn": (0.0, -2200.0),
-        "ct_spawn": (300.0, 2200.0),
-        "zones": {
-            "A": (700.0, 800.0, 1900.0, 2000.0),
-            "B": (-1900.0, 600.0, -700.0, 1800.0),
-            "mid": (-500.0, -400.0, 500.0, 800.0),
-        },
-    },
-}
+# Maps this extractor labels. Other maps carry zone seeds too (tactician/zones
+# adds dust2/ancient/vertigo), but the archetype labels are only validated for
+# these four — an unlisted map yields no archetypes rather than unreviewed ones.
+_GEOMETRY_MAPS = ("de_mirage", "de_inferno", "de_nuke", "de_anubis")
+
+
+def _legacy_zone_name(zone: ZoneBox) -> str:
+    """'A Site' → 'A' for site boxes, otherwise the lowercased display name —
+    preserves the short zone names the pinned archetype labels are built from."""
+    if zone.tag == "site":
+        return zone.display_name.split()[0]
+    return zone.display_name.lower()
+
+
+def _build_geometry() -> dict[str, dict]:
+    """
+    MAP_GEOMETRY rebuilt from the canonical zone seed (tactician/zones is the
+    single source of truth for coordinates): spawn-tagged boxes provide the
+    T/CT anchor points (box center == the historical anchor), everything else
+    becomes the (min_x, min_y, max_x, max_y) zone-bounds table.
+    """
+    geometry: dict[str, dict] = {}
+    for map_name in _GEOMETRY_MAPS:
+        anchors: dict[str, tuple[float, float]] = {}
+        zones: dict[str, tuple[float, float, float, float]] = {}
+        for zb in default_zones_for(map_name):
+            if zb.tag == "spawn":
+                key = "ct_spawn" if zb.display_name.upper().startswith("CT") else "t_spawn"
+                anchors[key] = ((zb.min_x + zb.max_x) / 2.0, (zb.min_y + zb.max_y) / 2.0)
+            else:
+                zones[_legacy_zone_name(zb)] = (zb.min_x, zb.min_y, zb.max_x, zb.max_y)
+        geometry[map_name] = {**anchors, "zones": zones}
+    return geometry
+
+
+# Per-map anchor points and zone bounds, derived from services/tactician/zones.
+MAP_GEOMETRY: dict[str, dict] = _build_geometry()
 
 
 @dataclass(frozen=True)

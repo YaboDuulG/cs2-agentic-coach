@@ -12,6 +12,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gin-gonic/gin"
 	dem "github.com/markus-wa/demoinfocs-golang/v4/pkg/demoinfocs"
+	common "github.com/markus-wa/demoinfocs-golang/v4/pkg/demoinfocs/common"
 	events "github.com/markus-wa/demoinfocs-golang/v4/pkg/demoinfocs/events"
 )
 
@@ -100,7 +101,7 @@ func downloadFromGCS(ctx context.Context, gcsURI string) (io.ReadCloser, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GCS client: %w", err)
 	}
-	
+
 	obj := client.Bucket(parts[0]).Object(parts[1])
 	return obj.NewReader(ctx)
 }
@@ -118,13 +119,16 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 	gate := NewGameStateGate(
 		func() bool {
 			return len(result.Kills) > 0 || len(result.Rounds) > 0 ||
-				len(result.Grenades) > 0 || len(result.Positions) > 0
+				len(result.Grenades) > 0 || len(result.Positions) > 0 ||
+				len(result.Damages) > 0 || len(result.Flashes) > 0
 		},
 		func() {
 			result.Kills = nil
 			result.Rounds = nil
 			result.Grenades = nil
 			result.Positions = nil
+			result.Damages = nil
+			result.Flashes = nil
 		},
 	)
 
@@ -239,6 +243,69 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 			GrenadeType: gType,
 			LandX:       float32(e.Projectile.Position().X),
 			LandY:       float32(e.Projectile.Position().Y),
+		})
+	})
+
+	// Damage events — hp/armor + hitgroup (crosshair-placement proxy) and
+	// utility damage (HE/molotov/incendiary). Gated like everything else.
+	p.RegisterEventHandler(func(e events.PlayerHurt) {
+		if !gate.IsLive() {
+			gate.CountStripped()
+			return
+		}
+		attacker, victim := "", ""
+		if e.Attacker != nil {
+			attacker = fmt.Sprintf("%d", e.Attacker.SteamID64)
+		}
+		if e.Player != nil {
+			victim = fmt.Sprintf("%d", e.Player.SteamID64)
+		}
+		weapon := ""
+		isUtility := false
+		if e.Weapon != nil {
+			weapon = e.Weapon.String()
+			switch e.Weapon.Type {
+			case common.EqHE, common.EqMolotov, common.EqIncendiary, common.EqSmoke, common.EqDecoy:
+				isUtility = true
+			}
+		}
+		result.Damages = append(result.Damages, DamageEvent{
+			Round:           p.GameState().TotalRoundsPlayed(),
+			Tick:            int64(p.CurrentFrame()),
+			AttackerSteamID: attacker,
+			VictimSteamID:   victim,
+			Weapon:          weapon,
+			HpDamage:        e.HealthDamage,
+			ArmorDamage:     e.ArmorDamage,
+			Hitgroup:        hitgroupName(e.HitGroup),
+			IsUtility:       isUtility,
+		})
+	})
+
+	// Flash events — real blind durations per blinded player, incl. team flashes.
+	p.RegisterEventHandler(func(e events.PlayerFlashed) {
+		if !gate.IsLive() {
+			gate.CountStripped()
+			return
+		}
+		thrower, blinded := "", ""
+		isTeammate := false
+		if e.Attacker != nil {
+			thrower = fmt.Sprintf("%d", e.Attacker.SteamID64)
+		}
+		if e.Player != nil {
+			blinded = fmt.Sprintf("%d", e.Player.SteamID64)
+			if e.Attacker != nil && e.Attacker.Team == e.Player.Team {
+				isTeammate = true
+			}
+		}
+		result.Flashes = append(result.Flashes, FlashEvent{
+			Round:          p.GameState().TotalRoundsPlayed(),
+			Tick:           int64(p.CurrentFrame()),
+			ThrowerSteamID: thrower,
+			BlindedSteamID: blinded,
+			BlindDuration:  e.FlashDuration().Seconds(),
+			IsTeammate:     isTeammate,
 		})
 	})
 

@@ -23,6 +23,11 @@ _BAD_SEVERITIES = ("warning", "critical")
 
 _BOOTSTRAP_SOURCE = "bootstrap default, replace with HLTV aggregates"
 
+_TELEMETRY_V2_SOURCE = "bootstrap default, replace with pro round_features distributions"
+
+# Halftime boundary (MR12) — same assumption as agents/khan/stats.py round mapping.
+_HALFTIME_ROUND = 12
+
 _DEFAULT_BASELINES = [
     {
         "metric": "fcr_win_rate",
@@ -90,26 +95,117 @@ _DEFAULT_BASELINES = [
     },
 ]
 
+# Telemetry-v2 baselines (round_features aggregates, DATA_ARCHITECTURE §4).
+# Bootstrap guesses until compute_pro_baselines can derive them from pro demos.
+_TELEMETRY_V2_BASELINES = [
+    {
+        "metric": "util_damage_per_round",
+        "map_name": "any",
+        "side": "any",
+        "value": 85.0,
+        "unit": "hp",
+        "detail": "Typical HE/molly damage a pro side deals per round.",
+    },
+    {
+        "metric": "enemy_blind_seconds_per_flash",
+        "map_name": "any",
+        "side": "any",
+        "value": 1.6,
+        "unit": "seconds",
+        "detail": "Enemy blind time a well-thrown pro flash buys.",
+    },
+    {
+        "metric": "team_flash_seconds_per_round",
+        "map_name": "any",
+        "side": "any",
+        "value": 0.4,
+        "unit": "seconds",
+        "detail": "Teammate blind time pro sides tolerate per round — more is a flash-timing problem.",
+    },
+    {
+        "metric": "trade_window_s",
+        "map_name": "any",
+        "side": "any",
+        "value": 2.8,
+        "unit": "seconds",
+        "detail": "Average time a pro teammate needs to refrag after a death.",
+    },
+    {
+        "metric": "trade_success_rate",
+        "map_name": "any",
+        "side": "any",
+        "value": 0.55,
+        "unit": "ratio",
+        "detail": "Share of pro deaths answered by a trade kill.",
+    },
+    {
+        "metric": "exec_sync_score",
+        "map_name": "any",
+        "side": "any",
+        "value": 0.75,
+        "unit": "ratio",
+        "detail": "Execute-sync score (1.0 = utility and entries perfectly simultaneous) for pro executes.",
+    },
+    {
+        "metric": "opening_flash_assist_rate",
+        "map_name": "any",
+        "side": "any",
+        "value": 0.35,
+        "unit": "ratio",
+        "detail": "Fraction of pro opening duels taken with flash assistance.",
+    },
+]
+
 
 def seed_default_baselines(db) -> int:
     """Idempotently insert bootstrap pro baselines. Returns the number inserted."""
     from db.models import ProBaseline  # noqa: PLC0415
 
     inserted = 0
-    for spec in _DEFAULT_BASELINES:
-        exists = (
-            db.query(ProBaseline)
-            .filter_by(metric=spec["metric"], map_name=spec["map_name"], side=spec["side"])
-            .first()
-        )
-        if exists:
-            continue
-        db.add(ProBaseline(source=_BOOTSTRAP_SOURCE, **spec))
-        inserted += 1
+    for source, specs in (
+        (_BOOTSTRAP_SOURCE, _DEFAULT_BASELINES),
+        (_TELEMETRY_V2_SOURCE, _TELEMETRY_V2_BASELINES),
+    ):
+        for spec in specs:
+            exists = (
+                db.query(ProBaseline)
+                .filter_by(metric=spec["metric"], map_name=spec["map_name"], side=spec["side"])
+                .first()
+            )
+            if exists:
+                continue
+            db.add(ProBaseline(source=source, **spec))
+            inserted += 1
     if inserted:
         db.commit()
     logger.info(f"[Evidence] Seeded {inserted} default pro baselines.")
     return inserted
+
+
+def compute_pro_baselines(db) -> int:
+    """Upgrade the telemetry-v2 bootstrap baselines from pro round_features distributions.
+
+    Today no pro-side RoundFeature data exists (the ingestion pipeline only writes
+    round_features for uploaded amateur demos), so this is a documented stub that
+    returns 0. Once pro demos flow through the same extraction pass, this should
+    replace the `_TELEMETRY_V2_SOURCE` rows with measured distributions rather
+    than bootstrap guesses. Do NOT fabricate numbers here.
+
+    Query shape once pro round_features exist (rows joined to pro matches):
+        SELECT AVG(util_damage),                 -- -> util_damage_per_round
+               AVG(enemy_blind_seconds),          -- -> enemy_blind_seconds_per_flash (÷ flashes)
+               AVG(team_blind_seconds),           -- -> team_flash_seconds_per_round
+               AVG(avg_trade_window_s),           -- -> trade_window_s
+               AVG(trade_success_rate),           -- -> trade_success_rate
+               AVG(exec_sync_score),              -- -> exec_sync_score
+               AVG(CASE WHEN opening_flash_assist THEN 1.0 ELSE 0.0 END)
+                                                  -- -> opening_flash_assist_rate
+        FROM round_features rf JOIN matches m USING (match_id)
+        WHERE m.is_pro  -- however pro provenance ends up flagged
+        GROUP BY m.map_name, rf.side_focus;      -- per-map/side rows, 'any' from the global agg
+    Returns the number of baseline rows upgraded.
+    """
+    return 0
 
 
 def _lookup_baseline(db, metric: str, map_name: str, side: str):
@@ -136,6 +232,147 @@ def _lookup_baseline(db, metric: str, map_name: str, side: str):
             if row.map_name == m and row.side == s:
                 return row
     return None
+
+
+def _focus_round_features(rows, scout_out: dict[str, Any]):
+    """Restrict RoundFeature rows to the uploader's side each round.
+
+    Team mode keeps both sides (macro coaching covers the whole half swap);
+    otherwise, when the uploader's starting side is known, keep only the rows
+    whose side_focus matches the side the uploader played that round
+    (halftime swap at _HALFTIME_ROUND). Unknown side, or a filter that would
+    drop everything, falls back to all rows rather than losing the data.
+    """
+    from agents.scribe.modes import AnalysisMode, derive_mode  # noqa: PLC0415
+
+    if derive_mode(scout_out) == AnalysisMode.TEAM_ANALYSIS:
+        return rows
+    start = scout_out.get("user_team")
+    if start == "TERRORIST":
+        start = "T"
+    if start not in ("CT", "T"):
+        return rows
+    flip = {"CT": "T", "T": "CT"}
+    focused = [
+        r
+        for r in rows
+        if r.side_focus == (start if r.round_num <= _HALFTIME_ROUND else flip[start])
+    ]
+    return focused or rows
+
+
+def _add_round_feature_facts(db, match_id: str, scout_out: dict[str, Any], add_fact):
+    """Facts from the telemetry-v2 round_features aggregates (DATA_ARCHITECTURE §4).
+
+    Returns the (metric, side) baseline requests for whichever facts were added,
+    so they pair with baselines exactly like the tactician-derived facts.
+    Zero RoundFeature rows for the match → adds nothing, requests nothing.
+    """
+    from collections import Counter  # noqa: PLC0415
+
+    from db.models import RoundFeature  # noqa: PLC0415
+
+    metric_requests: list[tuple[str, str]] = []
+    try:
+        rows = (
+            db.query(RoundFeature)
+            .filter(RoundFeature.match_id == match_id)
+            .order_by(RoundFeature.round_num)
+            .all()
+        )
+    except Exception as e:
+        logger.warning(f"Could not load round features: {e}")
+        return metric_requests
+    rows = _focus_round_features(rows, scout_out)
+    if not rows:
+        return metric_requests
+
+    all_rounds = [r.round_num for r in rows]
+
+    # Opening duels: flash-assist rate on the rounds where an opening duel exists
+    flash_rows = [r for r in rows if r.opening_flash_assist is not None]
+    if flash_rows:
+        assisted = sum(1 for r in flash_rows if r.opening_flash_assist)
+        rate = assisted / len(flash_rows)
+        add_fact(
+            "opening_flash",
+            f"{assisted} of {len(flash_rows)} opening duels taken with flash assistance "
+            f"({rate:.0%}).",
+            rounds=[r.round_num for r in flash_rows],
+            value=round(rate, 4),
+        )
+        metric_requests.append(("opening_flash_assist_rate", "any"))
+
+    # Opening zones: where the opening fight keeps getting lost
+    lost = [r for r in rows if r.opening_duel_won is False and r.opening_zone]
+    if lost:
+        zone, count = Counter(r.opening_zone for r in lost).most_common(1)[0]
+        add_fact(
+            "opening_zone",
+            f"Keep losing the opening fight at {zone} "
+            f"({count} of {len(lost)} lost opening duels).",
+            rounds=[r.round_num for r in lost if r.opening_zone == zone],
+            value=float(count),
+        )
+
+    # Utility effectiveness: HE/molly damage and flash blind time
+    avg_util = sum(r.util_damage for r in rows) / len(rows)
+    add_fact(
+        "util_damage",
+        f"Average utility damage {avg_util:.0f} HP per round (HE grenades and mollies).",
+        rounds=all_rounds,
+        value=round(avg_util, 4),
+    )
+    metric_requests.append(("util_damage_per_round", "any"))
+
+    team_flash_total = sum(r.team_blind_seconds for r in rows)
+    enemy_blind_avg = sum(r.enemy_blind_seconds for r in rows) / len(rows)
+    if team_flash_total > 0 or enemy_blind_avg > 0:
+        add_fact(
+            "team_flash",
+            f"Flashes blinded enemies for {enemy_blind_avg:.1f}s per round on average; "
+            f"blinded teammates for {team_flash_total:.1f}s total.",
+            rounds=[r.round_num for r in rows if r.team_blind_seconds > 0],
+            value=round(team_flash_total, 4),
+        )
+        metric_requests.extend(
+            [("enemy_blind_seconds_per_flash", "any"), ("team_flash_seconds_per_round", "any")]
+        )
+
+    # Trade discipline: only rounds with deaths carry a trade_success_rate
+    traded = [r for r in rows if r.trade_success_rate is not None]
+    if traded:
+        mean_rate = sum(r.trade_success_rate for r in traded) / len(traded)
+        windows = [r.avg_trade_window_s for r in traded if r.avg_trade_window_s is not None]
+        window_part = (
+            f"; average trade window {sum(windows) / len(windows):.1f}s" if windows else ""
+        )
+        worst = sorted(traded, key=lambda r: r.trade_success_rate)[:3]
+        add_fact(
+            "trade_spacing",
+            f"Deaths were traded at a {mean_rate:.0%} rate on average{window_part}.",
+            rounds=[r.round_num for r in worst],
+            value=round(mean_rate, 4),
+        )
+        metric_requests.append(("trade_success_rate", "any"))
+        if windows:
+            metric_requests.append(("trade_window_s", "any"))
+
+    # Execution sync: simultaneity of utility and site entries on executes
+    synced = [r for r in rows if r.exec_sync_score is not None]
+    if synced:
+        mean_sync = sum(r.exec_sync_score for r in synced) / len(synced)
+        worst = sorted(synced, key=lambda r: r.exec_sync_score)[:2]
+        add_fact(
+            "exec_sync",
+            f"Execute sync score {mean_sync:.2f} on average "
+            f"(1.0 = utility and entries perfectly synchronized).",
+            rounds=[r.round_num for r in worst],
+            value=round(mean_sync, 4),
+        )
+        metric_requests.append(("exec_sync_score", "any"))
+
+    return metric_requests
 
 
 def build_evidence_pack(
@@ -295,6 +532,10 @@ def build_evidence_pack(
             severity=tag.get("severity"),
         )
 
+    # Telemetry v2 — round_features aggregates (opening duels, utility, trades,
+    # execution sync). No rows for the match → adds nothing.
+    rf_metric_requests = _add_round_feature_facts(db, match_id, scout_out, add_fact)
+
     # -------------------------------------------------------------- baselines
     baselines: list[dict[str, Any]] = []
     seen_baselines: set[tuple[str, str, str]] = set()
@@ -334,6 +575,7 @@ def build_evidence_pack(
         )
     if utility:
         metric_requests.extend([("util_before_entry", "any"), ("util_efficiency", "any")])
+    metric_requests.extend(rf_metric_requests)
 
     for metric, side in metric_requests:
         try:

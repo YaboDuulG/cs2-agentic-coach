@@ -20,7 +20,9 @@ from sqlalchemy.orm import Session
 
 from db.jobs import enqueue_job
 from db.models import (
+    Damage,
     FirstContact,
+    FlashEventRow,
     Grenade,
     JobKind,
     Kill,
@@ -28,7 +30,10 @@ from db.models import (
     MatchStatus,
     PlayerTrajectory,
     Round,
+    RoundFeature,
 )
+from services.tactician.features_v2 import compute_round_features
+from services.tactician.zones import load_zones
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +54,7 @@ def handle_parse_job(db: Session, match_id: str) -> None:
     started = time.monotonic()
     result = _call_parser(match_id, match.gcs_demo_uri)
     _persist_result(db, match, result)
+    _persist_round_features(db, match, result)
 
     match.map_name = result.get("map_name") or "unknown"
     match.tickrate = int(result.get("tickrate") or 64)
@@ -122,12 +128,51 @@ def _parser_auth_headers(parser_url: str) -> dict[str, str]:
         return {}
 
 
+def _derive_first_contacts(kills: list[dict]) -> list[dict]:
+    """First (lowest-tick) kill of each round, in round order — the shared
+    derivation behind the first_contacts table and the features_v2 pass."""
+    first_by_round: dict[int, dict] = {}
+    for k in kills:
+        rn = k.get("round", 0)
+        if rn not in first_by_round or k.get("tick", 0) < first_by_round[rn].get("tick", 0):
+            first_by_round[rn] = k
+    return [first_by_round[rn] for rn in sorted(first_by_round)]
+
+
+def _persist_round_features(db: Session, match: Match, result: dict) -> None:
+    """
+    Round-level per-side tactical aggregates (DATA_ARCHITECTURE §4) computed
+    straight from the ParseResult dict, with zones from the canonical map_zones
+    table. Delete-then-insert like the event tables, so retries are idempotent.
+    """
+    map_name = result.get("map_name") or "unknown"
+    kills = result.get("kills") or []
+    zones = load_zones(db, map_name)
+    feature_dicts = compute_round_features(
+        result.get("rounds") or [],
+        kills,
+        result.get("damages") or [],
+        result.get("flashes") or [],
+        result.get("grenades") or [],
+        _derive_first_contacts(kills),
+        zones_by_map_fn=(lambda _map: zones) if zones else None,
+        map_name=map_name,
+        tickrate=int(result.get("tickrate") or 64),
+    )
+
+    db.query(RoundFeature).filter(RoundFeature.match_id == match.match_id).delete()
+    rows = [{"match_id": match.match_id, **f} for f in feature_dicts]
+    if rows:
+        db.execute(insert(RoundFeature), rows)
+    db.commit()
+
+
 def _persist_result(db: Session, match: Match, result: dict) -> None:
     """Batch-insert all event rows for the match in one transaction."""
     match_id = match.match_id
 
     # Idempotency: a retried job replaces any partial rows from the failed run.
-    for model in (Kill, Grenade, Round, FirstContact, PlayerTrajectory):
+    for model in (Kill, Grenade, Round, FirstContact, PlayerTrajectory, Damage, FlashEventRow):
         db.query(model).filter(model.match_id == match_id).delete()
 
     kills = result.get("kills") or []
@@ -183,15 +228,10 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
         db.execute(insert(Grenade), grenade_rows)
 
     # First contact = first kill of each round, derived from the kill feed.
-    first_by_round: dict[int, dict] = {}
-    for k in kills:
-        rn = k.get("round", 0)
-        if rn not in first_by_round or k.get("tick", 0) < first_by_round[rn].get("tick", 0):
-            first_by_round[rn] = k
     fc_rows = [
         {
             "match_id": match_id,
-            "round_num": rn,
+            "round_num": k.get("round", 0),
             "tick": k.get("tick", 0),
             "attacker": k.get("attacker_steam_id") or "",
             "victim": k.get("victim_steam_id") or "",
@@ -204,10 +244,45 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
             "victim_x": k.get("victim_x", 0.0),
             "victim_y": k.get("victim_y", 0.0),
         }
-        for rn, k in sorted(first_by_round.items())
+        for k in _derive_first_contacts(kills)
     ]
     if fc_rows:
         db.execute(insert(FirstContact), fc_rows)
+
+    # Telemetry v2: damage + flash events (utility effectiveness, crosshair
+    # proxy, blind durations) — consumed by the features_v2 aggregation.
+    damage_rows = [
+        {
+            "match_id": match_id,
+            "round_num": d.get("round", 0),
+            "tick": d.get("tick", 0),
+            "attacker_steamid": d.get("attacker_steam_id") or None,
+            "victim_steamid": d.get("victim_steam_id") or None,
+            "weapon": (d.get("weapon") or "")[:32],
+            "hp_damage": d.get("hp_damage", 0),
+            "armor_damage": d.get("armor_damage", 0),
+            "hitgroup": (d.get("hitgroup") or "")[:16],
+            "is_utility": bool(d.get("is_utility")),
+        }
+        for d in (result.get("damages") or [])
+    ]
+    if damage_rows:
+        db.execute(insert(Damage), damage_rows)
+
+    flash_rows = [
+        {
+            "match_id": match_id,
+            "round_num": f.get("round", 0),
+            "tick": f.get("tick", 0),
+            "thrower_steamid": f.get("thrower_steam_id") or None,
+            "blinded_steamid": f.get("blinded_steam_id") or None,
+            "blind_duration": f.get("blind_duration", 0.0),
+            "is_teammate": bool(f.get("is_teammate")),
+        }
+        for f in (result.get("flashes") or [])
+    ]
+    if flash_rows:
+        db.execute(insert(FlashEventRow), flash_rows)
 
     # Positions → one trajectory row per (round, player) with sampled path.
     paths: dict[tuple[int, str], list[dict]] = defaultdict(list)

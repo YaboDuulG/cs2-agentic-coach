@@ -21,6 +21,7 @@ import uuid
 from db.database import SessionLocal, engine
 from db.jobs import claim_next_job, complete_job, fail_job, requeue_stuck_jobs
 from db.models import Base, Job, JobKind, Match, MatchStatus
+from services.tactician.zones import seed_default_zones
 
 logger = logging.getLogger("worker")
 
@@ -104,6 +105,10 @@ def main() -> None:
     worker_id = _worker_id()
     _start_health_server()
     Base.metadata.create_all(engine)  # no-op when tables exist
+    with SessionLocal() as db:
+        seeded = seed_default_zones(db)  # idempotent — only fills missing (map, zone) rows
+        if seeded:
+            logger.info(f"Seeded {seeded} default map zones")
     logger.info(f"Worker {worker_id} starting (coach concurrency {COACH_CONCURRENCY})")
 
     coach_pool = ThreadPoolExecutor(max_workers=COACH_CONCURRENCY, thread_name_prefix="coach")
