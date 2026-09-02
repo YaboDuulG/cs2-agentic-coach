@@ -254,7 +254,7 @@ export default function ProfilePage() {
 
   if (!isLoaded || !user) return null;
 
-  const planLabel = plan === "pro" ? "Pro" : plan === "basic" ? "Basic" : "Free";
+  const planLabel = plan === "pro" ? "Team" : plan === "basic" ? "Solo Pro" : "Free";
   const planColor = plan === "pro" ? "var(--color-accent-secondary)" : plan === "basic" ? "var(--color-accent-primary)" : "#4A6A8A";
   const planBg = plan === "pro" ? "rgba(201,162,39,0.1)" : plan === "basic" ? "rgba(45,125,210,0.1)" : "rgba(74,106,138,0.08)";
   const planBorder = plan === "pro" ? "rgba(201,162,39,0.25)" : plan === "basic" ? "rgba(45,125,210,0.25)" : "var(--color-border-primary)";

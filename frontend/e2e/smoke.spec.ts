@@ -16,11 +16,14 @@ test("landing page renders hero and navigation", async ({ page }) => {
   expect(errors, `uncaught page errors: ${errors.join("; ")}`).toHaveLength(0);
 });
 
-test("pricing lives at /billing and shows the three tiers", async ({ page }) => {
+test("pricing lives at /billing and shows the three tiers signed-out", async ({ page }) => {
   await page.goto("/billing");
-  await expect(page.getByText(/free/i).first()).toBeVisible();
-  await expect(page.getByText(/solo pro|pro/i).first()).toBeVisible();
-  await expect(page.getByText(/team/i).first()).toBeVisible();
+  // Tier cards render as headings; loose getByText can match hidden nodes.
+  await expect(page.getByRole("heading", { name: /^free$/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /pro/i }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: /team/i }).first()).toBeVisible();
+  // The signed-out wall must stay gone: no Clerk sign-in form on this page.
+  await expect(page.getByText(/sign in to demosage/i)).toHaveCount(0);
 });
 
 test("/pricing does not 404 on a typed URL", async ({ page }) => {

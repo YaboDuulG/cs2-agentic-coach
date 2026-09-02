@@ -55,7 +55,7 @@ export function Navbar() {
     window.dispatchEvent(new CustomEvent("coachingModeChange", { detail: mode }));
   };
 
-  const planLabel = plan === "pro" ? "Pro" : plan === "basic" ? "Basic" : "Free";
+  const planLabel = plan === "pro" ? "Team" : plan === "basic" ? "Solo Pro" : "Free";
   const planColor =
     plan === "pro"
       ? "var(--color-accent-secondary)"

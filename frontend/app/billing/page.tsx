@@ -18,19 +18,26 @@ const PLANS = [
     highlight: false,
     features: ["2 demo uploads total", "Kill feed + economy view", "7-day history"],
   },
+  // Display names follow the entitlement tiers (services/billing): the keys
+  // stay "basic"/"pro" — Stripe checkout and plan metadata depend on them.
   {
     key: "basic" as const,
-    name: "Basic",
+    name: "Solo Pro",
     price: "$5",
     period: "/ month",
     demos: "10 demos/mo",
     color: "border-[#2D7DD2]/60",
     highlight: false,
-    features: ["10 demo uploads / month", "Kill feed + economy view", "30-day history"],
+    features: [
+      "10 demo uploads / month",
+      "Full AI coaching, built around you",
+      "Pro-benchmark comparisons",
+      "30-day history",
+    ],
   },
   {
     key: "pro" as const,
-    name: "Pro",
+    name: "Team",
     price: "$20",
     period: "/ month",
     demos: "Unlimited",
@@ -38,10 +45,10 @@ const PLANS = [
     highlight: true,
     features: [
       "Unlimited demo uploads",
-      "AI tactical coaching",
-      "Audio comms analysis",
+      "Team analysis & opposition scouting",
+      "Stratbook with Discord sync",
+      "Shared access for your whole roster",
       "365-day history",
-      "Priority processing",
     ],
   },
 ];
