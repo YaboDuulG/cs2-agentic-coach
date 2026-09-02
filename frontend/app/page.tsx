@@ -262,8 +262,10 @@ function CommandCenter() {
     return "individual";
   });
 
-  const [analyses, setAnalyses] = useState<AnalysisRow[]>([]);
-  const [loadingAnalyses, setLoadingAnalyses] = useState(true);
+  // Loading is DERIVED (loaded scope vs current mode) — no setState-in-effect.
+  const [analysesData, setAnalysesData] = useState<{ scope: string; rows: AnalysisRow[] } | null>(
+    null,
+  );
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -274,21 +276,26 @@ function CommandCenter() {
     return () => window.removeEventListener("coachingModeChange", handler);
   }, []);
 
+  // The list follows the coaching-mode toggle: Individual shows your own
+  // uploads, Team shows matches from any team you're on.
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/analyses")
+    const scope = coachingMode === "team" ? "team" : "personal";
+    fetch(`/api/analyses?scope=${scope}`)
       .then(r => r.json())
       .catch(() => [])
       .then(data => {
         if (cancelled) return;
-        setAnalyses(Array.isArray(data) ? data : []);
-        setLoadingAnalyses(false);
+        setAnalysesData({ scope, rows: Array.isArray(data) ? data : [] });
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [coachingMode]);
 
+  const currentScope = coachingMode === "team" ? "team" : "personal";
+  const loadingAnalyses = analysesData?.scope !== currentScope;
+  const analyses = analysesData?.scope === currentScope ? analysesData.rows : [];
   const recent = analyses.slice(0, 5);
 
   return (
@@ -318,7 +325,7 @@ function CommandCenter() {
           </Card>
 
           <Card className="p-6 flex flex-col">
-            <h2 className="text-base font-bold tracking-wide mb-4">Recent analyses</h2>
+            <h2 className="text-base font-bold tracking-wide mb-4">{coachingMode === "team" ? "Team analyses" : "Recent analyses"}</h2>
 
             {loadingAnalyses ? (
               <div className="space-y-2" aria-hidden>

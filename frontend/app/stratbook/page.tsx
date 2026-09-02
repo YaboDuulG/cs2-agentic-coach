@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import CS2PlanningBoard, { CS2PlanningBoardRef } from "../../components/CS2PlanningBoard";
 import { DiscordSyncSidebar } from "../../components/stratbook/DiscordSyncSidebar";
-import { PageSection, PageTransition } from "@/components/ui";
+import { PageSection, PageTransition, toast } from "@/components/ui";
 import { Save, Bot } from "lucide-react";
 
 interface Team {
@@ -38,28 +38,26 @@ export default function StratbookPage() {
     if (!boardRef.current) return;
     const state = boardRef.current.exportStrategy();
     
-    // In a real app, this would use the logged-in user's ID
-    const userId = "test-user-123"; 
+    // The proxy injects the real Clerk user id server-side.
 
     try {
       const res = await fetch("/api/stratbook/user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: userId,
           map_name: state.map,
           title: title || "My Custom Strategy",
           strategy_json: JSON.stringify(state)
         })
       });
       if (res.ok) {
-        alert("Strategy saved successfully!");
+        toast.success("Strategy saved to your stratbook.");
       } else {
-        alert("Failed to save strategy.");
+        toast.error("Couldn't save the strategy — the server rejected it. Try again.");
       }
     } catch (e) {
       console.error(e);
-      alert("Error saving strategy.");
+      toast.error("Couldn't reach the server to save. Check your connection and try again.");
     }
   };
 

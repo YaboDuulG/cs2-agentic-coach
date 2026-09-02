@@ -72,13 +72,30 @@ const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
       }
     }));
 
+    // A sketch belongs to its map: switching maps clears strokes, pins, and
+    // undo history (loadStrategy above is the only path that keeps them,
+    // because it brings its own map along with its lines).
+    const switchMap = (id: string) => {
+      setLines([]);
+      setMarkers([]);
+      setHistory([]);
+      setMap(id);
+    };
+
     // Sync with prop from parent strategy list selection
     useEffect(() => {
     if (selectedMap) {
       const normalized = selectedMap.toLowerCase().replace("de_", "");
       const matched = MAPS.find(m => m.id === selectedMap || m.id === `de_${normalized}`);
       if (matched) {
-        setMap(matched.id);
+        setMap(prev => {
+          if (prev !== matched.id) {
+            setLines([]);
+            setMarkers([]);
+            setHistory([]);
+          }
+          return matched.id;
+        });
       }
     }
   }, [selectedMap]);
@@ -256,7 +273,7 @@ const CS2PlanningBoard = forwardRef<CS2PlanningBoardRef, CS2PlanningBoardProps>(
           <Map size={11} className="text-[var(--color-text-secondary)]" />
           <select
             value={map}
-            onChange={(e) => setMap(e.target.value)}
+            onChange={(e) => switchMap(e.target.value)}
             className="bg-transparent text-[10px] text-[var(--color-text-secondary)] font-bold uppercase tracking-wider outline-none cursor-pointer"
           >
             {MAPS.map(m => (

@@ -14,7 +14,7 @@ import { UploadModal } from "@/components/UploadModal";
 import { AddStrategyModal } from "@/components/AddStrategyModal";
 import CS2PlanningBoard from "@/components/CS2PlanningBoard";
 import { DiscordSyncSidebar } from "@/components/stratbook/DiscordSyncSidebar";
-import { Button, Modal, PageSection, PageTransition, Spinner } from "@/components/ui";
+import { Button, Modal, PageSection, PageTransition, Spinner, toast } from "@/components/ui";
 import { useServerModes } from "@/lib/api/hooks";
 
 interface TeamDetail {
@@ -314,7 +314,7 @@ export default function TeamDetailPage() {
         fetchTeamDetails();
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
-        alert("Failed to update team name.");
+        toast.error("Couldn't update the team name.");
       }
     } catch (e) {
       console.error("Failed to update team name:", e);
@@ -339,11 +339,11 @@ export default function TeamDetailPage() {
         fetchTeamDetails();
       } else {
         const data = await res.json();
-        alert(data.detail || "Failed to upload logo image");
+        toast.error(data.detail || "Couldn't upload the logo image.");
       }
     } catch (err) {
       console.error("Failed to upload logo:", err);
-      alert("An error occurred while uploading the logo.");
+      toast.error("Couldn't reach the server to upload the logo.");
     }
     setLogoUploading(false);
   }
@@ -358,11 +358,11 @@ export default function TeamDetailPage() {
       if (res.ok) {
         router.push("/teams");
       } else {
-        alert("Failed to delete team");
+        toast.error("Couldn't delete the team.");
       }
     } catch (e) {
       console.error("Failed to delete team:", e);
-      alert("Error deleting team");
+      toast.error("Couldn't reach the server to delete the team.");
     }
     setDeleting(false);
   }

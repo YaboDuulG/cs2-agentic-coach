@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Cinzel, Inter, JetBrains_Mono } from "next/font/google";
 import { Navbar } from "@/components/Navbar";
 import { Providers } from "@/components/Providers";
+import { Toaster } from "@/components/ui";
 import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme-config";
 import "./globals.css";
 
@@ -34,6 +35,7 @@ export default function RootLayout({
           <Providers>
             <Navbar />
             {children}
+            <Toaster />
           </Providers>
         </body>
       </html>

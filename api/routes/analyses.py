@@ -19,22 +19,39 @@ router = APIRouter()
 
 
 @router.get("", summary="List analyses for a user")
-async def list_analyses(user_id: str = "", db: Session = Depends(get_session)):
-    """Return all matches for a given Clerk user_id, newest first."""
+async def list_analyses(user_id: str = "", scope: str = "personal", db: Session = Depends(get_session)):
+    """
+    Return matches for a Clerk user_id, newest first. scope=personal (default)
+    lists the user's own uploads; scope=team lists matches belonging to any
+    team the user is a member of (drives the Command Center's mode toggle).
+    """
     if not user_id:
         return []
 
     try:
-        rows = db.execute(
-            text("""
-                    SELECT match_id, map_name, status, created_at, is_recon
-                    FROM matches
-                    WHERE user_id = :user_id AND team_id IS NULL
-                    ORDER BY created_at DESC
-                    LIMIT 100
-                """),
-            {"user_id": user_id},
-        ).fetchall()
+        if scope == "team":
+            rows = db.execute(
+                text("""
+                        SELECT m.match_id, m.map_name, m.status, m.created_at, m.is_recon
+                        FROM matches m
+                        JOIN team_members tm ON tm.team_id = m.team_id
+                        WHERE tm.user_id = :user_id
+                        ORDER BY m.created_at DESC
+                        LIMIT 100
+                    """),
+                {"user_id": user_id},
+            ).fetchall()
+        else:
+            rows = db.execute(
+                text("""
+                        SELECT match_id, map_name, status, created_at, is_recon
+                        FROM matches
+                        WHERE user_id = :user_id AND team_id IS NULL
+                        ORDER BY created_at DESC
+                        LIMIT 100
+                    """),
+                {"user_id": user_id},
+            ).fetchall()
 
         return [
             {

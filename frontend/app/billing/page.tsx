@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
+import { toast } from "@/components/ui";
 import { useUser } from "@clerk/nextjs";
 import { useState } from "react";
 import { PLAN_LIMITS } from "@/lib/flags";
@@ -62,7 +63,7 @@ export default function BillingPage() {
       const { url } = await res.json();
       if (url) window.location.href = url;
     } catch {
-      alert("Something went wrong. Please try again.");
+      toast.error("Checkout couldn't start. Try again in a moment.");
     } finally {
       setLoading(null);
     }

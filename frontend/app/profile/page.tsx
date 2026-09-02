@@ -118,6 +118,8 @@ export default function ProfilePage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
+  // "Scout the opposition" uploads get their own filter view.
+  const [showReconOnly, setShowReconOnly] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -603,7 +605,33 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {analyses.map(a => {
+                <div className="flex items-center gap-2 pb-1">
+                  {([["All matches", false], ["Opposition research", true]] as const).map(
+                    ([label, recon]) => (
+                      <button
+                        key={label}
+                        onClick={() => setShowReconOnly(recon)}
+                        aria-pressed={showReconOnly === recon}
+                        className="ds-btn ds-btn-sm rounded-full border"
+                        style={
+                          showReconOnly === recon
+                            ? {
+                                color: "var(--color-accent-secondary)",
+                                borderColor: "var(--color-border-secondary)",
+                                background: "var(--color-secondary-soft)",
+                              }
+                            : {
+                                color: "var(--color-text-secondary)",
+                                borderColor: "var(--color-border-primary)",
+                              }
+                        }
+                      >
+                        {label}
+                      </button>
+                    ),
+                  )}
+                </div>
+                {(showReconOnly ? analyses.filter(a => a.is_recon) : analyses).map(a => {
                   const statusColor = STATUS_COLORS[a.status] ?? "var(--color-text-secondary)";
                   return (
                     <div key={a.match_id}
