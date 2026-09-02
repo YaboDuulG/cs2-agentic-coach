@@ -7,8 +7,6 @@
 // frequency gate: rare + long attention). Everything is CSS transitions on
 // opacity (interruptible, reduced-motion safe by nature — no movement).
 
-import { useEffect, useState } from "react";
-
 export const PIPELINE_STAGES = ["Parse", "Compare", "Analyze", "Report"] as const;
 
 interface SoyomboProgressProps {
@@ -38,15 +36,12 @@ export function SoyomboProgress({ stage, size = 140, detail }: SoyomboProgressPr
   const classFor = (element: keyof typeof STAGE_OF) =>
     stage === STAGE_OF[element] ? "soyombo-active" : undefined;
 
-  // Announce stage changes to screen readers without motion.
-  const [announced, setAnnounced] = useState("");
-  useEffect(() => {
-    const label =
-      stage >= PIPELINE_STAGES.length
-        ? "Report ready"
-        : `${PIPELINE_STAGES[stage]} in progress`;
-    setAnnounced(label);
-  }, [stage]);
+  // Announce stage changes to screen readers without motion — purely
+  // derived from the prop; aria-live picks up the text change on re-render.
+  const announced =
+    stage >= PIPELINE_STAGES.length
+      ? "Report ready"
+      : `${PIPELINE_STAGES[stage]} in progress`;
 
   const gold = "var(--color-accent-secondary)";
 
