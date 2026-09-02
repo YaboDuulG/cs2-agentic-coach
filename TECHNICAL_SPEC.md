@@ -1,5 +1,5 @@
 # 🏹 DemoSage — Technical Specification
-> **Version:** 1.0.0 | **Status:** v2 Architecture — Implementation Ready | **Last Updated:** 2026-06-30
+> **Version:** 3.0.0 | **Status:** v3 Architecture — Implemented & Deployed (pipeline, grounded coaching, RAG engine, stratbook+Discord, billing, full frontend flow) | **Last Updated:** 2026-09-02
 
 ---
 
@@ -697,8 +697,7 @@ SHARED / UTILITY
 | Action | Trigger | Purpose |
 | :--- | :--- | :--- |
 | `ci.yml` | Push / PR | Lint (ruff), type-check (mypy — non-blocking in CI, run locally for truth), unit tests, Go build+vet (parser job), frontend lint+tsc+build |
-| `hltv-ingest.yml` | Nightly 02:00 UTC | Scrape HLTV, queue parse jobs, update Qdrant |
-| `qdrant-quota-check.yml` | Nightly 03:00 UTC | Check vector counts, alert at 8M threshold |
+| `hltv-crawler.yml` | Manual (workflow_dispatch) | Pro-meta ingestion — schedule returns when Qdrant/crawler secrets are provisioned |
 | `meta-snapshot.yml` | Weekly Mon 06:00 UTC | Generate weekly meta summary from pro matches |
 | `docker-build.yml` | Push to `main` | Build and push Go microservice images |
 | `deploy-staging.yml` | Push to `main` | Deploy full stack to the staging Cloud Run env (staging *branch* retired 2026-09) |
@@ -930,6 +929,10 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 | **Team seats** | members inherit team-scoped entitlements from a TEAM-tier owner (2026-09) | team_analysis/scouting/stratbook only, and only on that team's resources; personal full_coaching is not inherited |
 | **Entitlement cache** | in-process TTL (60s) invalidated by the sync endpoint — deliberately no Redis (2026-09) | The constraint's intent (no Stripe per request) is met by DB authority; a second stateful service isn't warranted, and TTL bounds cross-instance staleness |
 | **Teaser payloads** | Team/Oppo reports without the tier return mode+grade+category histogram only (2026-09) | Tactical specifics (observations, rounds, ticks, drills) are omitted server-side, never client-filtered; upgrade metadata included |
+| **Qdrant deferred** | Not provisioned; retrieval runs BM25-only until activated (2026-09) | The hybrid retriever degrades to its keyword leg by design, so semantic search is an upgrade, not a dependency. The 8M-vector quota-check workflow was deleted (monitored a cluster that didn't exist, at a scale six orders of magnitude away). Activation: create a free-tier cluster, set QDRANT_URL/QDRANT_API_KEY in Secret Manager + the deploy secrets list, re-add the hltv-crawler cron — no code changes |
+| **Frontend flow (v3)** | One journey: landing → Command Center → SoyomboProgress wait → debrief → Team Hub (2026-09) | Emil Kowalski frequency-gated motion budget; SoyomboProgress is the single delight-budget moment (replaced a stock video background); every page shares one skeleton + one entrance; findings deep-link into the 2D replay; paywall appears as enticement (server-driven teasers, plan-aware upsell) |
+| **Error surfaces** | House toast system replaces browser alert() (2026-09) | Nine call sites migrated; fixing them exposed that stratbook saves were 404ing (no proxy route + hardcoded test user) — both repaired |
+| **Mode-scoped lists** | /api/analyses scope=personal\|team follows the coaching-mode toggle (2026-09) | Team scope joins through team_members; Command Center relabels + refetches on toggle; profile gains an opposition-research filter |
 | **Frontend data layer** | Zustand (playback) + TanStack Query (server cache) added; shadcn/ui rejected (2026-09) | Playback tick state must not re-render analytics UI — canvas reads the store in a rAF loop with zero React state; Query replaces hand-rolled poll loops. shadcn would fork the existing token-native ui primitives |
 | **2D demo viewer** | components/minimap + /rounds/{n}/telemetry endpoint (2026-09) | Radar canvas at 60fps isolation, interpolated 2s-sampled trails; documented approximations: bounding-box map projection (pending per-map radar calibration), motion-derived vision cones (no view angles in telemetry) |
 | **Mode dashboard + paywall UX** | Personal/Team/OppoResearch views + GatedInsightCard driven ONLY by server payload state (2026-09) | Components visualize what the server already omitted (full / FREE-redacted / teaser shapes from services/billing); no client-side gating. Recharts (specific imports only) for the category radar |

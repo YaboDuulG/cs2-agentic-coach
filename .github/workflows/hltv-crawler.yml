@@ -1,8 +1,9 @@
 name: HLTV Nightly Crawler
 
+# Manual-only until Qdrant + crawler secrets are provisioned — a nightly
+# schedule without them is noise. Re-add the cron when activating pro-meta
+# ingestion (see TECHNICAL_SPEC §15 'Qdrant activation').
 on:
-  schedule:
-    - cron: '0 2 * * *'  # Run at 2:00 AM UTC every night
   workflow_dispatch:      # Allow manual triggers
 
 jobs:
@@ -10,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # The crawler needs a live DB and Gemini key. Until those secrets exist,
       # skip the run instead of failing nightly. Adding the secrets in
