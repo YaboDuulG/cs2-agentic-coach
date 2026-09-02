@@ -375,6 +375,181 @@ def _add_round_feature_facts(db, match_id: str, scout_out: dict[str, Any], add_f
     return metric_requests
 
 
+def _add_uploader_facts(db, match_id: str, scout_out: dict[str, Any], add_fact):
+    """Facts scoped to the uploader's Steam ID — PERSONAL_IMPROVEMENT mode only.
+
+    The mode instruction tells the LLM to coach only the uploader; these facts
+    are what make that possible: their opening duels, whether their deaths got
+    traded, their flash quality, their utility damage, and their headshot rate,
+    all computed straight from the event tables keyed on the linked Steam ID.
+
+    If the linked Steam ID never appears in the demo's events, an 'identity'
+    fact says so explicitly, so the report can tell the user instead of
+    silently coaching the whole lobby. Returns (metric, side) baseline
+    requests like _add_round_feature_facts.
+    """
+    from agents.scribe.modes import AnalysisMode, derive_mode  # noqa: PLC0415
+    from db.models import Damage, FlashEventRow, Kill  # noqa: PLC0415
+    from services.tactician.features_v2 import TRADE_WINDOW_S  # noqa: PLC0415
+
+    metric_requests: list[tuple[str, str]] = []
+    if derive_mode(scout_out) != AnalysisMode.PERSONAL_IMPROVEMENT:
+        return metric_requests
+    sid = scout_out.get("uploader_steam_id")
+    if not sid:
+        add_fact(
+            "identity",
+            "No Steam ID is linked to the uploader's account, so the coach cannot tell "
+            "which player they are. Coaching below is team-level; link a Steam ID on the "
+            "profile page for personal analysis.",
+            severity="warning",
+        )
+        return metric_requests
+
+    try:
+        kills = (
+            db.query(Kill)
+            .filter(Kill.match_id == match_id)
+            .order_by(Kill.round_num, Kill.tick)
+            .all()
+        )
+    except Exception as e:
+        logger.warning(f"Could not load kills for uploader facts: {e}")
+        return metric_requests
+
+    my_kills = [k for k in kills if k.attacker_steamid == sid]
+    my_deaths = [k for k in kills if k.victim_steamid == sid]
+    if not my_kills and not my_deaths:
+        add_fact(
+            "identity",
+            f"The linked Steam ID {sid} does not appear in this demo's kill feed — the "
+            "uploader may not be playing in this match (or the wrong account is linked). "
+            "Coaching below is team-level, not personal.",
+            severity="warning",
+        )
+        return metric_requests
+
+    tickrate = 64
+    try:
+        from db.models import Match  # noqa: PLC0415
+
+        m = db.query(Match).filter(Match.match_id == match_id).first()
+        if m is not None and m.tickrate:
+            tickrate = int(m.tickrate)
+    except Exception:
+        pass
+
+    # Opening duels the uploader personally took (first kill of the round).
+    first_by_round: dict[int, Any] = {}
+    for k in kills:
+        if k.round_num not in first_by_round or k.tick < first_by_round[k.round_num].tick:
+            first_by_round[k.round_num] = k
+    my_openers = [
+        fc for fc in first_by_round.values() if sid in (fc.attacker_steamid, fc.victim_steamid)
+    ]
+    if my_openers:
+        won = sum(1 for fc in my_openers if fc.attacker_steamid == sid)
+        add_fact(
+            "you_opening",
+            f"You personally took the opening duel in {len(my_openers)} rounds: "
+            f"{won} first kills vs {len(my_openers) - won} first deaths.",
+            rounds=[fc.round_num for fc in my_openers],
+            player=sid,
+            value=round(won / len(my_openers), 4),
+        )
+
+    # Were the uploader's deaths traded? (teammate refrags the killer in time)
+    if my_deaths:
+        window_ticks = TRADE_WINDOW_S * tickrate
+        untraded_rounds: list[int] = []
+        traded = 0
+        for d in my_deaths:
+            killer = d.attacker_steamid
+            was_traded = any(
+                k.victim_steamid == killer
+                and k.round_num == d.round_num
+                and d.tick < k.tick <= d.tick + window_ticks
+                for k in kills
+            )
+            if was_traded:
+                traded += 1
+            else:
+                untraded_rounds.append(d.round_num)
+        add_fact(
+            "you_traded",
+            f"You died {len(my_deaths)} times; {traded} of those deaths were traded by a "
+            f"teammate within {TRADE_WINDOW_S:.0f}s ({traded / len(my_deaths):.0%}).",
+            rounds=untraded_rounds,
+            player=sid,
+            value=round(traded / len(my_deaths), 4),
+        )
+        metric_requests.append(("trade_success_rate", "any"))
+
+    # Headshot rate as a crosshair-placement proxy.
+    if my_kills:
+        hs = sum(1 for k in my_kills if k.headshot)
+        add_fact(
+            "you_crosshair",
+            f"You got {len(my_kills)} kills, {hs} by headshot ({hs / len(my_kills):.0%} "
+            "headshot rate — a crosshair-placement proxy).",
+            rounds=[k.round_num for k in my_kills],
+            player=sid,
+            value=round(hs / len(my_kills), 4),
+        )
+
+    # Flash quality: enemy blind time bought vs teammates blinded.
+    try:
+        my_flashes = (
+            db.query(FlashEventRow)
+            .filter(FlashEventRow.match_id == match_id, FlashEventRow.thrower_steamid == sid)
+            .all()
+        )
+    except Exception as e:
+        logger.warning(f"Could not load flash events for uploader facts: {e}")
+        my_flashes = []
+    if my_flashes:
+        enemy_s = sum(f.blind_duration for f in my_flashes if not f.is_teammate)
+        team_s = sum(f.blind_duration for f in my_flashes if f.is_teammate)
+        add_fact(
+            "you_flash",
+            f"Your flashes blinded enemies for {enemy_s:.1f}s total and teammates for "
+            f"{team_s:.1f}s total across {len(my_flashes)} blind events.",
+            rounds=sorted({f.round_num for f in my_flashes}),
+            player=sid,
+            value=round(enemy_s, 4),
+        )
+        metric_requests.extend(
+            [("enemy_blind_seconds_per_flash", "any"), ("team_flash_seconds_per_round", "any")]
+        )
+
+    # Personal utility damage (HE / molly).
+    try:
+        my_util = (
+            db.query(Damage)
+            .filter(
+                Damage.match_id == match_id,
+                Damage.attacker_steamid == sid,
+                Damage.is_utility.is_(True),
+            )
+            .all()
+        )
+    except Exception as e:
+        logger.warning(f"Could not load damage events for uploader facts: {e}")
+        my_util = []
+    if my_util:
+        total_hp = sum(d.hp_damage for d in my_util)
+        add_fact(
+            "you_util_damage",
+            f"Your HE grenades and mollies dealt {total_hp} HP damage total.",
+            rounds=sorted({d.round_num for d in my_util}),
+            player=sid,
+            value=float(total_hp),
+        )
+        metric_requests.append(("util_damage_per_round", "any"))
+
+    return metric_requests
+
+
 def build_evidence_pack(
     db,
     match_id: str,
@@ -535,6 +710,10 @@ def build_evidence_pack(
     # Telemetry v2 — round_features aggregates (opening duels, utility, trades,
     # execution sync). No rows for the match → adds nothing.
     rf_metric_requests = _add_round_feature_facts(db, match_id, scout_out, add_fact)
+
+    # Personal mode: facts scoped to the uploader's own Steam ID, so the coach
+    # can talk about *this player* instead of the whole lobby.
+    rf_metric_requests.extend(_add_uploader_facts(db, match_id, scout_out, add_fact))
 
     # -------------------------------------------------------------- baselines
     baselines: list[dict[str, Any]] = []

@@ -30,10 +30,13 @@ class AnalysisMode(str, enum.Enum):
 MODE_SPEC: dict[AnalysisMode, dict] = {
     AnalysisMode.PERSONAL_IMPROVEMENT: {
         "focus_instruction": (
-            "MODE: PERSONAL_IMPROVEMENT. Evaluate the uploader as an individual: "
+            "MODE: PERSONAL_IMPROVEMENT. Evaluate ONLY the uploader as an individual: "
             "positioning and crosshair-placement proxies (kill/death angles), utility "
             "efficiency, opening-duel decisions, whether their deaths were traded. "
-            "Findings should be addressed to the uploader."
+            "Facts whose player field equals the uploader's Steam ID are about the "
+            "uploader — build findings from those first. Other players matter only as "
+            "context for the uploader's decisions (who traded them, who they flashed); "
+            "never coach a teammate. Address every finding to the uploader as 'you'."
         ),
         "audiences": ("individual",),
         "category_bias": ["POSITIONING", "OPENING_DUELS", "UTILITY_USAGE"],
@@ -61,11 +64,15 @@ MODE_SPEC: dict[AnalysisMode, dict] = {
 
 
 def derive_mode(scout_out: dict) -> AnalysisMode:
-    """Recon flag wins; a team context means team analysis; else personal."""
+    """Recon flag wins; an explicit team context means team analysis; else personal.
+
+    Only team_id (the match was uploaded into a team) selects TEAM_ANALYSIS.
+    user_team / uploader_team_label merely mean the uploader's Steam ID was
+    found in the demo — that identifies WHO the individual is, and must not
+    knock a solo upload out of personal mode.
+    """
     if scout_out.get("is_recon"):
         return AnalysisMode.OPPOSITION_RESEARCH
-    if scout_out.get("team_id") or scout_out.get("user_team") or scout_out.get(
-        "uploader_team_label"
-    ):
+    if scout_out.get("team_id"):
         return AnalysisMode.TEAM_ANALYSIS
     return AnalysisMode.PERSONAL_IMPROVEMENT

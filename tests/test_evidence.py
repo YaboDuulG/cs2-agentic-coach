@@ -524,3 +524,151 @@ class TestTelemetryV2Facts:
         """No pro round_features exist yet, so the upgrade pass is a no-op."""
         seed_default_baselines(db_session)
         assert compute_pro_baselines(db_session) == 0
+
+
+UPLOADER_SID = "76561198000000001"
+
+
+def _seed_uploader_events(db_session):
+    """Kill feed + flashes + damage where the uploader is a real participant.
+
+    Round 1: uploader wins the opener (headshot), later dies and IS traded.
+    Round 2: uploader loses the opener (first death), NOT traded.
+    Round 3: uploader wins the opener (no headshot).
+    """
+    from db.models import Damage, FlashEventRow, Kill
+
+    kills = [
+        # (round, tick, attacker_sid, victim_sid, headshot)
+        (1, 1000, UPLOADER_SID, "E1", True),
+        (1, 1200, "E2", UPLOADER_SID, False),
+        (1, 1300, "T2", "E2", False),  # trade: 100 ticks < 5s window
+        (2, 2000, "E1", UPLOADER_SID, False),  # opening loss, never traded
+        (3, 3000, UPLOADER_SID, "E2", False),
+    ]
+    for rn, tick, att, vic, hs in kills:
+        db_session.add(
+            Kill(
+                match_id=TEST_MATCH_ID,
+                round_num=rn,
+                tick=tick,
+                attacker=att,
+                victim=vic,
+                attacker_steamid=att,
+                victim_steamid=vic,
+                headshot=hs,
+            )
+        )
+    db_session.add(
+        FlashEventRow(
+            match_id=TEST_MATCH_ID,
+            round_num=1,
+            tick=900,
+            thrower_steamid=UPLOADER_SID,
+            blinded_steamid="E1",
+            blind_duration=1.5,
+            is_teammate=False,
+        )
+    )
+    db_session.add(
+        FlashEventRow(
+            match_id=TEST_MATCH_ID,
+            round_num=2,
+            tick=1900,
+            thrower_steamid=UPLOADER_SID,
+            blinded_steamid="T2",
+            blind_duration=0.8,
+            is_teammate=True,
+        )
+    )
+    db_session.add(
+        Damage(
+            match_id=TEST_MATCH_ID,
+            round_num=1,
+            tick=950,
+            attacker_steamid=UPLOADER_SID,
+            victim_steamid="E1",
+            weapon="hegrenade",
+            hp_damage=45,
+            hitgroup="generic",
+            is_utility=True,
+        )
+    )
+    db_session.add(
+        Damage(
+            match_id=TEST_MATCH_ID,
+            round_num=1,
+            tick=1000,
+            attacker_steamid=UPLOADER_SID,
+            victim_steamid="E1",
+            weapon="ak47",
+            hp_damage=100,
+            hitgroup="head",
+            is_utility=False,
+        )
+    )
+    db_session.commit()
+
+
+class TestUploaderFacts:
+    """Personal-mode facts scoped to the uploader's Steam ID."""
+
+    def _personal_scout(self) -> dict:
+        return {**_scout_out(), "uploader_steam_id": UPLOADER_SID}
+
+    @patch("db.rag.retrieve_similar_chunks", return_value=[])
+    def test_uploader_facts_present_and_attributed(self, mock_retrieve, db_session):
+        """you_* facts exist, carry player=steamid, and measure the right things."""
+        _seed_uploader_events(db_session)
+        pack = build_evidence_pack(
+            db_session, TEST_MATCH_ID, self._personal_scout(), _tactical_analysis(), []
+        )
+        by_kind = {f["kind"]: f for f in pack["facts"] if f["kind"].startswith("you_")}
+        assert {"you_opening", "you_traded", "you_crosshair", "you_flash", "you_util_damage"} <= set(
+            by_kind
+        )
+        assert all(f["player"] == UPLOADER_SID for f in by_kind.values())
+        # Openers: won r1 + r3, lost r2 → 2/3
+        assert by_kind["you_opening"]["value"] == pytest.approx(2 / 3, abs=1e-3)
+        assert by_kind["you_opening"]["rounds"] == [1, 2, 3]
+        # Deaths: r1 traded, r2 not → 0.5; untraded rounds list = [2]
+        assert by_kind["you_traded"]["value"] == 0.5
+        assert by_kind["you_traded"]["rounds"] == [2]
+        # Kills: 2, one headshot → 0.5
+        assert by_kind["you_crosshair"]["value"] == 0.5
+        # Flash: 1.5s enemy blind; util: 45 HP (rifle damage excluded)
+        assert by_kind["you_flash"]["value"] == 1.5
+        assert by_kind["you_util_damage"]["value"] == 45.0
+
+    @patch("db.rag.retrieve_similar_chunks", return_value=[])
+    def test_no_linked_steam_id_yields_identity_warning(self, mock_retrieve, db_session):
+        """Personal mode without a linked Steam ID says so instead of guessing."""
+        _seed_uploader_events(db_session)
+        pack = build_evidence_pack(
+            db_session, TEST_MATCH_ID, _scout_out(), _tactical_analysis(), []
+        )
+        identity = [f for f in pack["facts"] if f["kind"] == "identity"]
+        assert len(identity) == 1
+        assert "No Steam ID is linked" in identity[0]["detail"]
+        assert not any(f["kind"].startswith("you_") for f in pack["facts"])
+
+    @patch("db.rag.retrieve_similar_chunks", return_value=[])
+    def test_steam_id_absent_from_demo_yields_identity_warning(self, mock_retrieve, db_session):
+        """A linked Steam ID that never appears in the kill feed is flagged."""
+        _seed_uploader_events(db_session)
+        scout = {**_scout_out(), "uploader_steam_id": "76561198999999999"}
+        pack = build_evidence_pack(db_session, TEST_MATCH_ID, scout, _tactical_analysis(), [])
+        identity = [f for f in pack["facts"] if f["kind"] == "identity"]
+        assert len(identity) == 1
+        assert "does not appear" in identity[0]["detail"]
+        assert not any(f["kind"].startswith("you_") for f in pack["facts"])
+
+    @patch("db.rag.retrieve_similar_chunks", return_value=[])
+    def test_team_mode_skips_uploader_facts(self, mock_retrieve, db_session):
+        """Team uploads get no personal you_* facts and no identity nag."""
+        _seed_uploader_events(db_session)
+        scout = {**self._personal_scout(), "team_id": "team-1"}
+        pack = build_evidence_pack(db_session, TEST_MATCH_ID, scout, _tactical_analysis(), [])
+        kinds = {f["kind"] for f in pack["facts"]}
+        assert not any(k.startswith("you_") for k in kinds)
+        assert "identity" not in kinds

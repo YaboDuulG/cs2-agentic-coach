@@ -109,8 +109,13 @@ class TestModes:
         assert derive_mode({"is_recon": True, "team_id": "t1"}) is AnalysisMode.OPPOSITION_RESEARCH
 
     def test_team_context(self):
-        """Docstring for test_team_context."""
-        assert derive_mode({"user_team": "CT"}) is AnalysisMode.TEAM_ANALYSIS
+        """Only an explicit team upload selects team analysis."""
+        assert derive_mode({"team_id": "t1"}) is AnalysisMode.TEAM_ANALYSIS
+
+    def test_identified_uploader_stays_personal(self):
+        """Finding the uploader's Steam ID in the demo must NOT force team mode."""
+        scout = {"user_team": "CT", "uploader_team_label": "Team A", "uploader_steam_id": "765"}
+        assert derive_mode(scout) is AnalysisMode.PERSONAL_IMPROVEMENT
 
     def test_default_personal(self):
         """Docstring for test_default_personal."""

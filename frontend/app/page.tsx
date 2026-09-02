@@ -252,6 +252,8 @@ function StatusChip({ status }: { status: string }) {
 
 function CommandCenter() {
   const { def } = useTheme();
+  const { user } = useUser();
+  const steamLinked = Boolean(user?.unsafeMetadata?.steam_id);
 
   // Same read pattern as Navbar: lazy localStorage init + the coachingModeChange bus.
   const [coachingMode, setCoachingMode] = useState<"individual" | "team">(() => {
@@ -314,6 +316,35 @@ function CommandCenter() {
             {coachingMode === "team" ? "Team" : "Individual"} coaching mode — switch it in the top bar.
           </p>
         </PageSection>
+
+        {/* Individual coaching needs to know which player you are */}
+        {coachingMode === "individual" && !steamLinked && (
+          <PageSection className="mb-6">
+            <Link
+              href="/profile"
+              className="flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-colors hover:border-[var(--color-border-strong)]"
+              style={{
+                background: "var(--color-bg-secondary)",
+                borderColor:
+                  "color-mix(in srgb, var(--color-accent-secondary) 45%, transparent)",
+              }}
+            >
+              <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                <span className="font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                  Link your Steam ID
+                </span>{" "}
+                so the coach knows which player is you — without it, individual reports can only
+                cover the whole lobby.
+              </p>
+              <span
+                className="text-xs font-semibold whitespace-nowrap"
+                style={{ color: "var(--color-accent-primary)" }}
+              >
+                Link on profile →
+              </span>
+            </Link>
+          </PageSection>
+        )}
 
         {/* Upload hero + recent analyses */}
         <PageSection className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12 items-stretch">

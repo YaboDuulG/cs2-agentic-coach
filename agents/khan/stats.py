@@ -167,6 +167,7 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
                 "user_notes": match.notes,
                 "user_team": user_team,
                 "uploader_steam_id": match.uploader_steam_id,
+                "team_id": getattr(match, "team_id", None),
                 "is_recon": getattr(match, "is_recon", False),
                 "team_rosters": team_rosters,
                 "round_history": round_details,
