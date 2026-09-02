@@ -195,7 +195,9 @@ export function Navbar() {
               </>
             ) : (
               <>
-                <div className="hidden md:flex items-center gap-5 mr-2 text-sm font-medium">
+                {/* Visible on every viewport — a signed-out phone user's only
+                    path to pricing is this link. */}
+                <div className="flex items-center gap-3 md:gap-5 mr-1 md:mr-2 text-sm font-medium">
                   <Link href="/billing" style={linkColor(isActive("/billing"))}>
                     Pricing
                   </Link>

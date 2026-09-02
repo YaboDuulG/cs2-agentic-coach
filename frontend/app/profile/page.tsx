@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
@@ -185,12 +185,17 @@ export default function ProfilePage() {
   // Returning from the Steam OpenID flow: the callback route updated
   // unsafeMetadata server-side, so the client-side user object is stale until
   // reload(). window.location.search avoids the useSearchParams Suspense
-  // requirement for this one-shot check.
+  // requirement. The ref guard makes this truly one-shot: user.reload()
+  // replaces the Clerk user object, which re-runs this effect before
+  // router.replace() lands — without the guard that loops (reload → new user
+  // → effect → reload), stacking toasts and refetching the whole page.
+  const steamReturnHandled = useRef(false);
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    if (!isLoaded || !user || steamReturnHandled.current) return;
     const params = new URLSearchParams(window.location.search);
     const steamResult = params.get("steam");
     if (!steamResult) return;
+    steamReturnHandled.current = true;
     if (steamResult === "linked") {
       user.reload().then(() => toast("Steam account linked", "success"));
     } else if (steamResult === "error") {
