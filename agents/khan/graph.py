@@ -42,16 +42,26 @@ def _get_checkpointer() -> Any:
 
     db_url = os.environ.get("DATABASE_URL")
     if db_url and not db_url.startswith("sqlite"):
-        from langgraph.checkpoint.postgres import PostgresSaver
-        from psycopg_pool import ConnectionPool
+        # Checkpoint persistence is a nice-to-have (graph resumption); the
+        # coaching run itself must not die because psycopg3/libpq is missing
+        # or the pool can't connect. Fall back to in-memory checkpoints.
+        try:
+            from langgraph.checkpoint.postgres import PostgresSaver
+            from psycopg_pool import ConnectionPool
 
-        # Replace postgresql:// with postgres:// if needed, though psycopg3 handles both
-        pool = ConnectionPool(conninfo=db_url, max_size=5)
-        _MEMORY = PostgresSaver(pool)
-        _MEMORY.setup()
-    else:
-        from langgraph.checkpoint.memory import MemorySaver
-        _MEMORY = MemorySaver()
+            pool = ConnectionPool(conninfo=db_url, max_size=5)
+            _MEMORY = PostgresSaver(pool)
+            _MEMORY.setup()
+            return _MEMORY
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                f"Postgres checkpointer unavailable ({e}); using MemorySaver"
+            )
+
+    from langgraph.checkpoint.memory import MemorySaver
+    _MEMORY = MemorySaver()
 
     return _MEMORY
 

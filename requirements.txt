@@ -23,6 +23,8 @@ google-auth>=2.35.0
 
 # --- Database ---
 psycopg2-binary==2.9.9
+# psycopg3 with bundled libpq — langgraph-checkpoint-postgres imports psycopg.
+psycopg[binary,pool]>=3.2
 sqlalchemy==2.0.35
 pgvector==0.3.5
 langgraph-checkpoint-postgres>=2.0.0

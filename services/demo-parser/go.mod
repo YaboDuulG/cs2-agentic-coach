@@ -5,7 +5,7 @@ go 1.25.8
 require (
 	cloud.google.com/go/storage v1.63.0
 	github.com/gin-gonic/gin v1.10.0
-	github.com/markus-wa/demoinfocs-golang/v4 v4.3.1
+	github.com/markus-wa/demoinfocs-golang/v4 v4.5.1
 )
 
 require (
