@@ -11,7 +11,7 @@ import {
   Crosshair, Clock, BarChart3, ArrowRight
 } from "lucide-react";
 import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
-import { PageSection, PageTransition } from "@/components/ui";
+import { PageSection, PageTransition, toast } from "@/components/ui";
 import { PLAN_LIMITS } from "@/lib/flags";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { UploadModal } from "@/components/UploadModal";
@@ -181,6 +181,23 @@ export default function ProfilePage() {
     }
     setSteamSaving(false);
   }
+
+  // Returning from the Steam OpenID flow: the callback route updated
+  // unsafeMetadata server-side, so the client-side user object is stale until
+  // reload(). window.location.search avoids the useSearchParams Suspense
+  // requirement for this one-shot check.
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    const params = new URLSearchParams(window.location.search);
+    const steamResult = params.get("steam");
+    if (!steamResult) return;
+    if (steamResult === "linked") {
+      user.reload().then(() => toast("Steam account linked", "success"));
+    } else if (steamResult === "error") {
+      toast("Steam sign-in failed — try again or enter your ID manually", "danger");
+    }
+    router.replace("/profile", { scroll: false });
+  }, [isLoaded, user, router]);
 
   const plan = (user?.publicMetadata?.plan as string) ?? "free";
   const uploads = (user?.publicMetadata?.uploadsThisMonth as number) ?? 0;
@@ -508,7 +525,7 @@ export default function ProfilePage() {
                 <h3 className="font-semibold text-white" style={{ fontSize: "0.85rem" }}>Steam Profile Link</h3>
               </div>
               <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-                Provide your Steam ID to personalize your AI reports and isolate coaching specifically to your team.
+                Link your Steam account so the coach knows exactly which player is you — individual reports are built around your duels, trades, and utility.
               </p>
               
               {steamEdit ? (
@@ -547,20 +564,37 @@ export default function ProfilePage() {
                         <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Linked Steam ID</p>
                         <p className="text-xs font-bold text-[var(--color-accent-secondary)] font-mono truncate">{currentSteamId}</p>
                       </div>
-                      <button
-                        onClick={() => { setSteamInput(currentSteamId); setSteamEdit(true); setSteamError(""); }}
-                        className="text-xs font-semibold text-[var(--color-accent-primary)] hover:text-[#5BA3E8] transition-colors text-left"
-                      >
-                        Change Steam ID
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <a
+                          href="/api/steam/login"
+                          className="text-xs font-semibold text-[var(--color-accent-primary)] hover:text-[#5BA3E8] transition-colors"
+                        >
+                          Re-link via Steam
+                        </a>
+                        <button
+                          onClick={() => { setSteamInput(currentSteamId); setSteamEdit(true); setSteamError(""); }}
+                          className="text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors text-left"
+                        >
+                          Edit manually
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => { setSteamInput(""); setSteamEdit(true); setSteamError(""); }}
-                      className="w-full py-2.5 rounded-lg bg-[var(--color-accent-primary)]/10 border border-[var(--color-accent-primary)]/30 text-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary)]/20 text-xs font-semibold transition-all text-center"
-                    >
-                      + Link Steam Account
-                    </button>
+                    <>
+                      {/* Steam OpenID: proves account ownership, no ID typing, no password seen by us */}
+                      <a
+                        href="/api/steam/login"
+                        className="w-full py-2.5 rounded-lg bg-[var(--color-accent-primary)] text-white hover:bg-[#1B4F8A] text-xs font-semibold transition-all text-center"
+                      >
+                        Sign in through Steam
+                      </a>
+                      <button
+                        onClick={() => { setSteamInput(""); setSteamEdit(true); setSteamError(""); }}
+                        className="w-full py-2 rounded-lg bg-transparent border border-[var(--color-border-primary)] text-slate-400 hover:text-slate-200 hover:border-[var(--color-border-strong)] text-xs font-semibold transition-all text-center"
+                      >
+                        Enter Steam ID manually
+                      </button>
+                    </>
                   )}
                 </div>
               )}
