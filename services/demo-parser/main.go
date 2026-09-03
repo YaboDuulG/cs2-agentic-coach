@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YaboDuulG/cs2-agentic-coach/demo-parser/parser"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {

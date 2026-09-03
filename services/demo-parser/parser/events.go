@@ -1,7 +1,7 @@
 package parser
 
 import (
-	events "github.com/markus-wa/demoinfocs-golang/v4/pkg/demoinfocs/events"
+	events "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
 )
 
 // KillEvent represents a parsed kill from a CS2 demo.

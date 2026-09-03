@@ -11,9 +11,10 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/gin-gonic/gin"
-	dem "github.com/markus-wa/demoinfocs-golang/v4/pkg/demoinfocs"
-	common "github.com/markus-wa/demoinfocs-golang/v4/pkg/demoinfocs/common"
-	events "github.com/markus-wa/demoinfocs-golang/v4/pkg/demoinfocs/events"
+	dem "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
+	common "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
+	events "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
+	msgs2 "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
 )
 
 type ParseRequest struct {
@@ -113,6 +114,14 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 
 	result := &ParseResult{MatchID: matchID}
 
+	// v5 removed Parser.Header(); the map name arrives in the CS2 demo-file
+	// header net message instead.
+	p.RegisterNetMessageHandler(func(m *msgs2.CDemoFileHeader) {
+		if result.MapName == "" {
+			result.MapName = m.GetMapName()
+		}
+	})
+
 	// Phase gating: only events from live rounds are recorded. Warmup, knife
 	// round, pauses, restarts, and postgame are stripped and counted; a fresh
 	// match start after data was recorded discards the earlier (fake) match.
@@ -173,12 +182,12 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 			IsHeadshot: e.IsHeadshot,
 		}
 		if e.Killer != nil {
-			pos := e.Killer.LastAlivePosition
+			pos := e.Killer.Position()
 			kill.AttackerX = float32(pos.X)
 			kill.AttackerY = float32(pos.Y)
 		}
 		if e.Victim != nil {
-			pos := e.Victim.LastAlivePosition
+			pos := e.Victim.Position()
 			kill.VictimX = float32(pos.X)
 			kill.VictimY = float32(pos.Y)
 			// Calculate distance
@@ -336,8 +345,6 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 		return nil, fmt.Errorf("parse error: %w", err)
 	}
 
-	header := p.Header()
-	result.MapName = header.MapName
 	result.Tickrate = int(p.TickRate())
 	result.PhaseSummary = &gate.Summary
 
