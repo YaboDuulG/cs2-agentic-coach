@@ -43,3 +43,9 @@ next-env.d.ts
 # Playwright
 test-results/
 playwright-report/
+
+# Local env pulls (real secrets — never commit)
+.env.e2e
+.env.local
+.vercel/
+playwright/.clerk/
