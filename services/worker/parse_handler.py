@@ -56,6 +56,24 @@ def handle_parse_job(db: Session, match_id: str) -> None:
     _persist_result(db, match, result)
     _persist_round_features(db, match, result)
 
+    # Roster from the parser (steamid -> name/side/clan). Same shape
+    # agents/khan/stats.py already reads for rosters and uploader-team
+    # detection — this column was never populated before, which is why the
+    # UI showed raw SteamIDs.
+    players = result.get("players") or []
+    if players:
+        match.player_stats_json = json.dumps(
+            {
+                p["steam_id"]: {
+                    "name": p.get("name") or p["steam_id"],
+                    "team": p.get("team") or "",
+                    "clan": p.get("clan") or "",
+                }
+                for p in players
+                if p.get("steam_id")
+            }
+        )
+
     match.map_name = result.get("map_name") or "unknown"
     match.tickrate = int(result.get("tickrate") or 64)
     match.total_rounds = len(result.get("rounds") or [])
@@ -175,16 +193,25 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
     for model in (Kill, Grenade, Round, FirstContact, PlayerTrajectory, Damage, FlashEventRow):
         db.query(model).filter(model.match_id == match_id).delete()
 
+    # Steamid -> display name from the parser roster; falls back to the
+    # steamid string for anyone missing from it.
+    name_by_sid = {
+        p["steam_id"]: (p.get("name") or p["steam_id"])
+        for p in (result.get("players") or [])
+        if p.get("steam_id")
+    }
+
+    def display_name(sid: str | None) -> str:
+        return name_by_sid.get(sid or "", sid or "")
+
     kills = result.get("kills") or []
     kill_rows = [
         {
             "match_id": match_id,
             "round_num": k.get("round", 0),
             "tick": k.get("tick", 0),
-            # Names aren't in the demo events the parser emits; steam IDs
-            # stand in until profile resolution fills them.
-            "attacker": k.get("attacker_steam_id") or "",
-            "victim": k.get("victim_steam_id") or "",
+            "attacker": display_name(k.get("attacker_steam_id")),
+            "victim": display_name(k.get("victim_steam_id")),
             "weapon": (k.get("weapon") or "")[:32],
             "headshot": bool(k.get("is_headshot")),
             "attacker_steamid": k.get("attacker_steam_id") or None,
@@ -217,7 +244,7 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
             "match_id": match_id,
             "round_num": g.get("round", 0),
             "tick": g.get("tick", 0),
-            "thrower": g.get("thrower_steam_id") or "",
+            "thrower": display_name(g.get("thrower_steam_id")),
             "grenade_type": (g.get("grenade_type") or "")[:32],
             "throw_x": g.get("land_x", 0.0),
             "throw_y": g.get("land_y", 0.0),
@@ -233,8 +260,8 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
             "match_id": match_id,
             "round_num": k.get("round", 0),
             "tick": k.get("tick", 0),
-            "attacker": k.get("attacker_steam_id") or "",
-            "victim": k.get("victim_steam_id") or "",
+            "attacker": display_name(k.get("attacker_steam_id")),
+            "victim": display_name(k.get("victim_steam_id")),
             "weapon": (k.get("weapon") or "")[:32],
             "headshot": bool(k.get("is_headshot")),
             "attacker_steamid": k.get("attacker_steam_id") or None,

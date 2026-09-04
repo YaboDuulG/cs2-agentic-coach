@@ -32,4 +32,23 @@ func TestParseLocalDemo(t *testing.T) {
 	if len(res.Rounds) == 0 {
 		t.Fatal("no live rounds parsed from a real match demo")
 	}
+	if len(res.Players) < 10 {
+		t.Fatalf("expected a full 10-player roster, got %d", len(res.Players))
+	}
+	ct, tside := 0, 0
+	for _, pl := range res.Players {
+		t.Logf("player %s (%s) clan=%q started %s", pl.Name, pl.SteamID, pl.Clan, pl.StartingTeam)
+		if pl.Name == "" {
+			t.Errorf("player %s has no name", pl.SteamID)
+		}
+		switch pl.StartingTeam {
+		case "CT":
+			ct++
+		case "TERRORIST":
+			tside++
+		}
+	}
+	if ct == 0 || tside == 0 {
+		t.Errorf("roster sides unbalanced: %d CT vs %d TERRORIST", ct, tside)
+	}
 }

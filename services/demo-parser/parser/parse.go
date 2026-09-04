@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"sort"
 	"strings"
 
 	"cloud.google.com/go/storage"
@@ -198,6 +199,12 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 		result.Kills = append(result.Kills, kill)
 	})
 
+	// Roster: refreshed on every live round end so late joiners are caught.
+	// Sides are normalized to the FIRST half (MR12 halftime flip); a player
+	// first seen in overtime may get the wrong starting side — acceptable.
+	type rosterEntry struct{ name, clan, side string }
+	roster := map[uint64]rosterEntry{}
+
 	// Round end events
 	p.RegisterEventHandler(func(e events.RoundEnd) {
 		if !gate.IsLive() {
@@ -205,6 +212,36 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 			return
 		}
 		gs := p.GameState()
+
+		firstHalf := len(result.Rounds) < 12
+		for _, pl := range gs.Participants().Playing() {
+			if pl == nil || pl.IsBot || pl.SteamID64 == 0 {
+				continue
+			}
+			side := ""
+			switch pl.Team {
+			case common.TeamCounterTerrorists:
+				side = "CT"
+			case common.TeamTerrorists:
+				side = "TERRORIST"
+			default:
+				continue
+			}
+			if !firstHalf {
+				if side == "CT" {
+					side = "TERRORIST"
+				} else {
+					side = "CT"
+				}
+			}
+			entry, seen := roster[pl.SteamID64]
+			if !seen {
+				entry.side = side
+			}
+			entry.name = pl.Name
+			entry.clan = pl.ClanTag()
+			roster[pl.SteamID64] = entry
+		}
 		tEcon := gs.TeamTerrorists().CurrentEquipmentValue()
 		ctEcon := gs.TeamCounterTerrorists().CurrentEquipmentValue()
 
@@ -347,6 +384,31 @@ func parseDemoStream(matchID string, r io.Reader) (*ParseResult, error) {
 
 	result.Tickrate = int(p.TickRate())
 	result.PhaseSummary = &gate.Summary
+
+	// Coaches occupy a team slot but never fight: demoinfocs has no coach
+	// flag, so drop roster entries that never appear in the kill feed across
+	// the whole match. (Damage events are not enough — a coach sitting at
+	// spawn can catch stray utility splash.)
+	fought := map[string]bool{}
+	for _, k := range result.Kills {
+		fought[k.Attacker] = true
+		fought[k.Victim] = true
+	}
+	for id, entry := range roster {
+		sid := fmt.Sprintf("%d", id)
+		if !fought[sid] {
+			continue
+		}
+		result.Players = append(result.Players, PlayerInfo{
+			SteamID:      sid,
+			Name:         entry.name,
+			Clan:         entry.clan,
+			StartingTeam: entry.side,
+		})
+	}
+	sort.Slice(result.Players, func(i, j int) bool {
+		return result.Players[i].SteamID < result.Players[j].SteamID
+	})
 
 	return result, nil
 }

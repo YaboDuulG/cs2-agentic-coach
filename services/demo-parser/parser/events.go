@@ -62,7 +62,18 @@ type ParseResult struct {
 	Positions    []PositionEvent `json:"positions"`
 	Damages      []DamageEvent   `json:"damages"`
 	Flashes      []FlashEvent    `json:"flashes"`
+	Players      []PlayerInfo    `json:"players"`
 	PhaseSummary *PhaseSummary   `json:"phase_summary,omitempty"`
+}
+
+// PlayerInfo is one roster entry: identity plus the side the player was on
+// in the FIRST half (normalized across the halftime swap), so downstream
+// consumers can name players and group them into teams.
+type PlayerInfo struct {
+	SteamID      string `json:"steam_id"`
+	Name         string `json:"name"`
+	Clan         string `json:"clan"`
+	StartingTeam string `json:"team"` // "CT" or "TERRORIST"
 }
 
 // DamageEvent represents one player-hurt tick (utility + weapon damage).
