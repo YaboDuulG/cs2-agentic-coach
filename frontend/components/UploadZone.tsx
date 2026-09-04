@@ -5,10 +5,28 @@ import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import { Upload, X, Clock } from "lucide-react";
 import { PLAN_LIMITS } from "@/lib/flags";
-import { Button, Progress, Spinner } from "@/components/ui";
+import { Button, Progress, Spinner, toast } from "@/components/ui";
 
 const MAX_MB = PLAN_LIMITS.free.maxFileSizeMB;
 const MAX_BYTES = MAX_MB * 1024 * 1024;
+
+// Cheap content identity so ten teammates uploading the same demo store,
+// upload, and parse it once: size + SHA-256 of the first and last megabyte.
+// Instant even for 400MB files; the server dedupes on it at presign.
+async function computeFingerprint(file: File): Promise<string | null> {
+  try {
+    const MB = 1024 * 1024;
+    const hash = async (buf: ArrayBuffer) =>
+      Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", buf)))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    const head = await hash(await file.slice(0, MB).arrayBuffer());
+    const tail = await hash(await file.slice(Math.max(0, file.size - MB)).arrayBuffer());
+    return `${file.size}:${head}:${tail}`;
+  } catch {
+    return null; // no fingerprint -> upload proceeds without dedupe
+  }
+}
 
 interface UploadZoneProps {
   onSuccess?: () => void;
@@ -58,6 +76,8 @@ export function UploadZone({ onSuccess, teamId, defaultMode }: UploadZoneProps) 
     setUploadSpeed("Preparing...");
 
     try {
+      const fingerprint = await computeFingerprint(file);
+
       let uploadFile: File | Blob = file;
       let uploadName = file.name;
 
@@ -96,6 +116,7 @@ export function UploadZone({ onSuccess, teamId, defaultMode }: UploadZoneProps) 
             team_id: teamId,
             chunk_count: chunkCount,
             is_recon: isRecon,
+            fingerprint,
           }),
         });
 
@@ -107,7 +128,15 @@ export function UploadZone({ onSuccess, teamId, defaultMode }: UploadZoneProps) 
           throw new Error(err.detail ?? "Failed to start upload");
         }
 
-        const { job_id, upload_urls } = await presignRes.json();
+        const presignData = await presignRes.json();
+        if (presignData.duplicate) {
+          setProgress(100);
+          toast("We already have this demo — skipping the upload.", "success");
+          if (onSuccess) onSuccess();
+          router.push(`/analysis/${presignData.match_id}`);
+          return;
+        }
+        const { job_id, upload_urls } = presignData;
 
         // --- 2. Upload chunks in parallel using XMLHttpRequest ---
         const chunkProgress = new Array(chunkCount).fill(0);
@@ -193,6 +222,7 @@ export function UploadZone({ onSuccess, teamId, defaultMode }: UploadZoneProps) 
             team_id: teamId,
             chunk_count: 1,
             is_recon: isRecon,
+            fingerprint,
           }),
         });
 
@@ -204,7 +234,15 @@ export function UploadZone({ onSuccess, teamId, defaultMode }: UploadZoneProps) 
           throw new Error(err.detail ?? "Failed to start upload");
         }
 
-        const { job_id, upload_url } = await presignRes.json();
+        const presignData = await presignRes.json();
+        if (presignData.duplicate) {
+          setProgress(100);
+          toast("We already have this demo — skipping the upload.", "success");
+          if (onSuccess) onSuccess();
+          router.push(`/analysis/${presignData.match_id}`);
+          return;
+        }
+        const { job_id, upload_url } = presignData;
 
         const xhr = new XMLHttpRequest();
         xhrListRef.current = [xhr];

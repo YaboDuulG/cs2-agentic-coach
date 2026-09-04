@@ -49,6 +49,15 @@ class Base(DeclarativeBase):
 # ---------------------------------------------------------------------------
 
 
+def demo_id_for(db, match_id: str | None) -> str | None:
+    """The Option-B seam: resolve a user-facing match to its shared demo.
+    Every event-table reader goes through this (or a JOIN doing the same)."""
+    if not match_id:
+        return None
+    row = db.query(Match.demo_id).filter(Match.match_id == match_id).first()
+    return row[0] if row else None
+
+
 class MatchStatus(str, enum.Enum):
     """Docstring for MatchStatus."""
     PENDING = "pending"  # Uploaded, not yet parsed
@@ -65,22 +74,26 @@ class WinnerSide(str, enum.Enum):
 
 
 # ---------------------------------------------------------------------------
-# Match — top-level record
+# Demo — the shared artifact: one uploaded .dem file and its parsed telemetry.
+# Content-addressed by fingerprint so ten teammates uploading the same file
+# store, upload, and parse it exactly once. All event tables key off demo_id.
 # ---------------------------------------------------------------------------
 
 
-class Match(Base):
-    """Docstring for Match."""
-    __tablename__ = "matches"
+class Demo(Base):
+    """Docstring for Demo."""
+    __tablename__ = "demos"
 
-    match_id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    match_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Clerk user ID — nullable so old anonymous rows are unaffected
-    user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    team_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("teams.id", ondelete="SET NULL"), nullable=True, index=True
+    demo_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    # Cheap client-side identity: "<size>:<sha256 of first 1MB>:<sha256 of last 1MB>".
+    # Unique among non-failed demos in practice; checked at presign for dedupe.
+    demo_fingerprint: Mapped[str | None] = mapped_column(
+        String(160), nullable=True, index=True
     )
-    demo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Authoritative full-file hash — recorded when the parser streams the file.
+    demo_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    gcs_demo_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gcs_parsed_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     map_name: Mapped[str] = mapped_column(String(64), nullable=False, default="unknown")
     tickrate: Mapped[int] = mapped_column(Integer, nullable=False, default=64)
     total_rounds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -88,16 +101,7 @@ class Match(Base):
         Enum(MatchStatus), nullable=False, default=MatchStatus.PENDING
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Cached AI coaching output (JSON string) — written by Great Khan after Scout parse
-    coaching_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    uploader_steam_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    is_recon: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
-    )
-    gcs_demo_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
-    gcs_audio_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
-    gcs_parsed_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Roster from the parser: {steamid: {name, team, clan}}
     player_stats_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     # GameStateGate observability: what the parser stripped (warmup/postgame
     # events, restarts discarded, pause intervals) — JSON, see services/demo-parser.
@@ -113,26 +117,113 @@ class Match(Base):
         onupdate=lambda: datetime.now(UTC),
     )
 
-    # Relationships
+    matches: Mapped[list["Match"]] = relationship("Match", back_populates="demo")
     kills: Mapped[list["Kill"]] = relationship(
-        "Kill", back_populates="match", cascade="all, delete-orphan"
+        "Kill", back_populates="demo", cascade="all, delete-orphan"
     )
     grenades: Mapped[list["Grenade"]] = relationship(
-        "Grenade", back_populates="match", cascade="all, delete-orphan"
+        "Grenade", back_populates="demo", cascade="all, delete-orphan"
     )
     rounds: Mapped[list["Round"]] = relationship(
-        "Round", back_populates="match", cascade="all, delete-orphan"
+        "Round", back_populates="demo", cascade="all, delete-orphan"
     )
     first_contacts: Mapped[list["FirstContact"]] = relationship(
-        "FirstContact", back_populates="match", cascade="all, delete-orphan"
+        "FirstContact", back_populates="demo", cascade="all, delete-orphan"
     )
     trajectories: Mapped[list["PlayerTrajectory"]] = relationship(
-        "PlayerTrajectory", back_populates="match", cascade="all, delete-orphan"
+        "PlayerTrajectory", back_populates="demo", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
         """Docstring for __repr__."""
-        return f"<Match {self.match_id} map={self.map_name} status={self.status}>"
+        return f"<Demo {self.demo_id} map={self.map_name} status={self.status}>"
+
+
+# ---------------------------------------------------------------------------
+# Match — one user's analysis of a demo: identity, team context, recon flag,
+# and the coaching output. Telemetry lives on the demo; read-through
+# properties keep the many existing readers working unchanged.
+# ---------------------------------------------------------------------------
+
+
+class Match(Base):
+    """Docstring for Match."""
+    __tablename__ = "matches"
+
+    match_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    demo_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("demos.demo_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    match_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Clerk user ID — nullable so old anonymous rows are unaffected
+    user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    team_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    demo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Cached AI coaching output (JSON string) — written by Great Khan after Scout parse
+    coaching_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploader_steam_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    is_recon: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    gcs_audio_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    demo: Mapped["Demo"] = relationship("Demo", back_populates="matches")
+
+    # ---- Read-through to the demo (the Option-B seam) -------------------
+    # Every pre-split reader used match.map_name etc.; these delegate so the
+    # split stays behind one boundary. Writers must write to the Demo row.
+
+    @property
+    def map_name(self) -> str:
+        return self.demo.map_name if self.demo else "unknown"
+
+    @property
+    def tickrate(self) -> int:
+        return self.demo.tickrate if self.demo else 64
+
+    @property
+    def total_rounds(self) -> int:
+        return self.demo.total_rounds if self.demo else 0
+
+    @property
+    def status(self):
+        return self.demo.status if self.demo else MatchStatus.PENDING
+
+    @property
+    def error_message(self) -> str | None:
+        return self.demo.error_message if self.demo else None
+
+    @property
+    def player_stats_json(self) -> str | None:
+        return self.demo.player_stats_json if self.demo else None
+
+    @property
+    def phase_summary_json(self) -> str | None:
+        return self.demo.phase_summary_json if self.demo else None
+
+    @property
+    def parse_duration_seconds(self) -> float | None:
+        return self.demo.parse_duration_seconds if self.demo else None
+
+    @property
+    def gcs_demo_uri(self) -> str | None:
+        return self.demo.gcs_demo_uri if self.demo else None
+
+    def __repr__(self) -> str:
+        """Docstring for __repr__."""
+        return f"<Match {self.match_id} demo={self.demo_id}>"
 
 
 # ---------------------------------------------------------------------------
@@ -145,8 +236,8 @@ class Kill(Base):
     __tablename__ = "kills"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    match_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    demo_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("demos.demo_id", ondelete="CASCADE"), nullable=False, index=True
     )
     round_num: Mapped[int] = mapped_column(Integer, nullable=False)
     tick: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -165,7 +256,7 @@ class Kill(Base):
     victim_y: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     victim_z: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
-    match: Mapped["Match"] = relationship("Match", back_populates="kills")
+    demo: Mapped["Demo"] = relationship("Demo", back_populates="kills")
 
 
 # ---------------------------------------------------------------------------
@@ -178,8 +269,8 @@ class Grenade(Base):
     __tablename__ = "grenades"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    match_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    demo_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("demos.demo_id", ondelete="CASCADE"), nullable=False, index=True
     )
     round_num: Mapped[int] = mapped_column(Integer, nullable=False)
     tick: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -189,7 +280,7 @@ class Grenade(Base):
     throw_x: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     throw_y: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
-    match: Mapped["Match"] = relationship("Match", back_populates="grenades")
+    demo: Mapped["Demo"] = relationship("Demo", back_populates="grenades")
 
 
 # ---------------------------------------------------------------------------
@@ -202,8 +293,8 @@ class Round(Base):
     __tablename__ = "rounds"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    match_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    demo_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("demos.demo_id", ondelete="CASCADE"), nullable=False, index=True
     )
     round_num: Mapped[int] = mapped_column(Integer, nullable=False)
     winner_side: Mapped[str] = mapped_column(String(64), nullable=False, default="")
@@ -213,7 +304,7 @@ class Round(Base):
     ct_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     t_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    match: Mapped["Match"] = relationship("Match", back_populates="rounds")
+    demo: Mapped["Demo"] = relationship("Demo", back_populates="rounds")
 
 
 # ---------------------------------------------------------------------------
@@ -226,8 +317,8 @@ class FirstContact(Base):
     __tablename__ = "first_contacts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    match_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    demo_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("demos.demo_id", ondelete="CASCADE"), nullable=False, index=True
     )
     round_num: Mapped[int] = mapped_column(Integer, nullable=False)
     tick: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -243,7 +334,7 @@ class FirstContact(Base):
     victim_x: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     victim_y: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
-    match: Mapped["Match"] = relationship("Match", back_populates="first_contacts")
+    demo: Mapped["Demo"] = relationship("Demo", back_populates="first_contacts")
 
 
 # ---------------------------------------------------------------------------
@@ -256,8 +347,8 @@ class PlayerTrajectory(Base):
     __tablename__ = "trajectories"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    match_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    demo_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("demos.demo_id", ondelete="CASCADE"), nullable=False, index=True
     )
     round_num: Mapped[int] = mapped_column(Integer, nullable=False)
     player: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -266,7 +357,7 @@ class PlayerTrajectory(Base):
     # Sampled at every TRAJECTORY_SAMPLE_TICKS ticks to keep storage manageable
     positions_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
 
-    match: Mapped["Match"] = relationship("Match", back_populates="trajectories")
+    demo: Mapped["Demo"] = relationship("Demo", back_populates="trajectories")
 
 
 # ---------------------------------------------------------------------------
@@ -606,12 +697,17 @@ class JobStatus(str, enum.Enum):
 
 
 class Job(Base):
-    """Docstring for Job."""
+    """One unit of queue work. PARSE jobs target a demo (the shared artifact);
+    COACH jobs target a match (one user's analysis of it). Exactly one of
+    demo_id / match_id is set, according to kind."""
     __tablename__ = "jobs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    match_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    demo_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("demos.demo_id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    match_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=True, index=True
     )
     kind: Mapped[str] = mapped_column(Enum(JobKind), nullable=False)
     status: Mapped[str] = mapped_column(
@@ -634,7 +730,8 @@ class Job(Base):
 
     def __repr__(self) -> str:
         """Docstring for __repr__."""
-        return f"<Job {self.id} {self.kind} match={self.match_id} status={self.status}>"
+        target = self.demo_id or self.match_id
+        return f"<Job {self.id} {self.kind} target={target} status={self.status}>"
 
 
 # ---------------------------------------------------------------------------
@@ -984,8 +1081,8 @@ class Damage(Base):
     __tablename__ = "damages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    match_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    demo_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("demos.demo_id", ondelete="CASCADE"), nullable=False, index=True
     )
     round_num: Mapped[int] = mapped_column(Integer, nullable=False)
     tick: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -1006,8 +1103,8 @@ class FlashEventRow(Base):
     __tablename__ = "flash_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    match_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    demo_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("demos.demo_id", ondelete="CASCADE"), nullable=False, index=True
     )
     round_num: Mapped[int] = mapped_column(Integer, nullable=False)
     tick: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -1022,11 +1119,11 @@ class RoundFeature(Base):
     dashboards, and benchmarks read so the hot path never scans events."""
 
     __tablename__ = "round_features"
-    __table_args__ = (UniqueConstraint("match_id", "round_num", "side_focus"),)
+    __table_args__ = (UniqueConstraint("demo_id", "round_num", "side_focus"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    match_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False, index=True
+    demo_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("demos.demo_id", ondelete="CASCADE"), nullable=False, index=True
     )
     round_num: Mapped[int] = mapped_column(Integer, nullable=False)
     side_focus: Mapped[str] = mapped_column(String(4), nullable=False)  # CT | T

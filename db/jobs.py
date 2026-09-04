@@ -26,30 +26,52 @@ logger = logging.getLogger(__name__)
 STUCK_JOB_TIMEOUT = timedelta(minutes=10)
 
 
-def enqueue_job(db: Session, match_id: str, kind: JobKind, *, dedupe: bool = True) -> Job | None:
+def enqueue_parse(db: Session, demo_id: str, *, dedupe: bool = True) -> Job | None:
+    """Queue a PARSE job for a demo — the shared artifact, parsed exactly once."""
+    if dedupe:
+        existing = (
+            db.query(Job)
+            .filter(
+                Job.demo_id == demo_id,
+                Job.kind == JobKind.PARSE,
+                Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING]),
+            )
+            .first()
+        )
+        if existing:
+            logger.info(f"Parse job for demo {demo_id} already queued (id={existing.id})")
+            return None
+    job = Job(demo_id=demo_id, kind=JobKind.PARSE, status=JobStatus.PENDING)
+    db.add(job)
+    db.commit()
+    logger.info(f"Enqueued parse job {job.id} for demo {demo_id}")
+    return job
+
+
+def enqueue_coach(db: Session, match_id: str, *, dedupe: bool = True) -> Job | None:
     """
-    Add a job to the queue. With dedupe (default), skips insertion when a
-    pending or running job of the same kind already exists for the match —
-    the coaching self-heal path can fire repeatedly and must not fan out.
+    Queue a COACH job for one user's match. With dedupe (default), skips
+    insertion when a pending or running coach job already exists for the
+    match — the coaching self-heal path can fire repeatedly and must not
+    fan out.
     """
     if dedupe:
         existing = (
             db.query(Job)
             .filter(
                 Job.match_id == match_id,
-                Job.kind == kind,
+                Job.kind == JobKind.COACH,
                 Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING]),
             )
             .first()
         )
         if existing:
-            logger.info(f"Job {kind.value} for match {match_id} already queued (id={existing.id})")
+            logger.info(f"Coach job for match {match_id} already queued (id={existing.id})")
             return None
-
-    job = Job(match_id=match_id, kind=kind, status=JobStatus.PENDING)
+    job = Job(match_id=match_id, kind=JobKind.COACH, status=JobStatus.PENDING)
     db.add(job)
     db.commit()
-    logger.info(f"Enqueued {kind.value} job {job.id} for match {match_id}")
+    logger.info(f"Enqueued coach job {job.id} for match {match_id}")
     return job
 
 
@@ -74,7 +96,10 @@ def claim_next_job(db: Session, kind: JobKind, worker_id: str) -> Job | None:
     job.claimed_at = datetime.now(UTC)
     job.attempts += 1
     db.commit()
-    logger.info(f"Worker {worker_id} claimed {kind.value} job {job.id} (match {job.match_id})")
+    logger.info(
+        f"Worker {worker_id} claimed {kind.value} job {job.id} "
+        f"(target {job.demo_id or job.match_id})"
+    )
     return job
 
 

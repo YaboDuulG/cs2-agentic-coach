@@ -32,8 +32,9 @@ async def list_analyses(user_id: str = "", scope: str = "personal", db: Session 
         if scope == "team":
             rows = db.execute(
                 text("""
-                        SELECT m.match_id, m.map_name, m.status, m.created_at, m.is_recon
+                        SELECT m.match_id, d.map_name, d.status, m.created_at, m.is_recon
                         FROM matches m
+                        JOIN demos d ON d.demo_id = m.demo_id
                         JOIN team_members tm ON tm.team_id = m.team_id
                         WHERE tm.user_id = :user_id
                         ORDER BY m.created_at DESC
@@ -44,10 +45,11 @@ async def list_analyses(user_id: str = "", scope: str = "personal", db: Session 
         else:
             rows = db.execute(
                 text("""
-                        SELECT match_id, map_name, status, created_at, is_recon
-                        FROM matches
-                        WHERE user_id = :user_id AND team_id IS NULL
-                        ORDER BY created_at DESC
+                        SELECT m.match_id, d.map_name, d.status, m.created_at, m.is_recon
+                        FROM matches m
+                        JOIN demos d ON d.demo_id = m.demo_id
+                        WHERE m.user_id = :user_id AND m.team_id IS NULL
+                        ORDER BY m.created_at DESC
                         LIMIT 100
                     """),
                 {"user_id": user_id},

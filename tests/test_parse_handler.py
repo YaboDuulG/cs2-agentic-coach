@@ -15,6 +15,7 @@ os.environ["DATABASE_URL_TEST"] = "sqlite:///:memory:"
 
 from db.models import (
     Base,
+    Demo,
     FirstContact,
     Grenade,
     Job,
@@ -28,6 +29,7 @@ from db.models import (
 from services.worker.parse_handler import handle_parse_job
 
 TEST_MATCH_ID = "parse-test-match-000"
+TEST_DEMO_ID = "parse-test-demo-000"
 
 FAKE_PARSE_RESULT = {
     "match_id": TEST_MATCH_ID,
@@ -92,15 +94,12 @@ def db_session():
     Session = sessionmaker(bind=engine)
     session = Session()
     session.add(
-        Match(
-            match_id=TEST_MATCH_ID,
-            map_name="unknown",
-            tickrate=64,
-            total_rounds=0,
-            status=MatchStatus.PENDING,
+        Demo(
+            demo_id=TEST_DEMO_ID,
             gcs_demo_uri="gs://test-bucket/demos/raw/x/demo.dem.gz",
         )
     )
+    session.add(Match(match_id=TEST_MATCH_ID, demo_id=TEST_DEMO_ID))
     session.commit()
     yield session
     session.close()
@@ -110,17 +109,21 @@ def db_session():
 def parsed(db_session):
     """Run the handler once with the parser call mocked."""
     with patch("services.worker.parse_handler._call_parser", return_value=FAKE_PARSE_RESULT):
-        handle_parse_job(db_session, TEST_MATCH_ID)
+        handle_parse_job(db_session, TEST_DEMO_ID)
     return db_session
 
 
 def test_match_completed_and_metadata_set(parsed):
     """Docstring for test_match_completed_and_metadata_set."""
+    demo = parsed.query(Demo).one()
+    assert demo.status == MatchStatus.COMPLETE
+    assert demo.map_name == "de_mirage"
+    assert demo.total_rounds == 2
+    assert demo.parse_duration_seconds is not None
+    # The match reads through to its demo (the Option-B seam).
     match = parsed.query(Match).one()
     assert match.status == MatchStatus.COMPLETE
     assert match.map_name == "de_mirage"
-    assert match.total_rounds == 2
-    assert match.parse_duration_seconds is not None
 
 
 def test_events_persisted(parsed):
@@ -167,28 +170,28 @@ def test_coach_job_enqueued(parsed):
 def test_retry_replaces_partial_rows(db_session):
     """Running the handler twice doesn't duplicate event rows."""
     with patch("services.worker.parse_handler._call_parser", return_value=FAKE_PARSE_RESULT):
-        handle_parse_job(db_session, TEST_MATCH_ID)
-        handle_parse_job(db_session, TEST_MATCH_ID)
+        handle_parse_job(db_session, TEST_DEMO_ID)
+        handle_parse_job(db_session, TEST_DEMO_ID)
     assert db_session.query(Kill).count() == 3
     assert db_session.query(Round).count() == 2
 
 
 def test_missing_gcs_uri_raises(db_session):
     """Docstring for test_missing_gcs_uri_raises."""
-    match = db_session.query(Match).one()
-    match.gcs_demo_uri = None
+    demo = db_session.query(Demo).one()
+    demo.gcs_demo_uri = None
     db_session.commit()
     with pytest.raises(RuntimeError, match="gcs_demo_uri"):
-        handle_parse_job(db_session, TEST_MATCH_ID)
+        handle_parse_job(db_session, TEST_DEMO_ID)
 
 
 def test_phase_summary_persisted(parsed):
     """The gate's strip report lands on the match row for observability."""
     import json
 
-    match = parsed.query(Match).one()
-    assert match.phase_summary_json is not None
-    summary = json.loads(match.phase_summary_json)
+    demo = parsed.query(Demo).one()
+    assert demo.phase_summary_json is not None
+    summary = json.loads(demo.phase_summary_json)
     assert summary["warmup_events_stripped"] == 12
     assert summary["restarts_discarded"] == 1
     assert summary["pauses"][0]["end_tick"] == 21520
@@ -209,7 +212,7 @@ def test_all_warmup_demo_fails_loudly(db_session):
     }
     with patch("services.worker.parse_handler._call_parser", return_value=empty_result):
         with pytest.raises(RuntimeError, match="no live rounds"):
-            handle_parse_job(db_session, TEST_MATCH_ID)
+            handle_parse_job(db_session, TEST_DEMO_ID)
     assert db_session.query(Match).one().status != MatchStatus.COMPLETE
 
 
@@ -235,7 +238,7 @@ def test_round_features_written(db_session):
 
     seed_default_zones(db_session)  # the worker runner does this at startup
     with patch("services.worker.parse_handler._call_parser", return_value=FAKE_PARSE_RESULT):
-        handle_parse_job(db_session, TEST_MATCH_ID)
+        handle_parse_job(db_session, TEST_DEMO_ID)
 
     rows = db_session.query(RoundFeature).all()
     assert {(r.round_num, r.side_focus) for r in rows} == {
@@ -253,5 +256,5 @@ def test_round_features_written(db_session):
 
     # Re-running the handler replaces, not duplicates (delete-then-insert).
     with patch("services.worker.parse_handler._call_parser", return_value=FAKE_PARSE_RESULT):
-        handle_parse_job(db_session, TEST_MATCH_ID)
+        handle_parse_job(db_session, TEST_DEMO_ID)
     assert db_session.query(RoundFeature).count() == 4

@@ -14,6 +14,7 @@ os.environ["DATABASE_URL_TEST"] = "sqlite:///:memory:"
 
 from db.models import (
     Base,
+    Demo,
     FirstContact,
     Grenade,
     Kill,
@@ -25,6 +26,7 @@ from db.models import (
 )
 
 TEST_MATCH_ID = "test-match-00000000"
+TEST_DEMO_ID = "test-demo-00000000"
 
 
 @pytest.fixture(scope="module")
@@ -42,16 +44,18 @@ def db_session():
 @pytest.fixture(autouse=True)
 def seed_match(db_session):
     """Insert a base Match record before each test and clean up after."""
-    match = Match(match_id=TEST_MATCH_ID, map_name="de_mirage", tickrate=64, total_rounds=24)
-    db_session.add(match)
+    demo = Demo(demo_id=TEST_DEMO_ID, map_name="de_mirage", tickrate=64, total_rounds=24)
+    match = Match(match_id=TEST_MATCH_ID, demo_id=TEST_DEMO_ID)
+    db_session.add_all([demo, match])
     db_session.commit()
     yield
-    db_session.query(PlayerTrajectory).filter_by(match_id=TEST_MATCH_ID).delete()
-    db_session.query(FirstContact).filter_by(match_id=TEST_MATCH_ID).delete()
-    db_session.query(Grenade).filter_by(match_id=TEST_MATCH_ID).delete()
-    db_session.query(Round).filter_by(match_id=TEST_MATCH_ID).delete()
-    db_session.query(Kill).filter_by(match_id=TEST_MATCH_ID).delete()
-    db_session.query(Match).filter_by(match_id=TEST_MATCH_ID).delete()
+    db_session.query(PlayerTrajectory).filter_by(demo_id=TEST_DEMO_ID).delete()
+    db_session.query(FirstContact).filter_by(demo_id=TEST_DEMO_ID).delete()
+    db_session.query(Grenade).filter_by(demo_id=TEST_DEMO_ID).delete()
+    db_session.query(Round).filter_by(demo_id=TEST_DEMO_ID).delete()
+    db_session.query(Kill).filter_by(demo_id=TEST_DEMO_ID).delete()
+    db_session.query(Match).filter_by(demo_id=TEST_DEMO_ID).delete()
+    db_session.query(Demo).filter_by(demo_id=TEST_DEMO_ID).delete()
     db_session.commit()
 
 
@@ -67,9 +71,9 @@ class TestMatchModel:
         assert match.status == MatchStatus.PENDING
 
     def test_match_status_update(self, db_session):
-        """Docstring for test_match_status_update."""
-        match = db_session.get(Match, TEST_MATCH_ID)
-        match.status = MatchStatus.COMPLETE
+        """Status lives on the demo; the match property reads through."""
+        demo = db_session.get(Demo, TEST_DEMO_ID)
+        demo.status = MatchStatus.COMPLETE
         db_session.commit()
         refreshed = db_session.get(Match, TEST_MATCH_ID)
         assert refreshed.status == MatchStatus.COMPLETE
@@ -85,7 +89,7 @@ class TestKillModel:
     def test_kill_insert(self, db_session):
         """Docstring for test_kill_insert."""
         kill = Kill(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=1,
             tick=1024,
             attacker="player_a",
@@ -104,7 +108,7 @@ class TestKillModel:
         db_session.add(kill)
         db_session.commit()
 
-        results = db_session.query(Kill).filter_by(match_id=TEST_MATCH_ID).all()
+        results = db_session.query(Kill).filter_by(demo_id=TEST_DEMO_ID).all()
         assert len(results) == 1
         assert results[0].weapon == "ak47"
         assert results[0].headshot is True
@@ -115,7 +119,7 @@ class TestGrenadeModel:
     def test_grenade_insert(self, db_session):
         """Docstring for test_grenade_insert."""
         grenade = Grenade(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=2,
             tick=2048,
             thrower="player_c",
@@ -127,7 +131,7 @@ class TestGrenadeModel:
         db_session.add(grenade)
         db_session.commit()
 
-        results = db_session.query(Grenade).filter_by(match_id=TEST_MATCH_ID).all()
+        results = db_session.query(Grenade).filter_by(demo_id=TEST_DEMO_ID).all()
         assert len(results) == 1
         assert results[0].grenade_type == "smokeGrenade"
 
@@ -137,7 +141,7 @@ class TestRoundModel:
     def test_round_insert(self, db_session):
         """Docstring for test_round_insert."""
         round_ = Round(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=1,
             winner_side="CT",
             reason="ct_win",
@@ -149,7 +153,7 @@ class TestRoundModel:
         db_session.add(round_)
         db_session.commit()
 
-        results = db_session.query(Round).filter_by(match_id=TEST_MATCH_ID).all()
+        results = db_session.query(Round).filter_by(demo_id=TEST_DEMO_ID).all()
         assert len(results) == 1
         assert results[0].winner_side == "CT"
         assert results[0].ct_eq_val == 4750
@@ -160,7 +164,7 @@ class TestFirstContactModel:
     def test_first_contact_insert(self, db_session):
         """Docstring for test_first_contact_insert."""
         fc = FirstContact(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=1,
             tick=512,
             attacker="player_a",
@@ -176,7 +180,7 @@ class TestFirstContactModel:
         db_session.add(fc)
         db_session.commit()
 
-        results = db_session.query(FirstContact).filter_by(match_id=TEST_MATCH_ID).all()
+        results = db_session.query(FirstContact).filter_by(demo_id=TEST_DEMO_ID).all()
         assert len(results) == 1
         assert results[0].weapon == "m4a1"
 
@@ -188,7 +192,7 @@ class TestTrajectoryModel:
         import json
 
         traj = PlayerTrajectory(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=1,
             player="player_a",
             team="CT",
@@ -202,7 +206,7 @@ class TestTrajectoryModel:
         db_session.add(traj)
         db_session.commit()
 
-        results = db_session.query(PlayerTrajectory).filter_by(match_id=TEST_MATCH_ID).all()
+        results = db_session.query(PlayerTrajectory).filter_by(demo_id=TEST_DEMO_ID).all()
         assert len(results) == 1
         positions = json.loads(results[0].positions_json)
         assert len(positions) == 2

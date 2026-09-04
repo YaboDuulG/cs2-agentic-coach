@@ -139,6 +139,8 @@ class TestJobStatusEndpoint:
             None,
             "test-user",
             None,
+            False,
+            "test-demo-nan",
         )
 
         mock_result_kills = [

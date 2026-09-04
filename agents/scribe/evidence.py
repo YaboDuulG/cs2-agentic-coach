@@ -270,13 +270,13 @@ def _add_round_feature_facts(db, match_id: str, scout_out: dict[str, Any], add_f
     """
     from collections import Counter  # noqa: PLC0415
 
-    from db.models import RoundFeature  # noqa: PLC0415
+    from db.models import RoundFeature, demo_id_for  # noqa: PLC0415
 
     metric_requests: list[tuple[str, str]] = []
     try:
         rows = (
             db.query(RoundFeature)
-            .filter(RoundFeature.match_id == match_id)
+            .filter(RoundFeature.demo_id == demo_id_for(db, match_id))
             .order_by(RoundFeature.round_num)
             .all()
         )
@@ -389,7 +389,7 @@ def _add_uploader_facts(db, match_id: str, scout_out: dict[str, Any], add_fact):
     requests like _add_round_feature_facts.
     """
     from agents.scribe.modes import AnalysisMode, derive_mode  # noqa: PLC0415
-    from db.models import Damage, FlashEventRow, Kill  # noqa: PLC0415
+    from db.models import Damage, FlashEventRow, Kill, demo_id_for  # noqa: PLC0415
     from services.tactician.features_v2 import TRADE_WINDOW_S  # noqa: PLC0415
 
     metric_requests: list[tuple[str, str]] = []
@@ -406,10 +406,11 @@ def _add_uploader_facts(db, match_id: str, scout_out: dict[str, Any], add_fact):
         )
         return metric_requests
 
+    did = demo_id_for(db, match_id)
     try:
         kills = (
             db.query(Kill)
-            .filter(Kill.match_id == match_id)
+            .filter(Kill.demo_id == did)
             .order_by(Kill.round_num, Kill.tick)
             .all()
         )
@@ -501,7 +502,7 @@ def _add_uploader_facts(db, match_id: str, scout_out: dict[str, Any], add_fact):
     try:
         my_flashes = (
             db.query(FlashEventRow)
-            .filter(FlashEventRow.match_id == match_id, FlashEventRow.thrower_steamid == sid)
+            .filter(FlashEventRow.demo_id == did, FlashEventRow.thrower_steamid == sid)
             .all()
         )
     except Exception as e:
@@ -527,7 +528,7 @@ def _add_uploader_facts(db, match_id: str, scout_out: dict[str, Any], add_fact):
         my_util = (
             db.query(Damage)
             .filter(
-                Damage.match_id == match_id,
+                Damage.demo_id == did,
                 Damage.attacker_steamid == sid,
                 Damage.is_utility.is_(True),
             )
@@ -848,9 +849,10 @@ def build_evidence_pack(
     # never invented by the LLM.
     round_ticks: dict[int, int] = {}
     try:
-        from db.models import FirstContact  # noqa: PLC0415
+        from db.models import FirstContact, demo_id_for  # noqa: PLC0415
 
-        for fc in db.query(FirstContact).filter(FirstContact.match_id == match_id).all():
+        did = demo_id_for(db, match_id)
+        for fc in db.query(FirstContact).filter(FirstContact.demo_id == did).all():
             round_ticks[fc.round_num] = fc.tick
     except Exception as e:
         logger.warning(f"Could not load round ticks: {e}")

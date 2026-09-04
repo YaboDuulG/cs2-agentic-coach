@@ -116,8 +116,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
             if not match:
                 return CallToolResult(content=[TextContent(type="text", text=f"Match {match_id} not found.")])
 
-            kill_count = db.execute(text("SELECT COUNT(*) FROM kills WHERE match_id = :mid"), {"mid": match_id}).scalar()
-            db.execute(text("SELECT COUNT(*) FROM rounds WHERE match_id = :mid"), {"mid": match_id}).scalar()
+            kill_count = db.execute(text("SELECT COUNT(*) FROM kills WHERE demo_id = :did"), {"did": match.demo_id}).scalar()
+            db.execute(text("SELECT COUNT(*) FROM rounds WHERE demo_id = :did"), {"did": match.demo_id}).scalar()
 
             summary = {
                 "match_id": match_id,

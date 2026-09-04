@@ -20,9 +20,10 @@ from agents.scribe.evidence import (
     compute_pro_baselines,
     seed_default_baselines,
 )
-from db.models import Base, ProBaseline, RoundFeature
+from db.models import Base, Demo, Match, ProBaseline, RoundFeature
 
 TEST_MATCH_ID = "test-match-evidence"
+TEST_DEMO_ID = "test-demo-evidence"
 
 
 @pytest.fixture()
@@ -32,6 +33,9 @@ def db_session():
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
+    session.add(Demo(demo_id=TEST_DEMO_ID, map_name="mirage", tickrate=64))
+    session.add(Match(match_id=TEST_MATCH_ID, demo_id=TEST_DEMO_ID))
+    session.commit()
     yield session
     session.close()
     Base.metadata.drop_all(engine)
@@ -386,7 +390,7 @@ def _seed_round_features(db_session):
     loss at Inferno_Banana with a heavy team flash, and a second Banana loss."""
     rows = [
         RoundFeature(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=1,
             side_focus="T",
             opening_duel_won=True,
@@ -400,7 +404,7 @@ def _seed_round_features(db_session):
             exec_sync_score=0.9,
         ),
         RoundFeature(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=2,
             side_focus="T",
             opening_duel_won=False,
@@ -414,7 +418,7 @@ def _seed_round_features(db_session):
             exec_sync_score=0.3,
         ),
         RoundFeature(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=3,
             side_focus="T",
             opening_duel_won=False,
@@ -549,7 +553,7 @@ def _seed_uploader_events(db_session):
     for rn, tick, att, vic, hs in kills:
         db_session.add(
             Kill(
-                match_id=TEST_MATCH_ID,
+                demo_id=TEST_DEMO_ID,
                 round_num=rn,
                 tick=tick,
                 attacker=att,
@@ -561,7 +565,7 @@ def _seed_uploader_events(db_session):
         )
     db_session.add(
         FlashEventRow(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=1,
             tick=900,
             thrower_steamid=UPLOADER_SID,
@@ -572,7 +576,7 @@ def _seed_uploader_events(db_session):
     )
     db_session.add(
         FlashEventRow(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=2,
             tick=1900,
             thrower_steamid=UPLOADER_SID,
@@ -583,7 +587,7 @@ def _seed_uploader_events(db_session):
     )
     db_session.add(
         Damage(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=1,
             tick=950,
             attacker_steamid=UPLOADER_SID,
@@ -596,7 +600,7 @@ def _seed_uploader_events(db_session):
     )
     db_session.add(
         Damage(
-            match_id=TEST_MATCH_ID,
+            demo_id=TEST_DEMO_ID,
             round_num=1,
             tick=1000,
             attacker_steamid=UPLOADER_SID,

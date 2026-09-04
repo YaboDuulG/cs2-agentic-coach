@@ -18,13 +18,13 @@ import httpx
 from sqlalchemy import insert
 from sqlalchemy.orm import Session
 
-from db.jobs import enqueue_job
+from db.jobs import enqueue_coach
 from db.models import (
     Damage,
+    Demo,
     FirstContact,
     FlashEventRow,
     Grenade,
-    JobKind,
     Kill,
     Match,
     MatchStatus,
@@ -40,21 +40,31 @@ logger = logging.getLogger(__name__)
 PARSE_TIMEOUT_SECONDS = 600
 
 
-def handle_parse_job(db: Session, match_id: str) -> None:
-    """Run the full parse-and-persist path for one match. Raises on failure."""
-    match = db.query(Match).filter(Match.match_id == match_id).first()
-    if match is None:
-        raise RuntimeError(f"Match {match_id} not found")
-    if not match.gcs_demo_uri:
-        raise RuntimeError(f"Match {match_id} has no gcs_demo_uri")
+def handle_parse_job(db: Session, demo_id: str) -> None:
+    """Run the full parse-and-persist path for one demo. Raises on failure.
 
-    match.status = MatchStatus.PARSING
+    The demo is the shared artifact: it parses exactly once no matter how
+    many users uploaded the same file. When it completes, a coach job is
+    queued for every match (user analysis) referencing it.
+    """
+    demo = db.query(Demo).filter(Demo.demo_id == demo_id).first()
+    if demo is None:
+        raise RuntimeError(f"Demo {demo_id} not found")
+    if not demo.gcs_demo_uri:
+        raise RuntimeError(f"Demo {demo_id} has no gcs_demo_uri")
+    if demo.status == MatchStatus.COMPLETE:
+        # Duplicate-upload race: another job already parsed this demo.
+        logger.info(f"Demo {demo_id} already parsed; skipping")
+        _enqueue_coach_for_matches(db, demo_id)
+        return
+
+    demo.status = MatchStatus.PARSING
     db.commit()
 
     started = time.monotonic()
-    result = _call_parser(match_id, match.gcs_demo_uri)
-    _persist_result(db, match, result)
-    _persist_round_features(db, match, result)
+    result = _call_parser(demo_id, demo.gcs_demo_uri)
+    _persist_result(db, demo, result)
+    _persist_round_features(db, demo, result)
 
     # Roster from the parser (steamid -> name/side/clan). Same shape
     # agents/khan/stats.py already reads for rosters and uploader-team
@@ -62,7 +72,7 @@ def handle_parse_job(db: Session, match_id: str) -> None:
     # UI showed raw SteamIDs.
     players = result.get("players") or []
     if players:
-        match.player_stats_json = json.dumps(
+        demo.player_stats_json = json.dumps(
             {
                 p["steam_id"]: {
                     "name": p.get("name") or p["steam_id"],
@@ -74,16 +84,16 @@ def handle_parse_job(db: Session, match_id: str) -> None:
             }
         )
 
-    match.map_name = result.get("map_name") or "unknown"
-    match.tickrate = int(result.get("tickrate") or 64)
-    match.total_rounds = len(result.get("rounds") or [])
-    match.parse_duration_seconds = time.monotonic() - started
+    demo.map_name = result.get("map_name") or "unknown"
+    demo.tickrate = int(result.get("tickrate") or 64)
+    demo.total_rounds = len(result.get("rounds") or [])
+    demo.parse_duration_seconds = time.monotonic() - started
 
     # GameStateGate strip report — persisted so a contaminated or all-warmup
     # demo is diagnosable instead of silently producing an empty report.
     phase_summary = result.get("phase_summary")
     if phase_summary:
-        match.phase_summary_json = json.dumps(phase_summary)
+        demo.phase_summary_json = json.dumps(phase_summary)
         stripped = (
             phase_summary.get("warmup_events_stripped", 0)
             + phase_summary.get("paused_events_stripped", 0)
@@ -92,33 +102,41 @@ def handle_parse_job(db: Session, match_id: str) -> None:
         )
         if stripped or phase_summary.get("restarts_discarded") or phase_summary.get("pauses"):
             logger.info(
-                f"Match {match_id} phase gate: stripped {stripped} non-live events, "
+                f"Demo {demo_id} phase gate: stripped {stripped} non-live events, "
                 f"{phase_summary.get('restarts_discarded', 0)} restart(s) discarded, "
                 f"{len(phase_summary.get('pauses') or [])} pause(s)"
             )
-    if match.total_rounds == 0:
+    if demo.total_rounds == 0:
         raise RuntimeError(
             "Demo contained no live rounds after phase gating "
             f"(phase summary: {json.dumps(phase_summary) if phase_summary else 'none'})"
         )
 
-    match.status = MatchStatus.COMPLETE
+    demo.status = MatchStatus.COMPLETE
     db.commit()
 
-    # Parse done → coaching can start immediately, not on the next user poll.
-    enqueue_job(db, match_id, JobKind.COACH)
+    # Parse done → coaching starts immediately for every uploader of this demo.
+    _enqueue_coach_for_matches(db, demo_id)
     logger.info(
-        f"Match {match_id} parsed: {match.total_rounds} rounds, "
-        f"{len(result.get('kills') or [])} kills in {match.parse_duration_seconds:.1f}s"
+        f"Demo {demo_id} parsed: {demo.total_rounds} rounds, "
+        f"{len(result.get('kills') or [])} kills in {demo.parse_duration_seconds:.1f}s"
     )
 
 
-def _call_parser(match_id: str, gcs_uri: str) -> dict:
+def _enqueue_coach_for_matches(db: Session, demo_id: str) -> None:
+    """One coach job per match of this demo — reports are per-uploader even
+    though the telemetry is shared."""
+    for match in db.query(Match).filter(Match.demo_id == demo_id).all():
+        if not match.coaching_notes:
+            enqueue_coach(db, match.match_id)
+
+
+def _call_parser(demo_id: str, gcs_uri: str) -> dict:
     """POST to the Go parser service and return its ParseResult JSON."""
     parser_url = os.environ.get("PARSER_SERVICE_URL", "http://localhost:8080").rstrip("/")
     resp = httpx.post(
         f"{parser_url}/parse",
-        json={"match_id": match_id, "gcs_uri": gcs_uri},
+        json={"match_id": demo_id, "gcs_uri": gcs_uri},
         headers=_parser_auth_headers(parser_url),
         timeout=PARSE_TIMEOUT_SECONDS,
     )
@@ -157,7 +175,7 @@ def _derive_first_contacts(kills: list[dict]) -> list[dict]:
     return [first_by_round[rn] for rn in sorted(first_by_round)]
 
 
-def _persist_round_features(db: Session, match: Match, result: dict) -> None:
+def _persist_round_features(db: Session, demo: Demo, result: dict) -> None:
     """
     Round-level per-side tactical aggregates (DATA_ARCHITECTURE §4) computed
     straight from the ParseResult dict, with zones from the canonical map_zones
@@ -178,20 +196,20 @@ def _persist_round_features(db: Session, match: Match, result: dict) -> None:
         tickrate=int(result.get("tickrate") or 64),
     )
 
-    db.query(RoundFeature).filter(RoundFeature.match_id == match.match_id).delete()
-    rows = [{"match_id": match.match_id, **f} for f in feature_dicts]
+    db.query(RoundFeature).filter(RoundFeature.demo_id == demo.demo_id).delete()
+    rows = [{"demo_id": demo.demo_id, **f} for f in feature_dicts]
     if rows:
         db.execute(insert(RoundFeature), rows)
     db.commit()
 
 
-def _persist_result(db: Session, match: Match, result: dict) -> None:
+def _persist_result(db: Session, demo: Demo, result: dict) -> None:
     """Batch-insert all event rows for the match in one transaction."""
-    match_id = match.match_id
+    demo_id = demo.demo_id
 
     # Idempotency: a retried job replaces any partial rows from the failed run.
     for model in (Kill, Grenade, Round, FirstContact, PlayerTrajectory, Damage, FlashEventRow):
-        db.query(model).filter(model.match_id == match_id).delete()
+        db.query(model).filter(model.demo_id == demo_id).delete()
 
     # Steamid -> display name from the parser roster; falls back to the
     # steamid string for anyone missing from it.
@@ -218,7 +236,7 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
     kills = result.get("kills") or []
     kill_rows = [
         {
-            "match_id": match_id,
+            "demo_id": demo_id,
             "round_num": k.get("round", 0),
             "tick": k.get("tick", 0),
             "attacker": display_name(k.get("attacker_steam_id")),
@@ -241,7 +259,7 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
 
     round_rows = [
         {
-            "match_id": match_id,
+            "demo_id": demo_id,
             "round_num": r.get("round_num", 0),
             "winner_side": r.get("winner_side") or "",
             "ct_eq_val": r.get("ct_money", 0),
@@ -254,7 +272,7 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
 
     grenade_rows = [
         {
-            "match_id": match_id,
+            "demo_id": demo_id,
             "round_num": g.get("round", 0),
             "tick": g.get("tick", 0),
             "thrower": display_name(g.get("thrower_steam_id")),
@@ -270,7 +288,7 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
     # First contact = first kill of each round, derived from the kill feed.
     fc_rows = [
         {
-            "match_id": match_id,
+            "demo_id": demo_id,
             "round_num": k.get("round", 0),
             "tick": k.get("tick", 0),
             "attacker": display_name(k.get("attacker_steam_id")),
@@ -293,7 +311,7 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
     # proxy, blind durations) — consumed by the features_v2 aggregation.
     damage_rows = [
         {
-            "match_id": match_id,
+            "demo_id": demo_id,
             "round_num": d.get("round", 0),
             "tick": d.get("tick", 0),
             "attacker_steamid": d.get("attacker_steam_id") or None,
@@ -311,7 +329,7 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
 
     flash_rows = [
         {
-            "match_id": match_id,
+            "demo_id": demo_id,
             "round_num": f.get("round", 0),
             "tick": f.get("tick", 0),
             "thrower_steamid": f.get("thrower_steam_id") or None,
@@ -335,7 +353,7 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
         )
     traj_rows = [
         {
-            "match_id": match_id,
+            "demo_id": demo_id,
             "round_num": rn,
             "player": steam_id,
             "positions_json": json.dumps(points),

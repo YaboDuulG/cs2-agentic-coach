@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 # Force SQLite for tests
 os.environ["DATABASE_URL_TEST"] = "sqlite:///:memory:"
 
-from db.models import Base, KnowledgeEmbedding, Match
+from db.models import Base, Demo, KnowledgeEmbedding, Match
 from scripts.clear_seeding import main as run_clear_seeding
 
 
@@ -33,11 +33,11 @@ def test_clear_seeding_script(db_session):
     """Verify that clear_seeding script deletes target match records and RAG embeddings."""
     # Seed a pro match and embedding
     pro_match_id = "hltv-test-match-123"
+    db_session.add(Demo(demo_id=f"{pro_match_id}-demo", map_name="de_nuke", status="complete"))
     pro_match = Match(
         match_id=pro_match_id,
+        demo_id=f"{pro_match_id}-demo",
         match_name="Team A vs Team B (Tournament - 2026)",
-        map_name="de_nuke",
-        status="complete",
     )
     db_session.add(pro_match)
 
@@ -51,11 +51,11 @@ def test_clear_seeding_script(db_session):
 
     # Seed a non-pro match that should NOT be deleted
     user_match_id = "user-match-456"
+    db_session.add(Demo(demo_id=f"{user_match_id}-demo", map_name="de_mirage", status="complete"))
     user_match = Match(
         match_id=user_match_id,
+        demo_id=f"{user_match_id}-demo",
         match_name="My Uploaded Match",
-        map_name="de_mirage",
-        status="complete",
         user_id="user_clerk_123",
     )
     db_session.add(user_match)

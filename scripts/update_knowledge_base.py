@@ -101,9 +101,9 @@ def ingest_match(db, match_id: str, api_key: str):
         logger.error(f"Match {match_id} not found in database.")
         return
 
-    rounds = db.query(Round).filter(Round.match_id == match_id).all()
-    kills = db.query(Kill).filter(Kill.match_id == match_id).all()
-    first_contacts = db.query(FirstContact).filter(FirstContact.match_id == match_id).all()
+    rounds = db.query(Round).filter(Round.demo_id == match.demo_id).all()
+    kills = db.query(Kill).filter(Kill.demo_id == match.demo_id).all()
+    first_contacts = db.query(FirstContact).filter(FirstContact.demo_id == match.demo_id).all()
 
     # Parse coaching notes if available
     summary = "No summary available."

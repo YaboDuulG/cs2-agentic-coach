@@ -20,7 +20,7 @@ import uuid
 
 from db.database import SessionLocal, engine
 from db.jobs import claim_next_job, complete_job, fail_job, requeue_stuck_jobs
-from db.models import Base, Job, JobKind, Match, MatchStatus
+from db.models import Base, Demo, Job, JobKind, MatchStatus
 from services.tactician.zones import seed_default_zones
 
 logger = logging.getLogger("worker")
@@ -62,22 +62,22 @@ def _worker_id() -> str:
     return f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
 
 
-def _run_parse(job_id: int, match_id: str) -> None:
+def _run_parse(job_id: int, demo_id: str) -> None:
     """Docstring for _run_parse."""
     from services.worker.parse_handler import handle_parse_job  # noqa: PLC0415
 
     with SessionLocal() as db:
         job = db.get(Job, job_id)
         try:
-            handle_parse_job(db, match_id)
+            handle_parse_job(db, demo_id)
             complete_job(db, job)
         except Exception as e:
-            logger.exception(f"Parse job {job_id} failed for match {match_id}")
+            logger.exception(f"Parse job {job_id} failed for demo {demo_id}")
             db.rollback()
-            match = db.query(Match).filter(Match.match_id == match_id).first()
-            if match is not None and job is not None and job.attempts >= job.max_attempts:
-                match.status = MatchStatus.FAILED
-                match.error_message = str(e)[:2000]
+            demo = db.query(Demo).filter(Demo.demo_id == demo_id).first()
+            if demo is not None and job is not None and job.attempts >= job.max_attempts:
+                demo.status = MatchStatus.FAILED
+                demo.error_message = str(e)[:2000]
                 db.commit()
             if job is not None:
                 fail_job(db, job, str(e))
@@ -125,10 +125,10 @@ def main() -> None:
             parse_job = claim_next_job(db, JobKind.PARSE, worker_id)
             if parse_job is not None:
                 claimed_any = True
-                job_id, match_id = parse_job.id, parse_job.match_id
+                job_id, demo_id = parse_job.id, parse_job.demo_id
 
         if claimed_any:
-            _run_parse(job_id, match_id)
+            _run_parse(job_id, demo_id)
 
         with SessionLocal() as db:
             coach_job = claim_next_job(db, JobKind.COACH, worker_id)

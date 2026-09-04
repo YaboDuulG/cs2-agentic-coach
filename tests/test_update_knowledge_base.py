@@ -14,9 +14,10 @@ os.environ["DATABASE_URL_TEST"] = "sqlite:///:memory:"
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from db.models import Base, FirstContact, Kill, KnowledgeEmbedding, Match, Round
+from db.models import Base, Demo, FirstContact, Kill, KnowledgeEmbedding, Match, Round
 from scripts.update_knowledge_base import ingest_match
 
+TEST_DEMO_ID = "kb-test-demo-000"
 TEST_MATCH_ID = "test-rag-match-id-123"
 
 
@@ -36,24 +37,24 @@ def db_session():
 def seed_match_data(db_session):
     """Seed a basic match with rounds, kills, and first contacts."""
     # Seed Match
+    db_session.add(
+        Demo(demo_id=TEST_DEMO_ID, map_name="de_dust2", tickrate=64, total_rounds=2, status="complete")
+    )
     match = Match(
         match_id=TEST_MATCH_ID,
-        map_name="de_dust2",
-        tickrate=64,
-        total_rounds=2,
-        status="complete",
+        demo_id=TEST_DEMO_ID,
         coaching_notes=json.dumps({"summary": "Great match with solid defense."}),
     )
     db_session.add(match)
 
     # Seed Rounds
-    r1 = Round(match_id=TEST_MATCH_ID, round_num=1, winner_side="CT", ct_eq_val=5000, t_eq_val=2000)
-    r2 = Round(match_id=TEST_MATCH_ID, round_num=2, winner_side="T", ct_eq_val=2500, t_eq_val=6000)
+    r1 = Round(demo_id=TEST_DEMO_ID, round_num=1, winner_side="CT", ct_eq_val=5000, t_eq_val=2000)
+    r2 = Round(demo_id=TEST_DEMO_ID, round_num=2, winner_side="T", ct_eq_val=2500, t_eq_val=6000)
     db_session.add_all([r1, r2])
 
     # Seed Kills
     k1 = Kill(
-        match_id=TEST_MATCH_ID,
+        demo_id=TEST_DEMO_ID,
         round_num=1,
         tick=100,
         attacker="player_a",
@@ -65,7 +66,7 @@ def seed_match_data(db_session):
         victim_x=2.0,
     )
     k2 = Kill(
-        match_id=TEST_MATCH_ID,
+        demo_id=TEST_DEMO_ID,
         round_num=2,
         tick=200,
         attacker="player_c",
@@ -80,7 +81,7 @@ def seed_match_data(db_session):
 
     # Seed First Contact
     fc1 = FirstContact(
-        match_id=TEST_MATCH_ID,
+        demo_id=TEST_DEMO_ID,
         round_num=1,
         tick=100,
         attacker="player_a",
@@ -89,7 +90,7 @@ def seed_match_data(db_session):
         weapon="m4a1",
     )
     fc2 = FirstContact(
-        match_id=TEST_MATCH_ID,
+        demo_id=TEST_DEMO_ID,
         round_num=2,
         tick=200,
         attacker="player_c",
@@ -102,10 +103,11 @@ def seed_match_data(db_session):
     db_session.commit()
     yield
     db_session.query(KnowledgeEmbedding).delete()
-    db_session.query(FirstContact).filter_by(match_id=TEST_MATCH_ID).delete()
-    db_session.query(Kill).filter_by(match_id=TEST_MATCH_ID).delete()
-    db_session.query(Round).filter_by(match_id=TEST_MATCH_ID).delete()
+    db_session.query(FirstContact).filter_by(demo_id=TEST_DEMO_ID).delete()
+    db_session.query(Kill).filter_by(demo_id=TEST_DEMO_ID).delete()
+    db_session.query(Round).filter_by(demo_id=TEST_DEMO_ID).delete()
     db_session.query(Match).filter_by(match_id=TEST_MATCH_ID).delete()
+    db_session.query(Demo).filter_by(demo_id=TEST_DEMO_ID).delete()
     db_session.commit()
 
 

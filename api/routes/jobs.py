@@ -54,7 +54,7 @@ async def get_job_status(
         # Check if match record exists and has been parsed
         result = db.execute(
             text(
-                "SELECT match_id, map_name, status, error_message, player_stats_json, created_at, parse_duration_seconds, user_id, team_id, is_recon FROM matches WHERE match_id = :id"
+                "SELECT m.match_id, d.map_name, d.status, d.error_message, d.player_stats_json, m.created_at, d.parse_duration_seconds, m.user_id, m.team_id, m.is_recon, m.demo_id FROM matches m JOIN demos d ON d.demo_id = m.demo_id WHERE m.match_id = :id"
             ),
             {"id": match_id},
         ).fetchone()
@@ -95,6 +95,7 @@ async def get_job_status(
         match_status = result[2].lower() if result[2] else "processing"
         error_message = result[3]
         player_stats_raw = result[4]
+        demo_id = result[10]
         created_at = result[5] if len(result) > 5 else None
         parse_duration_seconds = result[6] if len(result) > 6 else None
 
@@ -124,7 +125,7 @@ async def get_job_status(
             try:
                 db.execute(
                     text(
-                        "UPDATE matches SET status = 'FAILED', error_message = 'Job timed out after 15 minutes' WHERE match_id = :id"
+                        "UPDATE demos SET status = 'FAILED', error_message = 'Job timed out after 15 minutes' WHERE demo_id = (SELECT demo_id FROM matches WHERE match_id = :id)"
                     ),
                     {"id": match_id},
                 )
@@ -170,28 +171,28 @@ async def get_job_status(
         kills = db.execute(
             text("""
                     SELECT attacker, victim, weapon, round_num, attacker_team, attacker_x, attacker_y, victim_x, victim_y, attacker_steamid, victim_steamid, tick, headshot, victim_team
-                    FROM kills WHERE match_id = :id
+                    FROM kills WHERE demo_id = :did
                     ORDER BY tick
                     LIMIT 600
                 """),
-            {"id": match_id},
+            {"did": demo_id},
         ).fetchall()
 
         # Fetch rounds sorted by DB primary key (chronological order)
         rounds = db.execute(
             text("""
                     SELECT id, round_num, winner_side, ct_eq_val, t_eq_val
-                    FROM rounds WHERE match_id = :id
+                    FROM rounds WHERE demo_id = :did
                     ORDER BY id
                 """),
-            {"id": match_id},
+            {"did": demo_id},
         ).fetchall()
 
         # Fetch total grenades count
         total_grenades = (
             db.execute(
-                text("SELECT COUNT(*) FROM grenades WHERE match_id = :id"),
-                {"id": match_id},
+                text("SELECT COUNT(*) FROM grenades WHERE demo_id = :did"),
+                {"did": demo_id},
             ).scalar()
             or 0
         )
@@ -332,12 +333,12 @@ async def get_round_telemetry(
     import json  # noqa: PLC0415
 
     owner = db.execute(
-        text("SELECT user_id, team_id, map_name, tickrate FROM matches WHERE match_id = :id"),
+        text("SELECT m.user_id, m.team_id, d.map_name, d.tickrate, m.demo_id FROM matches m JOIN demos d ON d.demo_id = m.demo_id WHERE m.match_id = :id"),
         {"id": match_id},
     ).fetchone()
     if owner is None:
         raise HTTPException(status_code=404, detail="Match not found")
-    match_user_id, match_team_id, map_name, tickrate = owner
+    match_user_id, match_team_id, map_name, tickrate, demo_id = owner
     if match_team_id:
         if not user_id:
             raise HTTPException(status_code=403, detail="Team match requires authentication.")
@@ -353,24 +354,24 @@ async def get_round_telemetry(
     trajectories = db.execute(
         text(
             "SELECT player, team, positions_json FROM trajectories"
-            " WHERE match_id = :id AND round_num = :rn"
+            " WHERE demo_id = :did AND round_num = :rn"
         ),
-        {"id": match_id, "rn": round_num},
+        {"did": demo_id, "rn": round_num},
     ).fetchall()
     kills = db.execute(
         text(
             "SELECT attacker, victim, weapon, tick, headshot, attacker_x, attacker_y,"
             " victim_x, victim_y, attacker_steamid, victim_steamid FROM kills"
-            " WHERE match_id = :id AND round_num = :rn ORDER BY tick"
+            " WHERE demo_id = :did AND round_num = :rn ORDER BY tick"
         ),
-        {"id": match_id, "rn": round_num},
+        {"did": demo_id, "rn": round_num},
     ).fetchall()
     grenades = db.execute(
         text(
             "SELECT thrower, grenade_type, tick, throw_x, throw_y FROM grenades"
-            " WHERE match_id = :id AND round_num = :rn ORDER BY tick"
+            " WHERE demo_id = :did AND round_num = :rn ORDER BY tick"
         ),
-        {"id": match_id, "rn": round_num},
+        {"did": demo_id, "rn": round_num},
     ).fetchall()
 
     players = []

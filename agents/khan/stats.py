@@ -14,12 +14,13 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
         db = SessionLocal()
         try:
             match = db.query(Match).filter(Match.match_id == match_id).first()
+            demo_id = match.demo_id if match else None
             if not match:
                 return None
 
-            kills = db.query(Kill).filter(Kill.match_id == match_id).all()
-            rounds = db.query(Round).filter(Round.match_id == match_id).all()
-            first_contacts = db.query(FirstContact).filter(FirstContact.match_id == match_id).all()
+            kills = db.query(Kill).filter(Kill.demo_id == demo_id).all()
+            rounds = db.query(Round).filter(Round.demo_id == demo_id).all()
+            first_contacts = db.query(FirstContact).filter(FirstContact.demo_id == demo_id).all()
 
             # Rounds won by side across both halves — a map-balance signal,
             # NOT the match score (teams swap sides at halftime).

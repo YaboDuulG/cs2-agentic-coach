@@ -12,11 +12,12 @@ from fastapi.testclient import TestClient
 
 from api.main import app
 from db.database import engine, get_session
-from db.models import Base, Grenade, Kill, Match, PlayerTrajectory
+from db.models import Base, Demo, Grenade, Kill, Match, PlayerTrajectory
 
 client = TestClient(app)
 
 MATCH_ID = "telemetry-match-0000"
+DEMO_ID = "telemetry-demo-0000"
 
 
 def setup_module(_m):
@@ -26,15 +27,11 @@ def setup_module(_m):
     Base.metadata.create_all(engine)
     gen = get_session()
     db = next(gen)
-    db.add(
-        Match(
-            match_id=MATCH_ID, map_name="de_mirage", tickrate=64, total_rounds=2,
-            user_id="owner-1",
-        )
-    )
+    db.add(Demo(demo_id=DEMO_ID, map_name="de_mirage", tickrate=64, total_rounds=2))
+    db.add(Match(match_id=MATCH_ID, demo_id=DEMO_ID, user_id="owner-1"))
     db.add(
         PlayerTrajectory(
-            match_id=MATCH_ID, round_num=1, player="111", team="CT",
+            demo_id=DEMO_ID, round_num=1, player="111", team="CT",
             positions_json=json.dumps(
                 [{"tick": 100, "x": 1.0, "y": 2.0, "z": 0.0},
                  {"tick": 228, "x": 5.0, "y": 6.0, "z": 0.0}]
@@ -43,14 +40,14 @@ def setup_module(_m):
     )
     db.add(
         Kill(
-            match_id=MATCH_ID, round_num=1, tick=200, attacker="111", victim="222",
+            demo_id=DEMO_ID, round_num=1, tick=200, attacker="111", victim="222",
             weapon="ak47", headshot=True, attacker_x=3.0, attacker_y=4.0,
             victim_x=5.0, victim_y=6.0,
         )
     )
     db.add(
         Grenade(
-            match_id=MATCH_ID, round_num=1, tick=150, thrower="111",
+            demo_id=DEMO_ID, round_num=1, tick=150, thrower="111",
             grenade_type="Smoke Grenade", throw_x=10.0, throw_y=20.0,
         )
     )

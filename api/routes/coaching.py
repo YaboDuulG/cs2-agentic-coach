@@ -26,10 +26,9 @@ async def trigger_coaching(match_id: str, db: Session = Depends(get_session)):
     throttles CPU after the response is sent, which silently starved the
     old BackgroundTasks approach.
     """
-    from db.jobs import enqueue_job  # noqa: PLC0415
-    from db.models import JobKind  # noqa: PLC0415
+    from db.jobs import enqueue_coach  # noqa: PLC0415
 
-    enqueue_job(db, match_id, JobKind.COACH)
+    enqueue_coach(db, match_id)
     return {"status": "coaching_queued", "match_id": match_id}
 
 
@@ -89,10 +88,9 @@ db: Session = Depends(get_session)):
             # Self-healing: queue a coaching job if the match is parsed but no
             # report exists. enqueue_job dedupes, so repeated polls are cheap.
             if match.status == MatchStatus.COMPLETE:
-                from db.jobs import enqueue_job  # noqa: PLC0415
-                from db.models import JobKind  # noqa: PLC0415
+                from db.jobs import enqueue_coach  # noqa: PLC0415
 
-                enqueue_job(db, match_id, JobKind.COACH)
+                enqueue_coach(db, match_id)
 
             return JSONResponse(
                 status_code=202,

@@ -111,7 +111,13 @@ def tactician_node(state: MatchState) -> dict[str, Any]:
     logger.info(f"[Tactician Node] Running tactical analysis for match {match_id}...")
 
     from db.database import SessionLocal  # noqa: PLC0415
-    from db.models import FirstContact, Grenade, PlayerTrajectory, Round  # noqa: PLC0415
+    from db.models import (  # noqa: PLC0415
+        FirstContact,
+        Grenade,
+        PlayerTrajectory,
+        Round,
+        demo_id_for,  # noqa: PLC0415
+    )
     from services.tactician.economy_coherence import (  # noqa: PLC0415
         analyze_economy,
         economy_to_dict,
@@ -132,11 +138,12 @@ def tactician_node(state: MatchState) -> dict[str, Any]:
 
     db = SessionLocal()
     try:
-        first_contacts = db.query(FirstContact).filter(FirstContact.match_id == match_id).all()
-        rounds = db.query(Round).filter(Round.match_id == match_id).all()
-        grenades = db.query(Grenade).filter(Grenade.match_id == match_id).all()
+        did = demo_id_for(db, match_id)
+        first_contacts = db.query(FirstContact).filter(FirstContact.demo_id == did).all()
+        rounds = db.query(Round).filter(Round.demo_id == did).all()
+        grenades = db.query(Grenade).filter(Grenade.demo_id == did).all()
         trajectories = (
-            db.query(PlayerTrajectory).filter(PlayerTrajectory.match_id == match_id).all()
+            db.query(PlayerTrajectory).filter(PlayerTrajectory.demo_id == did).all()
         )
 
         fc_list = []

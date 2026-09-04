@@ -30,6 +30,10 @@ class PresignRequest(BaseModel):
     team_id: str | None = None
     chunk_count: int = 1
     is_recon: bool = False
+    # Cheap content identity computed in the browser:
+    # "<size>:<sha256 of first 1MB>:<sha256 of last 1MB>". Optional — without
+    # it the upload proceeds, it just can't dedupe.
+    fingerprint: str | None = None
 
 
 @router.post("/presign", summary="Get a presigned GCS URL for direct browser upload")
@@ -46,6 +50,7 @@ async def presign_demo_upload(body: PresignRequest, request: Request, db: Sessio
         raise HTTPException(status_code=413, detail="File exceeds 2GB limit.")
 
     match_id = str(uuid.uuid4())
+    demo_id = str(uuid.uuid4())
     bucket_name = os.environ.get("GCS_BUCKET", "").strip()
     local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
     user_id = request.headers.get("x-clerk-user-id")
@@ -66,20 +71,62 @@ async def presign_demo_upload(body: PresignRequest, request: Request, db: Sessio
         if not member_check:
             raise HTTPException(status_code=403, detail="You are not a member of this team.")
 
+    # Dedupe: if a non-failed demo with this content fingerprint exists, the
+    # file is already (being) stored and parsed — attach a new match to it and
+    # skip the upload entirely. Ten teammates, one upload, one parse.
+    if body.fingerprint:
+        from db.models import Demo, MatchStatus  # noqa: PLC0415
+
+        existing = (
+            db.query(Demo)
+            .filter(
+                Demo.demo_fingerprint == body.fingerprint,
+                Demo.status != MatchStatus.FAILED,
+            )
+            .order_by(Demo.created_at)
+            .first()
+        )
+        if existing is not None:
+            _create_records(
+                existing.demo_id,
+                match_id,
+                secure_filename,
+                user_id,
+                body.team_id,
+                uploader_steam_id,
+                body.is_recon,
+                fingerprint=None,  # demo row already exists
+                gcs_demo_uri=None,
+                demo_exists=True,
+            )
+            if existing.status == MatchStatus.COMPLETE:
+                _enqueue_coach_safe(match_id)
+            logger.info(
+                f"Duplicate demo {existing.demo_id} (fingerprint match) — "
+                f"match {match_id} attached, upload skipped"
+            )
+            return {
+                "match_id": match_id,
+                "duplicate": True,
+                "demo_status": str(existing.status.value if hasattr(existing.status, "value") else existing.status),
+            }
+
     # The final object location is known up front for both upload shapes —
-    # store it on the match so parse jobs only ever need a match_id.
-    final_path = f"demos/raw/{match_id}/{secure_filename}"
+    # store it on the demo so parse jobs only ever need a demo_id.
+    final_path = f"demos/raw/{demo_id}/{secure_filename}"
     gcs_demo_uri = f"gs://{bucket_name}/{final_path}" if bucket_name else final_path
 
-    # Create match record in DB immediately so jobs endpoint returns 'queued'
-    _create_match_record(
+    # Create demo + match records immediately so jobs endpoint returns 'queued'
+    _create_records(
+        demo_id,
         match_id,
         secure_filename,
         user_id,
         body.team_id,
         uploader_steam_id,
         body.is_recon,
-        gcs_demo_uri,
+        fingerprint=body.fingerprint,
+        gcs_demo_uri=gcs_demo_uri,
     )
 
     if local_mode or not bucket_name:
@@ -122,7 +169,7 @@ async def presign_demo_upload(body: PresignRequest, request: Request, db: Sessio
             upload_urls = []
             for i in range(body.chunk_count):
                 # Save chunk files outside the demos/raw/ path so they don't trigger Pub/Sub prematurely
-                gcs_path = f"uploads/temp/{match_id}/part_{i}"
+                gcs_path = f"uploads/temp/{demo_id}/part_{i}"
                 blob = bucket.blob(gcs_path)
                 url = blob.generate_signed_url(
                     version="v4",
@@ -138,11 +185,11 @@ async def presign_demo_upload(body: PresignRequest, request: Request, db: Sessio
             return {
                 "match_id": match_id,
                 "upload_urls": upload_urls,
-                "gcs_path": f"gs://{bucket_name}/uploads/temp/{match_id}",
+                "gcs_path": f"gs://{bucket_name}/uploads/temp/{demo_id}",
                 "local_mode": False,
             }
 
-        gcs_path = f"demos/raw/{match_id}/{secure_filename}"
+        gcs_path = final_path
         blob = bucket.blob(gcs_path)
 
         upload_url = blob.generate_signed_url(
@@ -217,12 +264,15 @@ async def compose_chunks(body: ComposeRequest, request: Request, db: Session = D
 
         bucket = client.bucket(bucket_name)
         secure_filename = os.path.basename(body.filename or "")
-        final_gcs_path = f"demos/raw/{body.match_id}/{secure_filename}"
+        demo_id = _demo_id_for_match(body.match_id)
+        if not demo_id:
+            raise HTTPException(status_code=404, detail="Match has no demo record.")
+        final_gcs_path = f"demos/raw/{demo_id}/{secure_filename}"
 
         # Fetch and verify parts
         source_blobs = []
         for i in range(body.chunk_count):
-            part_path = f"uploads/temp/{body.match_id}/part_{i}"
+            part_path = f"uploads/temp/{demo_id}/part_{i}"
             part_blob = bucket.blob(part_path)
             if not part_blob.exists():
                 raise HTTPException(
@@ -243,7 +293,7 @@ async def compose_chunks(body: ComposeRequest, request: Request, db: Session = D
             for i in range(0, len(source_blobs), 32):
                 batch = source_blobs[i : i + 32]
                 intermediate_blob = bucket.blob(
-                    f"uploads/temp/{body.match_id}/intermediate_{i // 32}"
+                    f"uploads/temp/{demo_id}/intermediate_{i // 32}"
                 )
                 intermediate_blob.content_type = "application/octet-stream"
                 intermediate_blob.compose(batch)
@@ -293,16 +343,48 @@ async def complete_upload(body: CompleteRequest, db: Session = Depends(get_sessi
 
 
 def _enqueue_parse(match_id: str) -> None:
-    """Queue a parse job for the match — deduped, non-fatal on queue errors."""
+    """Queue a parse job for the match's demo — deduped, non-fatal on queue
+    errors. If the demo already finished (duplicate-upload race), queue the
+    coach instead."""
     try:
         from db.database import SessionLocal  # noqa: PLC0415
-        from db.jobs import enqueue_job  # noqa: PLC0415
-        from db.models import JobKind  # noqa: PLC0415
+        from db.jobs import enqueue_coach, enqueue_parse  # noqa: PLC0415
+        from db.models import Match, MatchStatus  # noqa: PLC0415
 
         with SessionLocal() as job_db:
-            enqueue_job(job_db, match_id, JobKind.PARSE)
+            match = job_db.query(Match).filter(Match.match_id == match_id).first()
+            if match is None:
+                logger.error(f"Cannot enqueue parse: match {match_id} not found")
+                return
+            demo = match.demo
+            if demo is not None and demo.status == MatchStatus.COMPLETE:
+                enqueue_coach(job_db, match_id)
+            else:
+                enqueue_parse(job_db, match.demo_id)
     except Exception as e:
         logger.error(f"Failed to enqueue parse job for {match_id}: {e}")
+
+
+def _enqueue_coach_safe(match_id: str) -> None:
+    """Docstring for _enqueue_coach_safe."""
+    try:
+        from db.database import SessionLocal  # noqa: PLC0415
+        from db.jobs import enqueue_coach  # noqa: PLC0415
+
+        with SessionLocal() as job_db:
+            enqueue_coach(job_db, match_id)
+    except Exception as e:
+        logger.error(f"Failed to enqueue coach job for {match_id}: {e}")
+
+
+def _demo_id_for_match(match_id: str) -> str | None:
+    """Docstring for _demo_id_for_match."""
+    from db.database import SessionLocal  # noqa: PLC0415
+    from db.models import Match  # noqa: PLC0415
+
+    with SessionLocal() as db:
+        match = db.query(Match).filter(Match.match_id == match_id).first()
+        return match.demo_id if match else None
 
 
 @router.put("/stub/{match_id}", include_in_schema=False)
@@ -312,41 +394,46 @@ async def stub_upload(match_id: str, part_name: str | None = None, db: Session =
     return {"ok": True, "match_id": match_id, "part_name": part_name}
 
 
-def _create_match_record(
+def _create_records(
+    demo_id: str,
     match_id: str,
     filename: str,
     user_id: str | None = None,
     team_id: str | None = None,
     uploader_steam_id: str | None = None,
     is_recon: bool = False,
+    *,
+    fingerprint: str | None = None,
     gcs_demo_uri: str | None = None,
+    demo_exists: bool = False,
 ) -> None:
-    """Insert a queued match row so /api/jobs/{id} returns 'queued' immediately."""
+    """Insert the demo (unless attaching to an existing one) and the match
+    row, so /api/jobs/{id} returns 'queued' immediately."""
     try:
-        from sqlalchemy import text  # noqa: PLC0415
+        from db.database import SessionLocal  # noqa: PLC0415
+        from db.models import Demo, Match  # noqa: PLC0415
 
-        from db.database import SessionLocal
         with SessionLocal() as db:
-            db.execute(
-            text("""
-                    INSERT INTO matches (
-                        match_id, map_name, tickrate, total_rounds,
-                        demo_filename, status, user_id, team_id, uploader_steam_id, is_recon, gcs_demo_uri, created_at, updated_at
+            if not demo_exists:
+                db.add(
+                    Demo(
+                        demo_id=demo_id,
+                        demo_fingerprint=fingerprint,
+                        gcs_demo_uri=gcs_demo_uri,
                     )
-                    VALUES (:id, 'unknown', 64, 0, :filename, 'PENDING', :user_id, :team_id, :uploader_steam_id, :is_recon, :gcs_demo_uri, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    ON CONFLICT (match_id) DO NOTHING
-                """),
-            {
-                "id": match_id,
-                "filename": filename,
-                "user_id": user_id,
-                "team_id": team_id,
-                "uploader_steam_id": uploader_steam_id,
-                "is_recon": is_recon,
-                "gcs_demo_uri": gcs_demo_uri,
-            },
-        )
+                )
+            db.add(
+                Match(
+                    match_id=match_id,
+                    demo_id=demo_id,
+                    demo_filename=filename,
+                    user_id=user_id,
+                    team_id=team_id,
+                    uploader_steam_id=uploader_steam_id,
+                    is_recon=is_recon,
+                )
+            )
             db.commit()
     except Exception as e:
         # Non-fatal — DB might not have tables yet (first deploy)
-        logger.warning(f"Could not create match record for {match_id}: {e}")
+        logger.warning(f"Could not create records for match {match_id}: {e}")

@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   // --- Validate request ---
   try {
-    const { filename, size_bytes, team_id, chunk_count = 1, is_recon = false } = await req.json();
+    const { filename, size_bytes, team_id, chunk_count = 1, is_recon = false, fingerprint = null } = await req.json();
 
     if (!filename || (!filename.endsWith(".dem") && !filename.endsWith(".dem.gz"))) {
       return NextResponse.json({ error: "Only .dem or .dem.gz files are accepted." }, { status: 400 });
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
         "x-clerk-user-id": userId,
         "x-clerk-user-steam-id": steamId,
       },
-      body: JSON.stringify({ filename, size_bytes, team_id, chunk_count, is_recon }),
+      body: JSON.stringify({ filename, size_bytes, team_id, chunk_count, is_recon, fingerprint }),
     });
 
     const data = await res.json();
