@@ -31,12 +31,11 @@ test("uploads a real demo and produces an analysis", async ({ page }) => {
   await expect(page.getByText(/parse failed/i)).toHaveCount(0);
   await expect(page.getByText(/unable to find existing entity/i)).toHaveCount(0);
 
-  // Coaching lands (full report or the free-tier gated view — either proves
-  // the coach job ran instead of crashing on import).
-  await expect(
-    page.getByText(/report|coaching|debrief|key finding|upgrade/i).first(),
-  ).toBeVisible({ timeout: 8 * 60_000 });
-  console.log("[upload.spec] coaching content visible");
+  // The DONE state renders the "Match debrief" header — the waiting screen
+  // does not (a looser regex once matched the progress stages' "REPORT" label
+  // and screenshotted the spinner).
+  await expect(page.getByText(/match debrief/i).first()).toBeVisible({ timeout: 8 * 60_000 });
+  console.log("[upload.spec] debrief rendered — coaching settled");
 
   // Visual artifact for design review — the finished debrief, full page.
   await page.screenshot({ path: "test-results/debrief-full.png", fullPage: true });

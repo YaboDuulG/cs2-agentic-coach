@@ -40,7 +40,7 @@ export default defineConfig({
     },
     {
       name: "pipeline",
-      testMatch: /upload\.spec\.ts/,
+      testMatch: [/upload\.spec\.ts/, /debrief-shot\.spec\.ts/],
       dependencies: ["setup"],
       retries: 0, // an upload retry would double-spend the fresh user's quota
       use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
