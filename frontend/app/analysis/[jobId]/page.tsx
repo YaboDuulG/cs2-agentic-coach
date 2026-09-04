@@ -3132,15 +3132,21 @@ export default function AnalysisPage() {
     return { team1Name: team1, team2Name: team2 };
   }, [result]);
 
-  // Final score from the rounds data already in scope (CT–T).
-  const { ctWins, tWins } = useMemo(() => {
-    let ct = 0;
-    let t = 0;
+  // Final match score. Teams swap sides at halftime, so raw CT-wins vs
+  // T-wins is NOT a match score (it once rendered a 12–7 game as "10–9").
+  // Attribute each round to the team that played the winning side that
+  // round, same convention as the timeline (Team A starts CT).
+  const { teamAWins, teamBWins } = useMemo(() => {
+    let a = 0;
+    let b = 0;
     for (const r of result?.rounds ?? []) {
-      if (r.winner === "CT") ct++;
-      else if (r.winner === "TERRORIST" || r.winner === "T") t++;
+      const winnerIsCT = r.winner === "CT" || r.winner === "COUNTER_TERRORIST";
+      const winnerIsT = r.winner === "T" || r.winner === "TERRORIST";
+      if (!winnerIsCT && !winnerIsT) continue;
+      if (isTeam1CT(r.round) === winnerIsCT) a++;
+      else b++;
     }
-    return { ctWins: ct, tWins: t };
+    return { teamAWins: a, teamBWins: b };
   }, [result?.rounds]);
 
   const cfg = STATUS_CONFIG[status];
@@ -3262,15 +3268,15 @@ export default function AnalysisPage() {
                   <h1 className="heading-display" style={{ fontSize: "1.8rem" }}>
                     {result.map ?? "Demo Analysis"}
                   </h1>
-                  {(ctWins > 0 || tWins > 0) && (
+                  {(teamAWins > 0 || teamBWins > 0) && (
                     <span
                       className="text-lg font-bold"
                       style={{ fontFamily: "var(--font-mono)" }}
-                      title="Final score (CT–T)"
+                      title="Final score — Team A started CT, sides swap at halftime"
                     >
-                      <span style={{ color: "var(--color-ct)" }}>CT {ctWins}</span>
+                      <span style={{ color: "var(--color-ct)" }}>Team A {teamAWins}</span>
                       <span style={{ color: "var(--color-text-muted)" }}> – </span>
-                      <span style={{ color: "var(--color-danger)" }}>{tWins} T</span>
+                      <span style={{ color: "var(--color-danger)" }}>{teamBWins} Team B</span>
                     </span>
                   )}
                   {reportGrade && (

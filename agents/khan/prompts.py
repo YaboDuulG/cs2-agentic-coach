@@ -23,7 +23,8 @@ def _build_prompt(
     return f"""{base_instructions}
 
 Match: {stats.get("map_name", "unknown")} | {stats.get("total_rounds", 0)} rounds
-CT wins: {stats.get("ct_wins", 0)} | T wins: {stats.get("t_wins", 0)}
+Final score (Team A started CT; sides swap at halftime): Team A {stats.get("team_a_wins", 0)} – {stats.get("team_b_wins", 0)} Team B
+Rounds won by side across both halves (map-balance signal, NOT the match score): CT {stats.get("ct_wins", 0)} | T {stats.get("t_wins", 0)}
 
 Top killers:
 {json.dumps(stats.get("top_killers", []), indent=2)}

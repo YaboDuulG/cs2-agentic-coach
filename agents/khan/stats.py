@@ -21,9 +21,29 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
             rounds = db.query(Round).filter(Round.match_id == match_id).all()
             first_contacts = db.query(FirstContact).filter(FirstContact.match_id == match_id).all()
 
-            # Win rates
+            # Rounds won by side across both halves — a map-balance signal,
+            # NOT the match score (teams swap sides at halftime).
             ct_wins = sum(1 for r in rounds if r.winner_side == "CT")
             t_wins = sum(1 for r in rounds if r.winner_side == "T")
+
+            # Actual match score: attribute each round to the team on the
+            # winning side that round. Positional indexing (first 12 rounds =
+            # first half, MR12; OT halves of 3) sidesteps 0- vs 1-based
+            # round_num ambiguity. Team A is the side that starts CT.
+            def _team_a_is_ct(pos: int) -> bool:
+                if pos < 24:
+                    return pos < 12
+                return ((pos - 24) // 3) % 2 == 0
+
+            team_a_wins = 0
+            team_b_wins = 0
+            for pos, r in enumerate(sorted(rounds, key=lambda r: r.round_num)):
+                if r.winner_side not in ("CT", "T"):
+                    continue
+                if (r.winner_side == "CT") == _team_a_is_ct(pos):
+                    team_a_wins += 1
+                else:
+                    team_b_wins += 1
 
             # Top killers
             killer_counts: dict[str, int] = {}
@@ -157,6 +177,8 @@ def _compute_stats(match_id: str) -> dict[str, Any] | None:
                 "total_rounds": match.total_rounds,
                 "ct_wins": ct_wins,
                 "t_wins": t_wins,
+                "team_a_wins": team_a_wins,
+                "team_b_wins": team_b_wins,
                 "top_killers": [{"player": p, "kills": k} for p, k in top_killers],
                 "top_weapons": [{"weapon": w, "kills": k} for w, k in top_weapons],
                 "ct_avg_spend": sum(ct_spends) / len(ct_spends) if ct_spends else 0,
