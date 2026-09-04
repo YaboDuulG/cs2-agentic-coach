@@ -16,7 +16,13 @@ export async function POST(req: NextRequest) {
   const user = await clerk.users.getUser(userId);
   const plan = (user.publicMetadata?.plan as string) ?? "free";
   const planLimits = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] ?? PLAN_LIMITS.free;
-  const uploadsThisMonth = (user.publicMetadata?.uploadsThisMonth as number) ?? 0;
+  // Month-keyed counter: "resets on the 1st" is only true if we actually
+  // reset it. A counter stamped with a different month starts over at 0.
+  const monthKey = new Date().toISOString().slice(0, 7); // "2026-09"
+  const uploadsThisMonth =
+    user.publicMetadata?.uploadsMonth === monthKey
+      ? ((user.publicMetadata?.uploadsThisMonth as number) ?? 0)
+      : 0;
   const limit = planLimits.uploadsPerMonth;
 
   if (limit !== Infinity && uploadsThisMonth >= limit) {
@@ -61,7 +67,7 @@ export async function POST(req: NextRequest) {
       publicMetadata: {
         ...user.publicMetadata,
         uploadsThisMonth: uploadsThisMonth + 1,
-        uploadsResetDate: getResetDate(),
+        uploadsMonth: monthKey,
       },
     });
 
@@ -69,10 +75,4 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 502 });
   }
-}
-
-/** First day of next month at midnight UTC */
-function getResetDate(): string {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
 }

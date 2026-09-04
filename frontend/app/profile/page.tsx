@@ -205,52 +205,61 @@ export default function ProfilePage() {
   }, [isLoaded, user, router]);
 
   const plan = (user?.publicMetadata?.plan as string) ?? "free";
-  const uploads = (user?.publicMetadata?.uploadsThisMonth as number) ?? 0;
+  // Month-keyed: a counter stamped with an older month reads as 0, matching
+  // the upload proxy's reset logic.
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  const uploads =
+    user?.publicMetadata?.uploadsMonth === currentMonthKey
+      ? ((user?.publicMetadata?.uploadsThisMonth as number) ?? 0)
+      : 0;
   const limits = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] ?? PLAN_LIMITS.free;
   const maxUploads = limits.uploadsPerMonth === Infinity ? null : limits.uploadsPerMonth;
 
-  const [steamProfile, setSteamProfile] = useState<SteamProfile | null>(null);
-  const [steamProfileLoading, setSteamProfileLoading] = useState(false);
+  // Steam profile is fetched independently of page data: linking or changing
+  // the Steam ID must not refetch analyses/teams, and a slow Steam API must
+  // never block the page (8s abort). Loading is DERIVED, not set in-effect.
+  const [steamProfileData, setSteamProfileData] = useState<{
+    steamId: string;
+    profile: SteamProfile | null;
+  } | null>(null);
+  const steamProfile =
+    currentSteamId && steamProfileData?.steamId === currentSteamId
+      ? steamProfileData.profile
+      : null;
+  const steamProfileLoading =
+    !!currentSteamId && steamProfileData?.steamId !== currentSteamId;
+
+  useEffect(() => {
+    if (!currentSteamId) return;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    fetch(`/api/steam/profile?steamid=${currentSteamId}`, { signal: ctrl.signal })
+      .then(r => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then(profile => {
+        clearTimeout(timer);
+        setSteamProfileData({ steamId: currentSteamId, profile });
+      });
+    return () => {
+      ctrl.abort();
+      clearTimeout(timer);
+    };
+  }, [currentSteamId]);
 
   useEffect(() => {
     if (!isLoaded) return;
     if (!user) { router.push("/sign-in"); return; }
 
     // `loading` initialises to true, so no need to set it here on mount.
-    const promises: Promise<unknown>[] = [
+    Promise.all([
       fetch("/api/analyses").then(r => r.json()).catch(() => []),
       fetch("/api/teams").then(r => r.json()).catch(() => []),
-    ];
-
-    if (currentSteamId) {
-      // TODO(frontend-refactor): this effect kicks off fetches and flips loading
-      // flags synchronously. Move to a proper data-fetching hook (SWR/React Query)
-      // so the loading state is derived rather than set from inside the effect.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSteamProfileLoading(true);
-      promises.push(
-        fetch(`/api/steam/profile?steamid=${currentSteamId}`)
-          .then(r => r.ok ? r.json() : null)
-          .then(data => {
-            setSteamProfile(data);
-            setSteamProfileLoading(false);
-            return data;
-          })
-          .catch(() => {
-            setSteamProfileLoading(false);
-            return null;
-          })
-      );
-    } else {
-      setSteamProfile(null);
-    }
-
-    Promise.all(promises).then(([a, t]) => {
+    ]).then(([a, t]) => {
       setAnalyses(Array.isArray(a) ? a : []);
       setTeams(Array.isArray(t) ? t : []);
       setLoading(false);
     });
-  }, [user, isLoaded, router, currentSteamId]);
+  }, [user, isLoaded, router]);
 
   if (!isLoaded || !user) return null;
 
@@ -341,129 +350,13 @@ export default function ProfilePage() {
           <UlziiBorder className="mb-10" />
         </PageSection>
 
-        {/* ── Steam CS2 Player Dossier Card ── */}
-        <PageSection>
-        {steamProfileLoading ? (
-          <div className="card p-6 mb-8 flex items-center justify-center gap-3"
-            style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>
-            <div className="w-5 h-5 rounded-full border-2 border-[var(--color-accent-secondary)] border-t-transparent animate-spin" />
-            <span className="text-xs text-slate-400 font-mono">Loading Steam Profile Dossier...</span>
-          </div>
-        ) : steamProfile ? (
-          <div className="card p-6 mb-8 relative overflow-hidden"
-            style={{
-              background: "linear-gradient(135deg, rgba(13,24,37,0.85) 0%, rgba(8,14,26,0.95) 100%)",
-              border: "1px solid rgba(201, 162, 39, 0.2)",
-              boxShadow: "0 16px 36px rgba(0,0,0,0.5), 0 0 30px rgba(201, 162, 39, 0.05)"
-            }}>
-            {/* Top gold/blue accent bar */}
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[var(--color-accent-secondary)] to-transparent" />
-            
-            <div className="flex flex-col lg:flex-row gap-8 items-center">
-              {/* Profile details & avatar */}
-              <div className="flex items-center gap-5 w-full lg:w-1/3 border-b lg:border-b-0 lg:border-r border-slate-800/60 pb-6 lg:pb-0 lg:pr-8">
-                <img
-                  src={steamProfile.avatarfull}
-                  alt="Steam avatar"
-                  className="w-16 h-16 rounded-xl border border-[var(--color-accent-secondary)]/40 shadow-lg object-cover"
-                />
-                <div className="text-left min-w-0 flex-1">
-                  <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Steam Persona</p>
-                  <h3 className="font-bold text-[var(--color-text-primary)] text-base truncate">{steamProfile.personaname}</h3>
-                  <a
-                    href={steamProfile.profileurl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-[10px] text-[var(--color-accent-primary)] hover:text-[#5BA3E8] transition-colors mt-1 font-mono"
-                  >
-                    View Steam Profile ↗
-                  </a>
-                </div>
-              </div>
-
-              {/* Stats column: Playtime & Analyses */}
-              <div className="grid grid-cols-2 gap-6 w-full lg:w-1/3 border-b lg:border-b-0 lg:border-r border-slate-800/60 pb-6 lg:pb-0 lg:pr-8">
-                <div className="text-left">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Clock size={12} className="text-[var(--color-accent-primary)]" />
-                    <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">CS2 Playtime</span>
-                  </div>
-                  {steamProfile.playtime_private ? (
-                    <div>
-                      <p className="text-sm font-bold text-slate-400 font-mono flex items-center gap-1">
-                        <span>🔒</span> Private
-                      </p>
-                      <p className="text-[9px] text-slate-500 leading-normal">Set Steam Game details to public to sync hours.</p>
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="text-xl font-extrabold text-[var(--color-text-primary)] font-mono">
-                        {Math.round((steamProfile.playtime_forever ?? 0) / 60).toLocaleString()} <span className="text-[11px] text-slate-500 font-normal">hrs</span>
-                      </p>
-                      <p className="text-[9px] text-[#22D3A0] font-semibold font-mono">Synced via Steam</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="text-left">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Crosshair size={12} className="text-[var(--color-accent-primary)]" />
-                    <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Last Match</span>
-                  </div>
-                  {analyses.length > 0 ? (
-                    <div>
-                      <p className="text-sm font-bold text-[var(--color-text-primary)] truncate">{analyses[0].map || "Unknown Map"}</p>
-                      <p className="text-[9px] text-slate-400 mt-0.5">{timeAgo(analyses[0].created_at)}</p>
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="text-sm font-bold text-slate-500">—</p>
-                      <p className="text-[9px] text-slate-500">No matches analyzed</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Career assessment & rank badge */}
-              <div className="flex items-center gap-6 w-full lg:w-1/3">
-                {/* Custom Rank badge */}
-                <div className="relative w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{
-                    background: "rgba(201, 162, 39, 0.05)",
-                    border: "1px solid rgba(201, 162, 39, 0.2)",
-                    boxShadow: "inset 0 0 12px rgba(201, 162, 39, 0.1)"
-                  }}>
-                  <div className="text-center">
-                    <p className="text-[8px] text-[var(--color-accent-secondary)] font-bold uppercase tracking-wider font-mono">Tier</p>
-                    <p className="text-2xl font-extrabold text-[var(--color-accent-secondary)] leading-none" style={{ fontFamily: "Cinzel, serif" }}>
-                      {analyses.length > 10 ? "S" : analyses.length > 5 ? "A" : analyses.length > 0 ? "B" : "N/A"}
-                    </p>
-                  </div>
-                  {/* Subtle outer pulse effect */}
-                  <div className="absolute inset-0 rounded-xl border border-[var(--color-accent-secondary)]/10 animate-ping pointer-events-none" style={{ animationDuration: '4s' }} />
-                </div>
-
-                <div className="text-left flex-1 min-w-0">
-                  <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Scout Assessment</p>
-                  <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wide">
-                    {analyses.length > 10 ? "Elite Legionnaire" : analyses.length > 5 ? "Experienced Scout" : analyses.length > 0 ? "Tactical Recruit" : "Awaiting Evaluation"}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
-                    {analyses.length > 0 
-                      ? `Based on ${analyses.length} match analyses, your tactical rotation indexes are synchronized with team strategies.`
-                      : "Upload CS2 demos to allow the Great Khan AI to build your career tactical dossier."}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-        </PageSection>
 
         <PageSection className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-          {/* ── Teams panel ── */}
-          <div>
+          {/* ── Sidebar: teams / plan / steam identity / theme.
+              order-2 puts it right of the analyses feed — the analyses ARE
+              this page; identity chrome is secondary. ── */}
+          <div className="md:order-2">
             <div className="flex items-center justify-between mb-4">
               <h2 className="heading-display" style={{ fontSize: "0.95rem" }}>
                 <Users size={14} className="inline mr-2" />Teams
@@ -565,6 +458,47 @@ export default function ProfilePage() {
                 <div className="flex flex-col gap-2.5">
                   {currentSteamId ? (
                     <div className="flex flex-col gap-2 rounded-lg bg-slate-950/60 border border-slate-900 px-3 py-2.5">
+                      {/* Compact dossier — replaces the old full-width banner */}
+                      {steamProfileLoading ? (
+                        <div className="flex items-center gap-2.5" aria-hidden>
+                          <div className="w-8 h-8 rounded-lg animate-pulse" style={{ background: "var(--color-bg-secondary)" }} />
+                          <div className="flex-1 space-y-1.5">
+                            <div className="h-2.5 w-24 rounded animate-pulse" style={{ background: "var(--color-bg-secondary)" }} />
+                            <div className="h-2 w-16 rounded animate-pulse" style={{ background: "var(--color-bg-secondary)" }} />
+                          </div>
+                        </div>
+                      ) : steamProfile ? (
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={steamProfile.avatarfull}
+                            alt=""
+                            className="w-8 h-8 rounded-lg object-cover border border-[var(--color-accent-secondary)]/40"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold truncate" style={{ color: "var(--color-text-primary)" }}>
+                              {steamProfile.personaname}
+                            </p>
+                            <p className="text-[10px] font-mono" style={{ color: "var(--color-text-muted)" }}>
+                              {steamProfile.playtime_private
+                                ? "CS2 hours private"
+                                : `${Math.round((steamProfile.playtime_forever ?? 0) / 60).toLocaleString()} hrs in CS2`}
+                            </p>
+                          </div>
+                          <a
+                            href={steamProfile.profileurl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] font-mono flex-shrink-0"
+                            style={{ color: "var(--color-accent-primary)" }}
+                          >
+                            ↗
+                          </a>
+                        </div>
+                      ) : (
+                        <p className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+                          Steam profile details unavailable right now.
+                        </p>
+                      )}
                       <div>
                         <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Linked Steam ID</p>
                         <p className="text-xs font-bold text-[var(--color-accent-secondary)] font-mono truncate">{currentSteamId}</p>
@@ -611,8 +545,8 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* ── Analyses feed ── */}
-          <div className="md:col-span-2">
+          {/* ── Analyses feed — the primary content ── */}
+          <div className="md:col-span-2 md:order-1">
             <div className="flex items-center justify-between mb-4">
               <h2 className="heading-display" style={{ fontSize: "0.95rem" }}>
                 <Crosshair size={14} className="inline mr-2" />Recent Analyses

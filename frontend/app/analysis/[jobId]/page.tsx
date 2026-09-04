@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { SoyomboIcon, UlziiBorder } from "@/components/patterns/mongolian";
@@ -3435,63 +3436,26 @@ export default function AnalysisPage() {
 
               return (
                 <>
-                  {/* Replay Viewer Toggle — the #replay anchor */}
+                  {/* Kill positions — the #replay anchor. The playback
+                      viewers (2D tactical / 3D) are quarantined on their own
+                      beta page until they earn a spot back here. */}
                   {result.kills && result.kills.length > 0 && (
                     <PageSection>
                     <section id="replay" style={{ scrollMarginTop: 120 }} className="card p-0 overflow-hidden mb-6">
-                      <div className="border-b border-slate-800 p-4 flex items-center justify-between">
+                      <div className="border-b border-slate-800 p-4 flex items-center justify-between gap-3 flex-wrap">
                         <div>
-                          <h2 className="heading-display mb-1" style={{ fontSize: "1.1rem" }}>Kill Replay Viewer</h2>
-                          <p className="text-sm text-slate-400 font-mono">View the spatial distribution of kills.</p>
+                          <h2 className="heading-display mb-1" style={{ fontSize: "1.1rem" }}>Kill positions</h2>
+                          <p className="text-sm text-slate-400 font-mono">Where every kill happened on the map.</p>
                         </div>
-                        <div className="flex items-center bg-slate-900 rounded-lg p-1 border border-slate-700">
-                          <button
-                            onClick={() => setViewerMode("2d")}
-                            className={`px-4 py-1.5 rounded-md text-xs font-mono font-medium transition-colors ${viewerMode === "2d" ? "bg-[#2D7DD2] text-white" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"}`}
-                          >
-                            2D Heatmap
-                          </button>
-                          <button
-                            onClick={() => setViewerMode("3d")}
-                            className={`px-4 py-1.5 rounded-md text-xs font-mono font-medium transition-colors ${viewerMode === "3d" ? "bg-[#FF4D6D] text-white" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"}`}
-                          >
-                            3D Replay
-                          </button>
-                        </div>
+                        <Link
+                          href={`/analysis/${jobId}/replay`}
+                          className="text-xs font-mono font-semibold"
+                          style={{ color: "var(--color-text-secondary)" }}
+                        >
+                          Replay lab (beta) →
+                        </Link>
                       </div>
-                      
-                      <div className="p-0">
-                        {viewerMode === "2d" ? (
-                          <KillHeatmap kills={filteredKills} mapName={result.map} />
-                        ) : (
-                          <div>
-                            <div className="p-4 pb-0 flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant={replayView === "tactical" ? "primary" : "secondary"}
-                                onClick={() => setReplayView("tactical")}
-                              >
-                                2D Tactical
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant={replayView === "3d" ? "primary" : "secondary"}
-                                onClick={() => setReplayView("3d")}
-                              >
-                                3D Replay
-                              </Button>
-                            </div>
-                            {replayView === "tactical" ? (
-                              <DemoViewer
-                                matchId={jobId}
-                                totalRounds={result.total_rounds ?? (result.rounds?.length ?? 0)}
-                              />
-                            ) : (
-                              <Viewer3D kills={filteredKills} mapName={result.map} selectedRound={selectedRound} />
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <KillHeatmap kills={filteredKills} mapName={result.map} />
                     </section>
                     </PageSection>
                   )}
