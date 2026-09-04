@@ -5,3 +5,5 @@ export { TeamView } from "./TeamView";
 export { OppoResearchView } from "./OppoResearchView";
 export { ModeSwitchedReport, type ModeSwitchedReportProps } from "./ModeSwitchedReport";
 export { reportState, categoryHistogram, type ReportState } from "./reportState";
+export { DuelExplorer } from "./DuelExplorer";
+export { OpeningDuelsChart } from "./OpeningDuelsChart";

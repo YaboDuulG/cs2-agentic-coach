@@ -172,7 +172,7 @@ async def get_job_status(
                     SELECT attacker, victim, weapon, round_num, attacker_team, attacker_x, attacker_y, victim_x, victim_y, attacker_steamid, victim_steamid, tick, headshot, victim_team
                     FROM kills WHERE match_id = :id
                     ORDER BY tick
-                    LIMIT 200
+                    LIMIT 600
                 """),
             {"id": match_id},
         ).fetchall()

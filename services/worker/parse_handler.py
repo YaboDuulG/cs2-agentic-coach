@@ -204,6 +204,17 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
     def display_name(sid: str | None) -> str:
         return name_by_sid.get(sid or "", sid or "")
 
+    # Team label = the player's starting side from the roster ("CT"/"TERRORIST"),
+    # stable across the halftime swap — what the UI colors by.
+    team_by_sid = {
+        p["steam_id"]: p.get("team") or ""
+        for p in (result.get("players") or [])
+        if p.get("steam_id")
+    }
+
+    def team_of(sid: str | None) -> str:
+        return team_by_sid.get(sid or "", "")
+
     kills = result.get("kills") or []
     kill_rows = [
         {
@@ -212,6 +223,8 @@ def _persist_result(db: Session, match: Match, result: dict) -> None:
             "tick": k.get("tick", 0),
             "attacker": display_name(k.get("attacker_steam_id")),
             "victim": display_name(k.get("victim_steam_id")),
+            "attacker_team": team_of(k.get("attacker_steam_id")),
+            "victim_team": team_of(k.get("victim_steam_id")),
             "weapon": (k.get("weapon") or "")[:32],
             "headshot": bool(k.get("is_headshot")),
             "attacker_steamid": k.get("attacker_steam_id") or None,

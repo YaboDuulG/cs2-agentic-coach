@@ -37,4 +37,8 @@ test("uploads a real demo and produces an analysis", async ({ page }) => {
     page.getByText(/report|coaching|debrief|key finding|upgrade/i).first(),
   ).toBeVisible({ timeout: 8 * 60_000 });
   console.log("[upload.spec] coaching content visible");
+
+  // Visual artifact for design review — the finished debrief, full page.
+  await page.screenshot({ path: "test-results/debrief-full.png", fullPage: true });
+  console.log("[upload.spec] screenshot: test-results/debrief-full.png");
 });

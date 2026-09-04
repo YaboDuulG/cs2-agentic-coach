@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { SoyomboIcon, UlziiBorder } from "@/components/patterns/mongolian";
 import { Button, PageSection, PageTransition, SoyomboProgress } from "@/components/ui";
-import { ModeSwitchedReport } from "@/components/analysis";
+import { DuelExplorer, ModeSwitchedReport, OpeningDuelsChart } from "@/components/analysis";
 import { usePlayback } from "@/lib/stores/playback";
 import type { ReportV2 } from "@/lib/api/client";
 
@@ -3316,6 +3316,15 @@ export default function AnalysisPage() {
                     </span>
                   )}
                 </div>
+                {/* Match facts, folded out of the old stat-tile grid — three
+                    counts don't deserve a third of the viewport. */}
+                <p
+                  className="mt-2 text-xs font-mono"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
+                  {result.total_rounds ?? 0} rounds · {result.total_kills ?? 0} kills ·{" "}
+                  {result.total_grenades ?? 0} grenades
+                </p>
                 <UlziiBorder className="mt-5" />
               </header>
             </PageSection>
@@ -3332,8 +3341,11 @@ export default function AnalysisPage() {
               >
                 {[
                   ["#report", "Report"],
-                  ["#replay", "Replay"],
                   ["#rounds", "Rounds"],
+                  ["#momentum", "Momentum"],
+                  ["#duels", "Duels"],
+                  ["#replay", "Replay"],
+                  ["#players", "Players"],
                 ].map(([href, label]) => (
                   <a
                     key={href}
@@ -3346,25 +3358,8 @@ export default function AnalysisPage() {
               </nav>
             </PageSection>
 
-            {/* Stat cards */}
-            <PageSection className="grid grid-cols-3 gap-4">
-              {[
-                { icon: Layers,    label: "Rounds",   value: result.total_rounds ?? 0 },
-                { icon: Crosshair, label: "Kills",    value: result.total_kills ?? 0 },
-                { icon: TrendingUp,label: "Grenades", value: result.total_grenades ?? 0 },
-              ].map(({ icon: Icon, label, value }) => (
-                <div key={label} className="card p-6 text-center">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-3"
-                    style={{ background: "rgba(45,125,210,0.1)", border: "1px solid rgba(45,125,210,0.2)" }}>
-                    <Icon size={20} color="#2D7DD2" />
-                  </div>
-                  <div className="stat-number" style={{ fontSize: "2rem" }}>{value}</div>
-                  <div style={{ color: "#8BA7CC", fontSize: "0.8rem", marginTop: 2 }}>{label}</div>
-                </div>
-              ))}
-            </PageSection>
-
-            {/* AI Coaching Panel — the #report anchor */}
+            {/* AI Coaching Panel — the #report anchor. First, because the
+                page answers "what do I fix?" before "show me the data". */}
             <PageSection>
               <section id="report" style={{ scrollMarginTop: 120 }}>
                 <CoachingPanel
@@ -3390,15 +3385,22 @@ export default function AnalysisPage() {
               </PageSection>
             )}
 
-            {/* Match Stats Panel */}
-            <PageSection>
-              <MatchStatsPanel
-                stats={result.player_stats || {}}
-                result={result}
-                selectedRound={selectedRound}
-                onSelectRound={setSelectedRound}
-              />
-            </PageSection>
+            {/* Momentum — the economy chart, moved up from the page bottom:
+                it explains WHY halves swung, so it belongs next to the
+                timeline it annotates. The #momentum anchor. */}
+            {result.rounds && result.rounds.length > 0 && (
+              <PageSection>
+                <section id="momentum" style={{ scrollMarginTop: 120 }}>
+                  <EconomyChart
+                    rounds={result.rounds}
+                    selectedRound={selectedRound}
+                    onSelectRound={setSelectedRound}
+                    team1Name={team1Name}
+                    team2Name={team2Name}
+                  />
+                </section>
+              </PageSection>
+            )}
 
             {/* Filtered kills calculation for Heatmap and Feed */}
             {(() => {
@@ -3494,50 +3496,39 @@ export default function AnalysisPage() {
                     </PageSection>
                   )}
 
-                  {/* Kill Feed */}
-                  {result.kills && result.kills.length > 0 && (
-                    <PageSection className="card p-6">
-                      <h2 className="heading-display mb-4" style={{ fontSize: "1.1rem" }}>Kill Feed</h2>
-                      <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
-                        {filteredKills.slice(0, 50).map((k, i) => {
-                          const killerColor = getTeamColor(k.killer_team);
-                          const victimColor = getTeamColor(k.victim_team);
-                          
-                          return (
-                            <div key={i} className="flex items-center justify-between py-2 border-b" style={{ borderColor: "#142135" }}>
-                              <div className="flex items-center gap-3">
-                                <span style={{ color: "#4A6A8A", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>R{k.round}</span>
-                                <span style={{ color: killerColor, fontWeight: 500, fontSize: "0.875rem" }}>
-                                  {cleanPlayerName(k.killer)}
-                                </span>
-                                <span style={{ color: "#4A6A8A", fontSize: "0.75rem" }}>killed</span>
-                                <span style={{ color: victimColor, fontSize: "0.875rem" }}>
-                                  {cleanPlayerName(k.victim)}
-                                </span>
-                              </div>
-                              <span style={{ color: "#8BA7CC", fontSize: "0.75rem", fontFamily: "JetBrains Mono" }}>{formatWeaponName(k.weapon)}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </PageSection>
-                  )}
                 </>
               );
             })()}
 
-            {/* Economy Chart */}
-            {result.rounds && result.rounds.length > 0 && (
+            {/* Duel explorer — the kill feed rebuilt for coaching, with names,
+                trade tags, and a player filter. The #duels anchor. */}
+            {result.kills && result.kills.length > 0 && (
               <PageSection>
-                <EconomyChart
-                  rounds={result.rounds}
-                  selectedRound={selectedRound}
-                  onSelectRound={setSelectedRound}
-                  team1Name={team1Name}
-                  team2Name={team2Name}
-                />
+                <section id="duels" style={{ scrollMarginTop: 120 }}>
+                  <DuelExplorer
+                    kills={result.kills}
+                    rounds={result.rounds ?? []}
+                    selectedRound={selectedRound}
+                  />
+                </section>
               </PageSection>
             )}
+
+            {/* Players — scoreboard plus the opening-duel differential chart.
+                The #players anchor. */}
+            <PageSection>
+              <section id="players" style={{ scrollMarginTop: 120 }} className="space-y-6">
+                {result.kills && result.kills.length > 0 && (
+                  <OpeningDuelsChart kills={result.kills} />
+                )}
+                <MatchStatsPanel
+                  stats={result.player_stats || {}}
+                  result={result}
+                  selectedRound={selectedRound}
+                  onSelectRound={setSelectedRound}
+                />
+              </section>
+            </PageSection>
           </PageTransition>
         )}
       </div>
