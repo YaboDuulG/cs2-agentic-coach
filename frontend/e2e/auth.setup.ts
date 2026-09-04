@@ -1,3 +1,4 @@
+import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, test as setup } from "@playwright/test";
 import path from "path";
 
@@ -14,6 +15,9 @@ setup("sign up a clerk test user", async ({ page }) => {
   const email = `e2e-${Date.now()}+clerk_test@example.com`;
   const password = `E2e!${Date.now()}x${Math.random().toString(36).slice(2, 10)}`;
 
+  // Official bot-protection bypass: routes Clerk FAPI calls with the testing
+  // token minted by global.setup, so the sign-up CAPTCHA never triggers.
+  await setupClerkTestingToken({ page });
   await page.goto("/");
 
   // Clerk hydrates its modal buttons after load; a too-early click is a no-op.
