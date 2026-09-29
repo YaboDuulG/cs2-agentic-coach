@@ -1,225 +1,171 @@
 # Architecture Refactor Plan — Domain-Driven Consolidation
 
-Executes the architect prompt in CLAUDE.md against the *actual* codebase. Every section
-maps current files to target modules; nothing here is greenfield scaffolding. Deviations
-from the prompt's letter are listed at the end with reasons — per TECHNICAL_SPEC §15,
-shipped decisions are reconciled deliberately, not silently rewritten.
+Executes the architect prompt in CLAUDE.md against the *actual* codebase. Reconciled
+against the tree and TECHNICAL_SPEC §15 on 2026-09-29: the original five-phase plan was
+written before modules 3–6 shipped, and most of phases 2–5 landed under different names.
+This revision records what exists, what was deliberately done differently, and what is
+still open — so nobody re-implements a shipped phase or "fixes" a decision.
 
-## 1. Target directory tree (move map)
+Reading order: §1 tells you what not to touch. §3 is the work. §4 is how it ships.
+
+## 1. Status of the original plan
+
+| Prompt requirement | Status | Where it lives today |
+|---|---|---|
+| Parser as a pure Go function | **Shipped** | `services/demo-parser` (demoinfocs-golang v5, GameStateGate, PlayerHurt/PlayerFlashed) |
+| Async ingestion via a queue | **Shipped, deviated** | Postgres `jobs` + SKIP LOCKED in `db/jobs.py`, drained by `services/worker` (§15 "Background Jobs"). Not Celery/Redis — see §2 |
+| HLTV delta monitor + RAG index | **Shipped** | `services/rag_engine/` (delta_monitor, extractor, vectorizer, hybrid `retrieval.retrieve_pro_comps`), `services/hltv_watcher/crawler.py` |
+| Context-aware analysis modes | **Shipped** | `agents/scribe/modes.py` (`AnalysisMode`, `MODE_SPEC`), derived in the worker from match facts |
+| Zero-hallucination guardrails | **Shipped (core)** | evidence pack + citation contract + verification pass (`agents/scribe/evidence.py`, `report_generator.py`); pro examples carry `pro_match_id` |
+| Entitlement guard + redacted previews | **Shipped** | `services/billing/entitlements.py` (`require_entitlement`, `redact_coaching_payload`, teasers); `subscriptions` table is the authority |
+| Stripe webhooks | **Shipped, deviated** | Next.js keeps the Stripe SDK; `/api/billing/sync` fan-out writes `subscriptions` |
+| Stratbook state machine + versioning | **Shipped** | `services/stratbook/service.py`, `strats` / `strat_revisions` (migration `a9d3e7b1c552`) |
+| Discord bidirectional sync | **Shipped, deviated** | `services/discord_bot/` HTTP Interactions + `sync_outbox` — no gateway bot |
+| Modular service tree (`/services/*`) | **Half done** | `billing`, `stratbook`, `discord_bot`, `rag_engine` exist; the coaching core is still `agents/` and the queue is still `db/` |
+| Import contract in CI | **Not started** | no import-linter; `mypy` still runs with `\|\| true` |
+| Sub-tick / trade telemetry | **Partially** | `hitgroup`, `blind_duration`, `avg_trade_window_s` shipped (`b7f4d2e8a901`); no per-kill `subtick_offset` / `is_trade` |
+| Grounding metrics dashboard | **Not started** | drop-rate is logged, nothing aggregates it |
+
+Migrations in the original plan were numbered `0007`–`0010`; Alembic here uses hash
+revisions. Mapping: `0007 user_entitlements` → `e8c2b5d90f14_subscriptions`;
+`0008 strat_versioning` → `a9d3e7b1c552_stratbook_discord_sync`;
+`0009 subtick_and_tradetiming` → `b7f4d2e8a901_telemetry_v2` (partial, see §3.3);
+`0010 pro_match_registry` → `f2b9d0c8a417_pro_meta_tables`.
+
+## 2. Deviations from the prompt (deliberate — keep them)
+
+Each is logged with its reason in TECHNICAL_SPEC §15; summarised here so the prompt's
+letter is never re-applied by accident.
+
+- **Queue: Postgres SKIP LOCKED, not BullMQ/Celery/Redis Streams.** One fewer stateful
+  service; transactional with match rows; observable via SQL. Revisit only past ~1k jobs/s.
+- **Entitlement cache: in-process TTL, not Redis.** DB row is the truth; the sync
+  endpoint invalidates. Same "no second stateful service" reasoning.
+- **Discord: HTTP Interactions endpoint, not a gateway bot.** Scale-to-zero on Cloud Run,
+  no always-on process. Cost: no free-text @mention listening (`/strat adapt` instead).
+- **Stripe: signature verify + SDK stay in Next.js**, normalized events POST to
+  `/api/billing/sync`. The Python side never calls Stripe.
+- **Vector store: Qdrant with BM25 fallback, no Pinecone, pgvector references are stale.**
+  Retrieval is hybrid (dense + in-module BM25, RRF-fused); either leg may be absent.
+- **Retriever `Protocol` from the original §2 was not built.** `retrieve_pro_comps` plus
+  metadata filters is the seam; a Protocol adds nothing until a second store exists.
+- **`user_entitlements` table was not built.** `subscriptions` + `TIER_ENTITLEMENTS`
+  matrix covers it. Do not add a second authority.
+
+## 3. Remaining work
+
+Ordered by value over risk. Each item is independently shippable through the git
+workflow in CLAUDE.md.
+
+### 3.1 Finish the move map (mechanical, low risk)
+
+Target tree after this step (only the parts that still move):
 
 ```
 services/
-├── parser/                      # ← services/demo-parser (Go) — already a pure function
-│   ├── cmd/                     #   main.go
-│   ├── parser/                  #   parse.go, events.go (+ subtick_offset, weapon_fire)
-│   └── Dockerfile
-├── ingestion/                   # ← services/worker (parse side) + api/routes/presign.py glue
-│   ├── queue.py                 #   ← db/jobs.py (SKIP LOCKED claim/enqueue — stays Postgres)
-│   ├── parse_worker.py          #   ← services/worker/parse_handler.py
-│   └── persistence.py           #   batch-insert repository (COPY on Postgres)
-├── rag_engine/                  # ← db/rag.py + db/qdrant_client.py + services/hltv_watcher
-│   ├── retriever.py             #   Retriever protocol; situation-keyed + batched queries
-│   ├── embeddings.py            #   Gemini embed client + fixed-query cache
-│   ├── stores/                  #   qdrant.py (primary), sqlite_fallback.py (local mock)
-│   ├── hltv_delta.py            #   ← hltv_watcher crawler (S/A-tier delta scrape via Actions)
-│   └── baselines.py             #   pro_baselines numeric lookups (NOT vector search)
-├── coaching_ai/                 # ← agents/khan + agents/scribe + services/tactician
-│   ├── orchestrator/            #   ← agents/khan (graph, nodes)
-│   ├── heuristics/              #   ← services/tactician (pure, no DB imports — see §3)
-│   ├── evidence.py              #   ← agents/scribe/evidence.py
-│   ├── modes.py                 #   AnalysisMode strategy table (see §4)
-│   ├── scribe.py                #   ← agents/scribe/report_generator.py
-│   └── coach_worker.py          #   ← services/worker coach side
-├── stratbook/                   # ← agents/strat_reviewer.py + stratbook routes + models
-│   ├── models.py                #   Strat, StratRevision, StratStatus state machine
-│   ├── service.py               #   propose/approve/mutate transitions
-│   └── review.py                #   Dual-RAG critique (calls coaching_ai + rag_engine)
-├── discord_bot/                 # ← api/routes/discord.py webhook + NEW interaction bot
-│   ├── bot.py                   #   slash commands: /strat propose|approve|list
-│   ├── sync.py                  #   thread ↔ StratRevision bidirectional sync
-│   └── outbound.py              #   webhook pushes on strat mutations
-├── billing/                     # ← frontend/app/api/billing/* logic moves server-side
-│   ├── entitlements.py          #   tier → capability matrix, require_entitlement guard
-│   ├── redaction.py             #   preview-payload builders for unentitled tiers
-│   └── stripe_webhooks.py       #   subscription lifecycle → user_entitlements rows
-└── warlord/                     # unchanged (RCON/practice servers)
-
-api/                             # stays the FastAPI edge: routing + auth only.
-                                 # Routes import services/*; they contain no domain logic.
-db/                              # engine/session + alembic only; domain models migrate
-                                 # into their owning service's models.py over phases 3-4.
-agents/                          # deleted at end of phase 2 (contents absorbed above)
+├── coaching_ai/
+│   ├── orchestrator/    ← agents/khan/{graph,nodes,llm,prompts,stats,main}.py
+│   ├── heuristics/      ← services/tactician/*  (already pure: no db/httpx imports — keep it so)
+│   ├── scribe.py        ← agents/scribe/report_generator.py
+│   ├── evidence.py      ← agents/scribe/evidence.py
+│   ├── modes.py         ← agents/scribe/modes.py
+│   └── state.py         ← agents/state.py
+├── ingestion/
+│   ├── queue.py         ← db/jobs.py (+ db/outbox.py stays with discord_bot or moves here)
+│   ├── parse_worker.py  ← services/worker/parse_handler.py
+│   └── faceit_crawler.py   (already here)
+├── mcp/server.py        ← agents/mcp_server.py  (pyproject `demosage-mcp` entry point updates)
+└── worker/runner.py     stays: it is the process, not a domain
 ```
 
-Rule enforced by CI (`ruff` isort sections + a small import-linter contract): `api/*` may
-import `services/*`; services may import `db.database` and each other's *published
-interfaces* only; `heuristics/` and `stratbook/models.py` import neither `sqlalchemy`
-sessions nor `httpx` (pure domain).
+Do it with import shims for one release (`agents/khan/__init__.py` re-exporting from the
+new path), then delete `agents/`. Callers to update: `services/worker/runner.py`,
+`api/routes/chat.py`, `services/hltv_watcher/crawler.py`, `services/rag_engine/worker.py`,
+seven tests, `pyproject.toml` (`[project.scripts]`, `[tool.mypy] exclude` — `services/`
+is currently excluded from mypy, which would silently un-type the whole coaching core
+after the move; narrow the exclude to `services/demo-parser`).
 
-## 2. Interface definitions (the seams)
+Delete while you are there (verified unreferenced):
+- `api/agents/tactician_heuristics.py` — "Phase 4" heuristics superseded by
+  `services/tactician`; nothing imports it.
+- the Steam branch of `api/routes/oauth.py` — §15 records it could never complete;
+  Steam sign-in lives in Next.js (`/api/steam/*`). Keep the FACEIT branch.
 
-```python
-# services/rag_engine/retriever.py
-class RetrievedChunk(TypedDict):
-    id: str; text: str; score: float
-    source: str                    # 'hltv_pro_match' | 'game_rules' | 'player_tendency'
-    pro_match_id: str | None       # HLTV match id — REQUIRED for pro chunks (guardrail §5)
-    round_ref: int | None
+### 3.2 Enforce the boundary (CI)
 
-class Retriever(Protocol):
-    def retrieve(self, queries: list[SituationQuery], *, per_query: int = 2,
-                 team_id: str | None = None, user_id: str | None = None
-                 ) -> list[RetrievedChunk]: ...
-    # Batched: one embed round-trip for N situation queries (kills the
-    # sequential-retrieval latency in today's rag_node/evidence builder).
+- Add `import-linter` to `requirements-ci.txt` with three contracts: `api` may import
+  `services`; `services.coaching_ai.heuristics` and `services.stratbook.models` import
+  neither `sqlalchemy.orm` sessions nor `httpx`; `services.*` never import `api`.
+- Drop `|| true` from the mypy step once 3.1 lands and the baseline is clean. CLAUDE.md
+  already warns that green CI proves nothing about types today.
 
-# services/coaching_ai/heuristics/__init__.py — pure domain
-@dataclass(frozen=True)
-class RoundTelemetry:              # built by ingestion, consumed by heuristics
-    round_num: int; winner: Side; economy: EconomyState
-    kills: tuple[KillEvent, ...]; grenades: tuple[GrenadeEvent, ...]
-    trajectories: Mapping[SteamId, tuple[Pos, ...]]
+### 3.3 Telemetry the prompt asks for and the coach cannot yet cite
 
-class Heuristic(Protocol):
-    key: str                       # 'fcr', 'economy', 'utility', 'rotation', 'trade_timing'
-    modes: frozenset[AnalysisMode] # which modes run this heuristic
-    def evaluate(self, rounds: Sequence[RoundTelemetry]) -> HeuristicResult: ...
+- **Per-kill trade tagging.** `is_trade` / `trade_window_ms` on `kills` (parser emits
+  tick + attacker/victim; the worker can derive it exactly as `features_v2` derives
+  `avg_trade_window_s`). Today the frontend recomputes trades client-side in
+  `DuelExplorer`, so the report and the table can disagree. Derive once, server-side.
+- **Sub-tick offset on kills.** Nothing in the repo reads or stores it. demoinfocs v5
+  exposes it on the event; add `subtick_offset FLOAT NULL` and thread it through
+  `parse_handler`. Low value until a heuristic consumes it — schedule after trades.
+- **Citation `tick_range` on pro examples.** `pro_match_id` is enforced; verify
+  `tick_range` is populated by the extractor before claiming the §5 contract is complete.
 
-# services/billing/entitlements.py
-class Entitlement(StrEnum):
-    BASIC_ANALYSIS = "basic_analysis"        # Free
-    FULL_COACHING = "full_coaching"          # Solo Pro
-    TEAM_ANALYSIS = "team_analysis"          # Team
-    TEAM_SCOUTING = "team_scouting"          # Team (opposition research)
-    STRATBOOK_SYNC = "stratbook_sync"        # Team (Discord)
+### 3.4 One plan vocabulary end to end
 
-def require_entitlement(ent: Entitlement, *, preview: PreviewBuilder | None = None):
-    """FastAPI dependency. Entitled → passthrough. Unentitled + preview → the
-    route returns preview(payload) with HTTP 200 and {"locked": true, "tier_needed": ...}.
-    Unentitled without preview → 402 with an upgrade pointer. Never a 500."""
-```
+The backend speaks `FREE / SOLO_PRO / TEAM`; the frontend speaks `free / basic / pro`
+(`lib/flags.ts`, Clerk `publicMetadata.plan`, the Navbar chip, `/billing`). `flags.ts`
+also says `aiCoaching: false` for `basic` while the entitlement matrix grants
+`FULL_COACHING` to `SOLO_PRO` and the pricing page sells it. Upload quotas are enforced
+in `app/api/upload/route.ts` from Clerk metadata, not from `services/billing`.
 
-## 3. Database migrations (Alembic, in order)
+Fix: the Next.js server routes map Clerk's plan to the tier once (they already set
+`x-user-plan`); `flags.ts` becomes a display table keyed by tier and stops carrying
+capability booleans; quota checks call the API (`/api/billing/entitlements`) instead of
+reading Clerk. Frontend detail in `frontend/UX_REVIEW.md` §3.
 
-```
-0007_user_entitlements.py
-    user_entitlements(user_id PK-part, entitlement PK-part, source['stripe'|'grant'],
-                      stripe_subscription_id NULL, expires_at NULL)
-    -- replaces reading Clerk publicMetadata.plan in Next.js routes; Clerk metadata
-    -- becomes a display cache, this table is the authority checked by the guard.
+### 3.5 Grounding metrics
 
-0008_strat_versioning.py
-    strats(id, team_id FK, map_name, title, status['draft'|'proposed'|'approved'|
-           'archived'], current_revision_id)
-    strat_revisions(id, strat_id FK, revision_no, canvas_json, author_id,
-                    discord_thread_id NULL, created_at)
-    -- UserStrategy/TeamPlaybook rows backfill as revision_no=1 approved strats.
+Aggregate what the verification pass already logs: drop-rate, citation coverage
+(% findings with ≥1 evidence id), pro-attribution rate. Persist per coaching run on the
+`jobs` row (`result_json`) and expose on `/settings/admin`. No new infrastructure.
 
-0009_subtick_and_tradetiming.py
-    kills += subtick_offset FLOAT NULL, is_trade BOOL, trade_window_ms INT NULL
-    grenades += detonate_tick BIGINT NULL, effect_json TEXT  -- utility impact (flash
-    -- durations / molly denial seconds) once the parser emits them.
+### 3.6 Frontend
 
-0010_pro_match_registry.py
-    pro_matches(hltv_match_id PK, event_tier['S'|'A'], teams, map_name, played_at,
-                demo_gcs_uri NULL, ingested_at)
-    -- every RAG chunk with source='hltv_pro_match' must FK-reference this table;
-    -- the citation contract (§5) resolves display strings from here.
-```
+Tracked in `frontend/FRONTEND_REFACTOR_PLAN.md` (the plan), `frontend/UX_REVIEW.md`
+(the evidence) and `frontend/DESIGN_PLAN.md` (design system of record). Backend items
+that plan depends on, all small and shippable now (its row "B1"):
 
-## 4. Context-aware analysis modes
+- `mode` on `/api/analyses` rows and `/api/jobs/{id}` (derive with the same rule as
+  `agents/scribe/modes.py::derive_mode`; today only `report_v2` carries it).
+- `GET /api/billing/entitlements` for the current user, so the upload picker can lock
+  Team and Scouting without reading Clerk metadata.
+- Job `stage` (`parse | stats | coaching`) and `failure_reason` on `/api/jobs/{id}`, so
+  the debrief renders one screen per outcome instead of inferring state from which
+  fields are present. A coaching failure must not look like a finished parse.
+- **Pricing (owner decision 2026-09-29): Solo Pro $10 / month or $96 / year; Team
+  $300 flat per ESEA season, one-time payment, hard paywall.** Shipped the same day:
+  `services/billing/seasons.py` (published 2026 calendar + projection),
+  `subscriptions.season` / `season_until` (migration `a1c7e9b3d5f2`), season purchases
+  through `/api/billing/sync`, `/api/billing/seasons`, `/api/billing/entitlements`,
+  promo + referral codes (`services/billing/promo.py`). Still open:
+  `require_entitlement(TEAM_ANALYSIS)` on team create and on server/training routes
+  (join stays open so seat inheritance keeps working), and the three Stripe prices in
+  the dashboard (`docs/pricing.md`). `TIER_ENTITLEMENTS` is unchanged.
+- **Admin role check on `/api/admin/*`.** Today any signed-in user can read and write
+  the coaching prompts, model and temperature: the Next.js route checks only for a
+  session and FastAPI checks only the shared secret. Pass the Clerk role through and
+  reject non-admins server-side, not just in the page.
 
-Today: `is_recon` flag + individual/team toggle, applied only as prompt seasoning.
-Target: a first-class strategy table consumed by orchestrator, heuristics, and scribe.
+## 4. Verification per item
 
-```python
-class AnalysisMode(StrEnum):
-    SELF_IMPROVEMENT = "self"      # micro: duels, crosshair proxy (kill angles), utility ROI
-    TEAM_ANALYSIS = "team"         # macro: trade spacing, defaults, retakes, utility stacks
-    OPPOSITION_RESEARCH = "recon"  # tendencies: heatmaps, buy behavior, default setups
+Same gates CI runs: `ruff check .`, `mypy agents/ api/ db/` (read the output), `pytest
+tests/ -v`, Go build+vet+test, `npm run lint && npx tsc --noEmit && next build`. Contract
+tests for 3.1: heuristics against fixture telemetry with zero DB; after 3.2 the import
+contracts themselves are the test.
 
-MODE_SPEC: dict[AnalysisMode, ModeSpec] = {
-    SELF_IMPROVEMENT: ModeSpec(
-        heuristics={'fcr', 'utility', 'trade_timing'},
-        evidence_focus='player', report_audiences=('individual',),
-        entitlement=Entitlement.BASIC_ANALYSIS),
-    TEAM_ANALYSIS: ModeSpec(
-        heuristics={'fcr', 'economy', 'utility', 'rotation', 'trade_timing'},
-        evidence_focus='team', report_audiences=('team', 'player:*', 'coach'),
-        entitlement=Entitlement.TEAM_ANALYSIS),
-    OPPOSITION_RESEARCH: ModeSpec(
-        heuristics={'economy', 'rotation', 'tendencies'},
-        evidence_focus='opponent', report_audiences=('scout',),
-        entitlement=Entitlement.TEAM_SCOUTING),
-}
-```
-
-The coach worker resolves the mode once, and it flows through evidence-pack building
-(which facts/baselines/examples are gathered), retrieval queries, prompt contract
-selection (`prompt_scribe_{mode}` config keys), and the entitlement gate.
-
-## 5. Zero-hallucination guardrails (extension of the shipped contract)
-
-Already shipped: evidence pack (F/B/P ids), citation-bracket contract, schema-enforced
-findings, verification pass with logged drop-rate. This refactor adds the prompt's
-missing citation dimensions:
-
-- `pro_examples` entries gain `pro_match_id` (FK to `pro_matches`) and `tick_range`
-  where the chunk was cut from a parsed pro demo. The evidence builder REFUSES chunks
-  with `source='hltv_pro_match'` and no `pro_match_id` — unattributable pro claims
-  can't enter the pack at all.
-- Findings schema gains `citations: [{evidence_id, pro_match_id?, rounds, tick_range?}]`
-  (superset of today's `evidence_ids`), and the verification pass checks pro_match_id
-  presence for any finding whose claim references pro play.
-- Grounding metrics dashboarded from logs: verification drop-rate + citation coverage
-  (% findings with ≥1 evidence id) + pro-attribution rate.
-
-## 6. Access gating (worked example)
-
-```python
-# api/routes/coaching.py (after)
-@router.get("/{match_id}")
-async def get_coaching(
-    match_id: str,
-    payload: CoachingPayload = Depends(load_coaching),
-    gate: GateResult = Depends(require_entitlement(
-        Entitlement.FULL_COACHING, preview=coaching_preview)),
-):
-    return gate.apply(payload)   # entitled → full findings; free tier → summary +
-                                 # top finding with citations, drills redacted,
-                                 # {"locked": true, "tier_needed": "solo_pro"}
-```
-
-`coaching_preview` builds the redacted body from the same findings JSON (summary, one
-high-severity claim, no drills, no per-player reports) — a real taste of the product,
-never a 500, per the constraint. The frontend renders `locked` as the upgrade card.
-
-## 7. Async execution (deviation, justified)
-
-The prompt names BullMQ/Celery/Redis Streams. This repo deliberately replaced
-Cloud Tasks + Pub/Sub + BackgroundTasks with a Postgres `jobs` table claimed via
-`FOR UPDATE SKIP LOCKED` (TECHNICAL_SPEC §15, load-tested design in
-BACKEND_DESIGN_PLAN §1.2). It satisfies the actual constraint — parsing and coaching
-run asynchronously in workers, retried, horizontally scalable — with one fewer
-stateful dependency. **Keep it.** The refactor only moves it to
-`services/ingestion/queue.py` and adds a `queue_depth` metrics endpoint for
-autoscaling. Revisit Redis Streams only if job throughput outgrows Postgres
-(>~1k jobs/s, far beyond current scale).
-
-Other deviations: parser persistence stays in the Python worker (Go parser remains a
-pure function; ORM models live in Python — §15); vector store stays Qdrant with the
-SQLite fallback as the local mock (no Pinecone — third store adds nothing).
-
-## 8. Phased execution (each phase ships green through cleanup branch → staging → main)
-
-| Phase | Work | Risk |
-|---|---|---|
-| 1 | Mechanical moves with import shims (`agents/khan` → `services/coaching_ai/orchestrator` etc.); import-linter contract in CI | Low — no behavior change |
-| 2 | `rag_engine` consolidation + batched Retriever; delete shims | Low |
-| 3 | Migrations 0007/0010; `billing/entitlements.py` + guard on coaching/jobs/stratbook routes with previews; Stripe webhooks server-side | Medium — touches auth paths |
-| 4 | `AnalysisMode` table + mode-aware evidence/prompts; migration 0009 + parser sub-tick/trade fields | Medium |
-| 5 | Stratbook state machine + migration 0008 + backfill; Discord interaction bot + sync | Medium — new surface |
-
-Verification per phase: full pytest suite + new per-service contract tests (heuristics
-run against fixture `RoundTelemetry` with zero DB), `ruff`/`mypy`/import-linter, Go
-build+vet, frontend tsc/lint/build — same gates CI enforces today.
+Local environment note (2026-09-29): the repo's `.venv` points at a Python 3.14 base that
+is no longer installed, so the backend checks cannot run from it until it is recreated
+(`py -3.12 -m venv .venv`, then `pip install -r requirements.txt`). `frontend/node_modules`
+was missing `recharts` and `@playwright/test` until `npm install` was re-run, and a stale
+`.next/types` referenced deleted routes — delete `.next` before trusting `tsc`.

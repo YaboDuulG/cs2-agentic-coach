@@ -1,6 +1,16 @@
 import { SignUp } from "@clerk/nextjs";
 
-export default function SignUpPage() {
+// `?ref=CODE` (from a friend's invite link) rides along as Clerk
+// unsafeMetadata; ReferralRedeemer turns it into a week of Solo Pro after the
+// first sign-in. Next 15 hands searchParams over as a promise.
+export default async function SignUpPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string }>;
+}) {
+  const { ref } = await searchParams;
+  const referralCode = typeof ref === "string" ? ref.trim().toUpperCase().slice(0, 32) : "";
+
   return (
     <main className="flex min-h-[calc(100vh-56px)] items-center justify-center bg-[#080E1A] px-4">
       <div className="w-full max-w-md">
@@ -9,10 +19,18 @@ export default function SignUpPage() {
             Join DemoSage
           </h1>
           <p className="mt-2 text-slate-400">
-            Start with 2 free demo analyses — no card required
+            {referralCode
+              ? "Your invite unlocks a free week of Solo Pro coaching."
+              : "Start with 2 free demo analyses — no card required"}
           </p>
+          {referralCode && (
+            <p className="mt-2 font-mono text-xs uppercase tracking-widest text-[#2D7DD2]">
+              Invite code {referralCode}
+            </p>
+          )}
         </div>
         <SignUp
+          unsafeMetadata={referralCode ? { referral_code: referralCode } : undefined}
           appearance={{
             elements: {
               rootBox: "w-full",

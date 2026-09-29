@@ -18,8 +18,8 @@ const PLAN_CARDS = [
     plan: "basic",
     tier: "SOLO_PRO",
     name: "Solo Pro",
-    price: "$5",
-    period: "/ month",
+    price: "$10",
+    period: "/ month · $96 / year",
     features: [
       "Deep individual coaching",
       "Corrective drills with tick references",
@@ -31,13 +31,13 @@ const PLAN_CARDS = [
     plan: "pro",
     tier: "TEAM",
     name: "Team",
-    price: "$20",
-    period: "/ month",
+    price: "$300",
+    period: "/ ESEA season · one payment",
     features: [
-      "Everything in Solo Pro",
+      "Everything in Solo Pro, for the whole roster",
       "Team macro analysis",
       "Opposition research & scouting dossiers",
-      "Stratbook with Discord sync",
+      "Practice servers, stratbook with Discord sync",
     ],
   },
 ] as const;
@@ -57,7 +57,7 @@ export function UpgradeModal({ open, onClose, tierNeeded }: UpgradeModalProps) {
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {PLAN_CARDS.map((card) => {
           const highlighted = card.tier === (tierNeeded ?? "").toUpperCase();
-          const pending = checkout.isPending && checkout.variables === card.plan;
+          const pending = checkout.isPending && checkout.variables?.plan === card.plan;
           return (
             <div
               key={card.plan}
@@ -114,14 +114,14 @@ export function UpgradeModal({ open, onClose, tierNeeded }: UpgradeModalProps) {
                 variant={highlighted ? "primary" : "secondary"}
                 size="sm"
                 disabled={checkout.isPending}
-                onClick={() => checkout.mutate(card.plan)}
+                onClick={() => checkout.mutate({ plan: card.plan })}
               >
                 {pending ? (
                   <>
                     <Spinner size={14} /> Redirecting…
                   </>
                 ) : (
-                  `Upgrade to ${card.name}`
+                  card.plan === "pro" ? "Buy this season" : `Upgrade to ${card.name}`
                 )}
               </Button>
             </div>

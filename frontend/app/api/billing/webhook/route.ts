@@ -5,10 +5,13 @@ import { NextRequest, NextResponse } from "next/server";
 // Force dynamic — no static prerendering or module-level Stripe init
 export const dynamic = "force-dynamic";
 
-// Plan mapping from Stripe price IDs
+// Plan mapping from Stripe price IDs. Subscriptions are Solo Pro only; Team is
+// a one-time payment per ESEA season handled in checkout.session.completed.
+// The previously hard-coded ids belonged to a Stripe account this project no
+// longer uses (verified 2026-09-29), so the map is env-driven only.
 const PRICE_TO_PLAN: Record<string, string> = {
-  price_1TZdccK81lqFuAqaUpBtDmvt: "basic",
-  price_1TZdcdK81lqFuAqa5aXKj8F6: "pro",
+  ...(process.env.STRIPE_PRICE_SOLO_MONTHLY ? { [process.env.STRIPE_PRICE_SOLO_MONTHLY]: "basic" } : {}),
+  ...(process.env.STRIPE_PRICE_SOLO_YEARLY ? { [process.env.STRIPE_PRICE_SOLO_YEARLY]: "basic" } : {}),
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -24,10 +27,11 @@ async function syncBackend(payload: {
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
   current_period_end?: number | null;
+  season?: number;
   event: string;
-}) {
+}): Promise<Record<string, unknown> | null> {
   try {
-    await fetch(`${API_URL}/api/billing/sync`, {
+    const res = await fetch(`${API_URL}/api/billing/sync`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
@@ -35,10 +39,12 @@ async function syncBackend(payload: {
       },
       body: JSON.stringify(payload),
     });
+    return res.ok ? ((await res.json()) as Record<string, unknown>) : null;
   } catch (err) {
     // Non-fatal: Stripe retries the webhook, and the entitlement cache TTL
     // bounds staleness meanwhile.
     console.error("Backend billing sync failed:", err);
+    return null;
   }
 }
 
@@ -69,6 +75,31 @@ export async function POST(req: NextRequest) {
       const session = event.data.object;
       const userId = session.metadata?.clerk_user_id;
       const plan = session.metadata?.plan;
+      const season = Number(session.metadata?.season);
+      if (userId && plan === "pro" && session.mode === "payment" && Number.isFinite(season)) {
+        // One-time Team purchase for an ESEA season. The backend computes the
+        // access window (until the next season starts) and reports it back.
+        const synced = await syncBackend({
+          user_id: userId,
+          plan,
+          status: "active",
+          stripe_customer_id: (session.customer as string) ?? null,
+          season,
+          event: event.type,
+        });
+        const existing = (await clerk.users.getUser(userId)).publicMetadata ?? {};
+        await clerk.users.updateUserMetadata(userId, {
+          publicMetadata: {
+            ...existing,
+            plan: "pro",
+            plan_source: "season",
+            plan_season: season,
+            plan_expires: (synced?.season_until as string | undefined) ?? null,
+            stripeCustomerId: session.customer,
+          },
+        });
+        break;
+      }
       if (userId && plan) {
         await clerk.users.updateUserMetadata(userId, {
           publicMetadata: { plan, stripeCustomerId: session.customer },

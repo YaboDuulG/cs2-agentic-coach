@@ -5,6 +5,8 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { SoyomboIcon, UlziiBorder, CloudMotifBg } from "@/components/patterns/mongolian";
 import { Brain, ShieldAlert, CheckCircle, Save, RefreshCw, AlertCircle } from "lucide-react";
+import { TrialCodesPanel } from "@/components/admin/TrialCodesPanel";
+import { TeamMeteringPanel } from "@/components/admin/TeamMeteringPanel";
 
 function formatTimestamp(iso: string) {
   if (!iso || iso === "Never" || iso === "") return "Never";
@@ -193,7 +195,45 @@ export default function AdminSettingsPage() {
           </div>
         </div>
 
+        <TeamMeteringPanel />
+
+        <TrialCodesPanel />
+
         <form onSubmit={handleSave} className="space-y-8">
+          {/* Cost rates used by the metering table (SystemConfig keys) */}
+          <div className="card p-6 space-y-4">
+            <h2 className="heading-display text-left" style={{ fontSize: "1rem", color: "#FFE135" }}>
+              0. Cost rates
+            </h2>
+            <p className="text-[10px] text-slate-500 leading-normal text-left">
+              USD per 1M tokens for Gemini, and per server hour. Each Gemini call is priced at the rate
+              in force when it runs; changing these does not reprice history.
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {(
+                [
+                  ["llm_price_flash_in", "Flash in"],
+                  ["llm_price_flash_out", "Flash out"],
+                  ["llm_price_pro_in", "Pro in"],
+                  ["llm_price_pro_out", "Pro out"],
+                  ["server_hourly_cost_usd", "Server $/h"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="space-y-1 text-left">
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</span>
+                  <input
+                    id={key}
+                    type="text"
+                    inputMode="decimal"
+                    value={configs[key] ?? ""}
+                    onChange={(e) => handleChange(key, e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-[#C9A227] transition-colors font-mono"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
           {/* Model Params Card */}
           <div className="card p-6 space-y-6">
             <h2 className="heading-display text-left" style={{ fontSize: "1rem", color: "#FFE135" }}>

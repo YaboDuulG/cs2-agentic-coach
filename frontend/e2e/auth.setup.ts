@@ -32,7 +32,8 @@ setup("sign up a clerk test user", async ({ page }) => {
 
   await emailBox.fill(email);
   await page.getByPlaceholder(/create a password/i).fill(password);
-  await page.getByRole("button", { name: /^continue/i }).click();
+  // Exact: the social "Continue with Google" button also starts with "Continue".
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
 
   // Email verification: test addresses always accept 424242. Clerk's code
   // field DOM varies by version — cover the known shapes.

@@ -49,3 +49,6 @@ playwright-report/
 .env.local
 .vercel/
 playwright/.clerk/
+
+# Per-run Playwright output dirs used by the capture specs (--output test-results-*)
+test-results-*/

@@ -63,6 +63,9 @@ def _call_gemini(prompt: str) -> dict[str, Any] | None:
 
         # Invoke via LangChain to hit the SQLiteCache
         response = llm.invoke(prompt)
+        from services.billing.metering import record_usage  # noqa: PLC0415
+
+        record_usage(response, model=model_name, purpose="chat")
         return json.loads(response.content)
     except Exception as e:
         logger.error(f"Gemini call failed: {e}")

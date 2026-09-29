@@ -1,13 +1,11 @@
-import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/server/admin";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export async function GET() {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
 
   try {
     const res = await fetch(`${API_URL}/api/admin/configs`, {
@@ -29,10 +27,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
 
   try {
     const body = await req.json();

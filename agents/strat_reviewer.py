@@ -63,6 +63,9 @@ async def critique_strategy(strategy_json: str, map_name: str) -> dict[str, Any]
             model="gemini-2.5-flash",
             contents=prompt,
         )
+        from services.billing.metering import record_usage  # noqa: PLC0415
+
+        record_usage(response, model="gemini-2.5-flash", purpose="critique")
         return {"critique": response.text}
     except Exception as e:
         logger.error(f"Strategy critique failed: {e}")

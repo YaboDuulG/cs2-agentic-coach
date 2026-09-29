@@ -442,6 +442,16 @@ Common commands:
 Return ONLY valid JSON: {{"commands": ["cmd1", "cmd2"]}}
 """
         response = await llm.ainvoke(prompt)
+        from services.billing.metering import record_usage  # noqa: PLC0415
+
+        record_usage(
+            response,
+            model="gemini-2.5-flash",
+            purpose="rcon",
+            match_id=match_id,
+            team_id=match.team_id,
+            user_id=match.user_id,
+        )
         try:
             parsed = json.loads(response.content)
             cmds = parsed.get("commands", [])

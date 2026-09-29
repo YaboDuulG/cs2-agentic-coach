@@ -2,6 +2,11 @@
 
 CS2 demo analysis: upload a `.dem` → LangGraph agents produce round-by-round coaching.
 See `@README.md` for the service map and `@TECHNICAL_SPEC.md` for the full architecture.
+`TASKS.md` is the consolidated status of everything in flight (decisions, shipped, owner
+to-do, backlog). `ARCHITECTURE_REFACTOR_PLAN.md` is the reconciled backend refactor backlog.
+`frontend/FRONTEND_REFACTOR_PLAN.md` is the frontend plan; `frontend/UX_REVIEW.md` holds
+the evidence behind it (findings + screenshot specs). The `demosage-frontend` project
+skill (`.claude/skills/`) loads the frontend rules for any work under `frontend/`.
 
 ## Privacy — this is a personal project
 
@@ -51,6 +56,21 @@ Set `LOCAL_MODE=true` in `.env` to skip GCS and Cloud Tasks.
   passing, that's a real signal — don't just delete the marker.
 - **Never put real keys in CI.** The Clerk values in `ci.yml` are deliberate dummies that
   exist only so `next build` can prerender `app/layout.tsx`.
+- **The repo `.venv` may point at a removed interpreter** (it was built on Python 3.14,
+  which is no longer installed). If `ruff`/`pytest` fail with "did not find executable",
+  recreate it: `py -3.13 -m venv .venv` then install `requirements.txt`.
+- **Practice servers are DatHost, not Vultr.** `practice_servers.vultr_instance_id` is a
+  legacy column name holding the DatHost server id. `VULTR_API_KEY` / `HETZNER_API_TOKEN`
+  in the env files are dead. There is no mock-server fallback any more: out of credits is
+  a 402, and `local-`/`mock-` server ids are excluded from billable hours.
+- **Team billing is per ESEA season, not monthly.** `subscriptions.season_until` outranks
+  `plan`/`status`. Season dates live in `services/billing/seasons.py`; update
+  `KNOWN_SEASONS` when ESEA publishes the next calendar.
+- **Three Stripe price ids come from env** (`STRIPE_PRICE_SOLO_MONTHLY`, `_SOLO_YEARLY`,
+  `_TEAM_SEASON`); checkout refuses with a clear error when one is missing.
+  `scripts/stripe_setup_prices.ps1` creates them.
+- **Gemini calls are metered.** `services/billing/metering.py` records every call; new
+  call sites should either run inside `usage_context(...)` or call `record_usage(...)`.
 
 ## Conventions
 

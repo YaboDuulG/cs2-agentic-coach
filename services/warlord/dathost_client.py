@@ -249,6 +249,13 @@ TRAINING_MODE_CONFIGS: dict[str, dict] = {
 # ---------------------------------------------------------------------------
 
 
+class DatHostCreditsError(ValueError):
+    """DatHost refused to provision because the account has no credits.
+
+    Raised instead of the old mock-server fallback: a fake server would still
+    create a training session and be metered as real server hours."""
+
+
 def get_dathost_auth() -> tuple:
     """Docstring for get_dathost_auth."""
     email = os.environ.get("DATHOST_EMAIL")
@@ -258,6 +265,34 @@ def get_dathost_auth() -> tuple:
             "DATHOST_EMAIL and DATHOST_PASSWORD (or DATHOST_API_KEY) must be configured in environment"
         )
     return (email.strip(), password.strip())
+
+
+def get_account() -> dict:
+    """DatHost account snapshot for the admin metering panel: remaining credits
+    and how many servers are switched on right now (each one is burning
+    credits). Field names follow DatHost's /account payload; anything missing
+    comes back as None rather than raising."""
+    auth = get_dathost_auth()
+    account_r = requests.get(f"{DATHOST_API_URL}/account", auth=auth, timeout=15)
+    account_r.raise_for_status()
+    account = account_r.json() if account_r.content else {}
+
+    servers_on = None
+    try:
+        servers_r = requests.get(f"{DATHOST_API_URL}/game-servers", auth=auth, timeout=15)
+        servers_r.raise_for_status()
+        servers = servers_r.json() or []
+        servers_on = sum(1 for s in servers if s.get("on") or s.get("booting"))
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"DatHost server list unavailable: {e}")
+
+    return {
+        "credits": account.get("credits"),
+        "currency": account.get("currency"),
+        "email": account.get("email"),
+        "servers_on": servers_on,
+        "fields": sorted(account.keys()),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -399,16 +434,11 @@ def provision_practice_server(
         logger.error(f"Failed to provision DatHost server: {error_msg}")
 
         if "credits" in error_msg.lower() or "payment" in error_msg.lower():
-            logger.warning("DatHost out of credits. Returning mock server for dev/demo purposes.")
-            return {
-                "vultr_id": f"mock-{match_id[:8]}",
-                "ip_address": "127.0.0.1:27015",
-                "rcon_password": rcon_password,
-                "server_password": server_password,
-                "mode": mode,
-                "game_mode": game_mode,
-                "tickrate": 128,
-            }
+            # No mock fallback: a fake server would be metered as real hours.
+            raise DatHostCreditsError(
+                "Practice servers are paused: the DatHost account is out of credits. "
+                "Top it up at dathost.com and try again."
+            )
 
         raise ValueError(f"DatHost provision failed: {error_msg}")
 

@@ -13,6 +13,7 @@ from db.database import get_session
 from db.models import PracticeServer, TeamMember
 from services.warlord.dathost_client import (
     TRAINING_MODE_CONFIGS,
+    DatHostCreditsError,
     check_cs2_update_active,
     destroy_practice_server,
     get_available_modes,
@@ -122,6 +123,10 @@ def spin_up_server(
                 mode=req_body.mode,
                 map_name=req_body.map_name,
             )
+    except DatHostCreditsError as e:
+        # Out of credits: 402 so the UI can say why. No server row, no session.
+        logger.error(f"DatHost credits exhausted for team {team_id}: {e}")
+        raise HTTPException(status_code=402, detail=str(e))
     except ValueError as e:
         err_str = str(e)
         logger.exception(f"ValueError spinning up server: {err_str}")

@@ -63,7 +63,8 @@ export function useServerModes() {
 
 export function useCheckout() {
   return useMutation({
-    mutationFn: (plan: string) => api.checkout(plan),
+    mutationFn: ({ plan, interval }: { plan: string; interval?: "month" | "year" }) =>
+      api.checkout(plan, interval),
     onSuccess: (data) => {
       if (data.url) window.location.href = data.url;
     },

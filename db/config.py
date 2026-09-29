@@ -79,6 +79,16 @@ DEFAULTS = {
     ),
     "last_hltv_ingest_run": "Never",
     "last_social_ingest_run": "Never",
+    # Cost metering (services/billing/metering.py). USD per 1M tokens, checked
+    # 2026-09-29 against Google's published Gemini 2.5 list prices; the server
+    # rate is what DatHost bills per server-hour (services/warlord/dathost_client.py
+    # is the provider; the `vultr_instance_id` column is a legacy name).
+    # Editable on /settings/admin.
+    "llm_price_flash_in": "0.30",
+    "llm_price_flash_out": "2.50",
+    "llm_price_pro_in": "1.25",
+    "llm_price_pro_out": "10.00",
+    "server_hourly_cost_usd": "0.10",
 }
 
 

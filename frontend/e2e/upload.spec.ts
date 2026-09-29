@@ -35,7 +35,14 @@ test("uploads a real demo and produces an analysis", async ({ page }) => {
   // does not (a looser regex once matched the progress stages' "REPORT" label
   // and screenshotted the spinner).
   await expect(page.getByText(/match debrief/i).first()).toBeVisible({ timeout: 8 * 60_000 });
-  console.log("[upload.spec] debrief rendered — coaching settled");
+  console.log("[upload.spec] debrief rendered");
+
+  // The header appears as soon as the parse is done; the coaching card keeps
+  // its "studying your demo" spinner for minutes after that. Wait it out so the
+  // screenshot shows the report, not the spinner (2026-09-29 capture caught it).
+  await expect(page.getByText(/studying your demo/i)).toHaveCount(0, { timeout: 8 * 60_000 });
+  await expect(page.getByText(/coaching (failed|unavailable)/i)).toHaveCount(0);
+  console.log("[upload.spec] coaching settled");
 
   // Visual artifact for design review — the finished debrief, full page.
   await page.screenshot({ path: "test-results/debrief-full.png", fullPage: true });

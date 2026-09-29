@@ -26,12 +26,41 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: [/auth\.setup\.ts/, /upload\.spec\.ts/],
+      testIgnore: [/auth\.setup\.ts/, /upload\.spec\.ts/, /-shots?\.spec\.ts/],
     },
     {
       name: "mobile",
       use: { ...devices["Pixel 7"] },
-      testIgnore: [/auth\.setup\.ts/, /upload\.spec\.ts/],
+      testIgnore: [/auth\.setup\.ts/, /upload\.spec\.ts/, /-shots?\.spec\.ts/],
+    },
+    // Signed-in design-review captures at the two review widths.
+    {
+      name: "shots",
+      testMatch: [/signed-in-shots\.spec\.ts/, /debrief-shot\.spec\.ts/],
+      dependencies: ["setup"],
+      retries: 0,
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, storageState: STORAGE_STATE },
+    },
+    {
+      name: "team-shots",
+      testMatch: /team-hub-shots\.spec\.ts/,
+      dependencies: ["setup"],
+      retries: 0,
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, storageState: STORAGE_STATE },
+    },
+    {
+      name: "team-shots-mobile",
+      testMatch: /team-hub-shots\.spec\.ts/,
+      dependencies: ["setup"],
+      retries: 0,
+      use: { ...devices["Pixel 7"], viewport: { width: 390, height: 844 }, storageState: STORAGE_STATE },
+    },
+    {
+      name: "shots-mobile",
+      testMatch: [/signed-in-shots\.spec\.ts/, /debrief-shot\.spec\.ts/],
+      dependencies: ["setup"],
+      retries: 0,
+      use: { ...devices["Pixel 7"], viewport: { width: 390, height: 844 }, storageState: STORAGE_STATE },
     },
     {
       name: "setup",

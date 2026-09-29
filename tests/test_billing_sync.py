@@ -83,6 +83,58 @@ def test_past_due_sets_grace_window():
     db.close()
 
 
+def test_team_season_purchase_outranks_and_extends():
+    """A one-time season purchase sets the season fields only, wins tier
+    resolution until the next season starts, and an early renewal extends."""
+    from datetime import datetime
+
+    from services.billing import Tier
+    from services.billing.entitlements import tier_from_subscription
+
+    r = client.post(
+        "/api/billing/sync",
+        json={"user_id": "u_team", "season": 59, "stripe_customer_id": "cus_t",
+              "event": "checkout.session.completed"},
+    )
+    assert r.status_code == 200 and r.json()["season"] == 59
+    db = _db()
+    sub = db.get(Subscription, "u_team")
+    assert sub.season == 59 and sub.season_until == datetime(2027, 1, 4)
+    assert sub.plan == "free"  # subscription fields untouched
+    assert tier_from_subscription(sub, datetime(2026, 12, 1)) is Tier.TEAM
+    assert tier_from_subscription(sub, datetime(2027, 1, 5)) is Tier.FREE
+    db.close()
+
+    client.post("/api/billing/sync", json={"user_id": "u_team", "season": 60, "event": "x"})
+    db = _db()
+    assert db.get(Subscription, "u_team").season_until > datetime(2027, 1, 4)
+    db.close()
+
+    # A Solo Pro subscription event afterwards must not clobber the season.
+    client.post(
+        "/api/billing/sync",
+        json={"user_id": "u_team", "plan": "basic", "status": "active",
+              "stripe_subscription_id": "sub_x", "event": "customer.subscription.updated"},
+    )
+    db = _db()
+    sub = db.get(Subscription, "u_team")
+    assert sub.season == 60 and tier_from_subscription(sub, datetime(2027, 2, 1)) is Tier.TEAM
+    db.close()
+
+    r = client.post("/api/billing/sync", json={"user_id": "u_team", "season": 12, "event": "x"})
+    assert r.status_code == 400
+
+
+def test_seasons_endpoint_lists_purchasable_first():
+    """Docstring for test_seasons_endpoint_lists_purchasable_first."""
+    r = client.get("/api/billing/seasons")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["price_usd"] == 300
+    assert body["seasons"][0]["number"] == body["purchasable"]["number"]
+    assert body["seasons"][1]["number"] == body["purchasable"]["number"] + 1
+
+
 def test_invalid_status_defaults_to_active():
     """Docstring for test_invalid_status_defaults_to_active."""
     client.post(

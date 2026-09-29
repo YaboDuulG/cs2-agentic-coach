@@ -201,5 +201,6 @@ export const api = {
     post<StratSummary>(`/api/strats/${stratId}/transition`, { status }),
   stratBindCode: (stratId: string) =>
     post<{ code: string }>(`/api/strats/${stratId}/bind-code`, {}),
-  checkout: (plan: string) => post<{ url: string }>(`/api/billing/checkout`, { plan }),
+  checkout: (plan: string, interval: "month" | "year" = "month") =>
+    post<{ url: string }>(`/api/billing/checkout`, { plan, interval }),
 };

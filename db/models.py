@@ -1035,6 +1035,12 @@ class Subscription(Base):
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # past_due keeps entitlements until here (period_end + grace window)
     grace_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Team is bought per ESEA season (flat fee, one-time payment). These two
+    # fields are independent of the Stripe-subscription fields above: while
+    # season_until is in the future the user is TEAM tier whatever plan/status
+    # say, and afterwards the row falls back to them.
+    season: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    season_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
@@ -1045,6 +1051,78 @@ class Subscription(Base):
     def __repr__(self) -> str:
         """Docstring for __repr__."""
         return f"<Subscription {self.user_id} plan={self.plan} status={self.status}>"
+
+
+# ---------------------------------------------------------------------------
+# Promo codes — admin-issued trial codes and per-user referral codes. A
+# redemption grants a time-boxed `trialing` row in `subscriptions`, so the
+# entitlement layer needs no new branch (services/billing/promo.py).
+# ---------------------------------------------------------------------------
+
+
+class PromoCode(Base):
+    """Docstring for PromoCode."""
+    __tablename__ = "promo_codes"
+
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    # trial (admin-issued, usually single-use) | referral (one per user, unlimited)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    # Tier granted, as the Tier enum value: SOLO_PRO | TEAM
+    tier: Mapped[str] = mapped_column(String(16), nullable=False, default="SOLO_PRO")
+    days: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
+    # NULL = unlimited
+    max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    uses: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Admin who minted a trial code, or the referrer who owns a referral code
+    created_by: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    note: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    def __repr__(self) -> str:
+        """Docstring for __repr__."""
+        return f"<PromoCode {self.code} kind={self.kind} tier={self.tier} uses={self.uses}>"
+
+
+class PromoRedemption(Base):
+    """Docstring for PromoRedemption."""
+    __tablename__ = "promo_redemptions"
+    __table_args__ = (UniqueConstraint("code", "user_id", name="uq_promo_redemption"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(
+        String(32), ForeignKey("promo_codes.code"), nullable=False, index=True
+    )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    redeemed_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    granted_until: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class LlmUsage(Base):
+    """One row per Gemini call, priced at recording time
+    (services/billing/metering.py). team_id/user_id come from the match when
+    the caller only knows the match."""
+    __tablename__ = "llm_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC), index=True
+    )
+    match_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    team_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # coach | chat | critique | discord | rcon
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False, default="coach")
+    model: Mapped[str] = mapped_column(String(48), nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cached_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
 
 # ---------------------------------------------------------------------------

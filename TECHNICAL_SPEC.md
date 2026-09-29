@@ -903,7 +903,7 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 | **Server Tickrate** | 128-tick | Competitive standard |
 | **CS2 Update Guard** | Steam News API (live detection) | No API key needed; 10-min cache; fails open |
 | **HLTV Scraping** | Apify actor | Managed; no proxy/maintenance overhead |
-| **Payments** | Stripe | 3-tier: Free / Basic $5 / Pro $20 |
+| **Payments** | Stripe | 3-tier: Free / Solo Pro $10 mo, $96 yr / Team $300 per ESEA season (see Pricing v2 below) |
 | **Parse persistence** | Python worker persists; Go parser stays a pure function (2026-08) | Parser JSON was previously discarded by Cloud Tasks; ORM models live in Python; batch multi-row inserts (10-50x vs row-by-row); parser gained gunzip for browser `.dem.gz` uploads |
 | **First contacts / trajectories** | Derived in the worker from the kill feed / position samples (2026-08) | Earliest kill per round; positions grouped per (round, player) — no extra parser work |
 | **Coaching execution** | Worker pool, not FastAPI BackgroundTasks (2026-08) | Cloud Run throttles CPU after the response is sent — background coaching was silently starved; `COACH_CONCURRENCY` bounds per-worker load |
@@ -945,6 +945,12 @@ All retrieval queries filter by scope — prevents cross-user data leaks in coac
 | **Mode dashboard + paywall UX** | Personal/Team/OppoResearch views + GatedInsightCard driven ONLY by server payload state (2026-09) | Components visualize what the server already omitted (full / FREE-redacted / teaser shapes from services/billing); no client-side gating. Recharts (specific imports only) for the category radar |
 | **Side colors** | Semantic --color-ct / --color-t tokens per theme (2026-09) | Khan maps them to its own blue/gold; other themes use the module-5 palette (#4A90E2/#E58E26). Prompt's slate/zinc repaint rejected — the token system stays |
 | **Route groups** | (auth)/(dashboard) regrouping deferred (2026-09) | URL-neutral cosmetic move; deferred as a mechanical pass rather than churning a 3k-line page mid-feature. New pages (/scouting) added flat to match |
+| **Pricing v2** | Free / Solo Pro **$10 mo · $96 yr** / Team **$300 per ESEA season**, one-time payment (2026-09-29) | Supersedes "$5 / $20". Team is a hard paywall (create, upload, scout, servers, Discord); members inherit the owner's season. Market context in docs/pricing.md: Refrag Team $79/mo, Leetify Pro ~$10, Teamwise free |
+| **Season billing** | `services/billing/seasons.py`: published 2026 ESEA calendar (S56–S59) + projected cadence; `subscriptions.season/season_until` outrank the Stripe-subscription fields (2026-09-29) | Checkout runs Team as `mode: payment` with the purchasable season in metadata; the webhook syncs `season`; access lasts until the next season starts; a Solo Pro subscription event cannot clobber a paid season |
+| **Promo + referral codes** | `promo_codes` / `promo_redemptions`; grants are time-boxed `trialing` rows (2026-09-29) | Admin-minted weekly trial codes (single-use, expire) and one referral code per user (both sides +7d Solo Pro, new accounts only, no self-referral). `trialing` now expires on `current_period_end` — previously it never did |
+| **Admin gate** | Next.js `requireAdmin()` reads Clerk `publicMetadata.role` fresh per request; non-admins get 404 (2026-09-29) | Before this any signed-in user could read and write the coaching prompts and model settings (FastAPI checks only the shared secret) |
+| **Cost metering** | `llm_usage` row per Gemini call via a contextvar set once per match; training-session hours × configured rate; per-team table with revenue and margin on /settings/admin (2026-09-29) | Prices are SystemConfig keys (Gemini 2.5 list prices pre-filled); recording never raises. Both cost lines were unmeasured before |
+| **DatHost, no mock fallback** | Out of credits → `DatHostCreditsError` → 402, no server row, no session (2026-09-29) | The old fallback returned a fake 127.0.0.1 server that still created a training session and would have been metered as real hours. LOCAL_MODE "local-…" and legacy "mock-…" servers are excluded from billable hours. `vultr_instance_id` is a legacy column name; the provider has always been DatHost |
 
 ---
 

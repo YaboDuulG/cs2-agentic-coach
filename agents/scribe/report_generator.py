@@ -45,9 +45,14 @@ def _llm_semaphore() -> asyncio.Semaphore:
 
 
 async def _gated_generate(client: genai.Client, **kwargs) -> Any:
-    """Every generate_content call goes through the concurrency gate."""
+    """Every generate_content call goes through the concurrency gate and is
+    metered against the match/team in the current usage context."""
+    from services.billing.metering import record_usage  # noqa: PLC0415
+
     async with _llm_semaphore():
-        return await client.aio.models.generate_content(**kwargs)
+        response = await client.aio.models.generate_content(**kwargs)
+    record_usage(response, model=kwargs.get("model"))
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -470,36 +475,47 @@ async def async_generate_reports(
 
     client = genai.Client(api_key=api_key)
 
-    # 1. Group data by round
-    rounds_data = {}
-    if "round_history" in scout_out:
-        for r in scout_out["round_history"]:
-            rn = r["round_num"]
-            rounds_data[rn] = {"summary": r}
+    from services.billing.metering import usage_context  # noqa: PLC0415
 
-    # 2. Stage 1: parallel round calls — each sees only its own data + evidence
-    playbook_summary = _trim_playbook(map_playbook)
-    tasks = [
-        analyze_round_flash(
-            client, rn, r_data, playbook_summary, _evidence_for_round(evidence_pack, rn)
-        )
-        for rn, r_data in rounds_data.items()
-    ]
-    round_summaries = list(await asyncio.gather(*tasks))
+    # Every Gemini call below (including the gathered round tasks, which
+    # inherit the contextvar) is metered against this match; the Match row
+    # supplies team_id/user_id.
+    with usage_context(
+        match_id=match_id,
+        team_id=scout_out.get("team_id"),
+        user_id=scout_out.get("user_id"),
+        purpose="coach",
+    ):
+        # 1. Group data by round
+        rounds_data = {}
+        if "round_history" in scout_out:
+            for r in scout_out["round_history"]:
+                rn = r["round_num"]
+                rounds_data[rn] = {"summary": r}
 
-    # 3. Stage 2 + 3: mode-aware synthesis, then verification of cited evidence
-    mode = derive_mode(scout_out)
-    try:
-        synthesis = await _synthesize_findings(
-            client, scout_out, evidence_pack, round_summaries, mode
-        )
-    except Exception as e:
-        logger.error(f"Synthesis failed: {e}")
-        return _stub_reports()
+        # 2. Stage 1: parallel round calls — each sees only its own data + evidence
+        playbook_summary = _trim_playbook(map_playbook)
+        tasks = [
+            analyze_round_flash(
+                client, rn, r_data, playbook_summary, _evidence_for_round(evidence_pack, rn)
+            )
+            for rn, r_data in rounds_data.items()
+        ]
+        round_summaries = list(await asyncio.gather(*tasks))
 
-    findings = synthesis.get("findings") or []
-    summary = synthesis.get("summary") or ""
-    findings = await _verify_findings(client, findings, evidence_pack)
+        # 3. Stage 2 + 3: mode-aware synthesis, then verification of cited evidence
+        mode = derive_mode(scout_out)
+        try:
+            synthesis = await _synthesize_findings(
+                client, scout_out, evidence_pack, round_summaries, mode
+            )
+        except Exception as e:
+            logger.error(f"Synthesis failed: {e}")
+            return _stub_reports()
+
+        findings = synthesis.get("findings") or []
+        summary = synthesis.get("summary") or ""
+        findings = await _verify_findings(client, findings, evidence_pack)
 
     # 4. Stage 4 + 5: legacy keys + the Coaching Report Schema payload.
     # The FULL report is cached; tier redaction happens at read time in the

@@ -15,6 +15,7 @@ import { PageSection, PageTransition, toast } from "@/components/ui";
 import { PLAN_LIMITS } from "@/lib/flags";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { UploadModal } from "@/components/UploadModal";
+import { InviteCard } from "@/components/InviteCard";
 interface Analysis {
   match_id: string;
   map: string;
@@ -413,6 +414,8 @@ export default function ProfilePage() {
                 <span style={{ color: planColor, fontWeight: 600, fontSize: "0.85rem" }}>{planLabel}</span>
               </div>
             </div>
+
+            <InviteCard />
 
             {/* Steam Link Card */}
             <div className="card p-5 mt-6" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border-primary)" }}>

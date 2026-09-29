@@ -123,12 +123,23 @@ def tier_from_subscription(sub, now: datetime | None = None) -> Tier | None:
     if sub is None:
         return None
     now = now or datetime.now(UTC).replace(tzinfo=None)
+    # A paid ESEA season outranks whatever the Stripe-subscription fields say,
+    # and lapses on its own date with no webhook involved.
+    season_until = getattr(sub, "season_until", None)
+    if season_until is not None and now <= season_until:
+        return Tier.TEAM
     tier = PLAN_TIER.get((sub.plan or "").lower(), Tier.FREE)
     if tier is Tier.FREE:
         return Tier.FREE
     status = (sub.status or "").lower()
-    if status in ("active", "trialing"):
+    if status == "active":
         return tier
+    # Promo trials are time-boxed rows with no Stripe event to end them, so
+    # the period end is the authority here (a Stripe trial carries one too).
+    if status == "trialing":
+        if sub.current_period_end is None or now <= sub.current_period_end:
+            return tier
+        return Tier.FREE
     if status == "past_due" and sub.grace_until and now <= sub.grace_until:
         return tier
     if status == "canceled" and sub.current_period_end and now <= sub.current_period_end:
