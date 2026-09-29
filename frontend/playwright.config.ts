@@ -26,12 +26,20 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: [/auth\.setup\.ts/, /upload\.spec\.ts/, /-shots?\.spec\.ts/],
+      testIgnore: [/auth\.setup\.ts/, /upload\.spec\.ts/, /-shots?\.spec\.ts/, /checkout\.spec\.ts/],
     },
     {
       name: "mobile",
       use: { ...devices["Pixel 7"] },
-      testIgnore: [/auth\.setup\.ts/, /upload\.spec\.ts/, /-shots?\.spec\.ts/],
+      testIgnore: [/auth\.setup\.ts/, /upload\.spec\.ts/, /-shots?\.spec\.ts/, /checkout\.spec\.ts/],
+    },
+    // Stripe test-mode purchase flow with the saved session (run on demand).
+    {
+      name: "checkout",
+      testMatch: /checkout\.spec\.ts/,
+      dependencies: ["setup"],
+      retries: 0,
+      use: { ...devices["Desktop Chrome"], storageState: STORAGE_STATE },
     },
     // Signed-in design-review captures at the two review widths.
     {
