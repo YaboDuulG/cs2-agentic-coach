@@ -51,9 +51,9 @@ if cors_origins_env:
 else:
     # Production defaults (localhost excluded by default in production)
     ALLOWED_ORIGINS = [
-        "https://demosage.gg",
-        "https://www.demosage.gg",
-        "https://cs2-agentic-coach.vercel.app"
+        "https://demo-sage.me",
+        "https://www.demo-sage.me",
+        "https://cs2-agentic-coach.vercel.app",
     ]
     if os.getenv("APP_ENV") == "development":
         ALLOWED_ORIGINS.append("http://localhost:3000")

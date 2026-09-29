@@ -15,7 +15,7 @@ stratbook with Discord approval, and on-demand practice servers.
 
 | | URL |
 |---|---|
-| **Frontend** | https://cs2-agentic-coach.vercel.app |
+| **Frontend** | https://demo-sage.me (Vercel; https://cs2-agentic-coach.vercel.app stays as the deployment alias) |
 | **API** | https://demosage-api-staging-dsr6wo6mta-uc.a.run.app |
 
 ---
