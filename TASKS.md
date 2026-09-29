@@ -42,12 +42,22 @@ Legend: **DONE** = code in the tree with tests passing · **OWNER** = only you c
 
 ## 3. Owner to-do (OWNER)
 
-1. Stripe **test mode is done** (2026-09-29): products and the three prices exist with
-   lookup keys, and `frontend/.env.local` holds the restricted test key plus the three
-   `STRIPE_PRICE_*` ids. Still yours: put those three ids in Vercel **Preview**; then run
-   `.\scripts\stripe_setup_prices.ps1 -Live` with a live restricted key in the environment
-   and put the live ids in Vercel **Production**; archive the old $20 Team price in the
-   dashboard (do not delete). `docs/pricing.md` §"What you have to do in Stripe".
+1. Stripe **test mode is done** (2026-09-29) in account `acct_1TZdVcGYeJKiKc7G` (activated:
+   charges and payouts enabled): products, the three prices (lookup keys
+   `demosage_solo_*`, `demosage_team_season`) and a webhook endpoint for
+   `cs2-agentic-coach.vercel.app/api/billing/webhook`. Vercel **Production** holds the
+   test secret, the webhook secret and the three price ids, pushed with
+   `scripts/vercel_push_env.mjs` (a shell pipe had left a `\r` in the secret →
+   "Invalid character in header content" from Stripe). Lesson: the first restricted key
+   pointed at a different Stripe environment, so its prices were invisible to the
+   standard key; always mint prices with the same key the app runs with.
+   **Still yours:** redeploy production so the functions pick up the new values (merge
+   `domain-demo-sage` or click Redeploy in Vercel), then `npx playwright test
+   --project=checkout` verifies both purchases. For live mode: a live key into
+   `frontend/.env.local` as `STRIPE_SECRET_KEY`, re-run `stripe_setup_prices.ps1 -Live`,
+   recreate the webhook for `https://demo-sage.me/api/billing/webhook`, push with
+   `vercel_push_env.mjs`. The old $20 / $5 prices do not exist in this account; nothing to
+   archive.
 2. `alembic upgrade head` on staging (one migration: promo tables, season columns, `llm_usage`).
 3. Set the real rates on `/settings/admin` → Cost rates: DatHost's per-hour price for the
    server size you use (default $0.10 is a placeholder); Gemini list prices are pre-filled.
@@ -58,7 +68,14 @@ Legend: **DONE** = code in the tree with tests passing · **OWNER** = only you c
    env). Nothing reads them.
 6. Recreate the repo `.venv` (it points at a removed Python 3.14):
    `py -3.13 -m venv .venv; .venv\Scripts\pip install -r requirements.txt`.
-7. Move Clerk production to a production instance (the user menu shows "Development mode").
+7. Move Clerk production to a production instance (the user menu shows "Development mode"),
+   using `demo-sage.me` as the instance domain.
+9. **Domain `demo-sage.me`** is attached to the Vercel project (apex + www, 2026-09-29).
+   At the registrar set `A demo-sage.me 76.76.21.21` and `A www.demo-sage.me 76.76.21.21`
+   (or point the nameservers at `ns1/ns2.vercel-dns.com`). Vercel issues the certificate
+   once DNS resolves; `vercel domains inspect demo-sage.me` shows the state. Then: Clerk
+   production instance on the domain, Stripe live webhook on the domain, and
+   `PLAYWRIGHT_BASE_URL`. The CORS allowlist already includes it (branch `domain-demo-sage`).
 8. Decide the referrer bonus: both sides get 7 days today; `REFERRER_BONUS_DAYS` in
    `services/billing/promo.py` sets the referrer's share.
 

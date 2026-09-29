@@ -71,7 +71,13 @@ steps 1 and 2 below; the rest still apply.
    subscription ends; do not delete the price.
 4. **Set the three variables** in Vercel (Production and Preview) and in `.env.local`
    for the dev server. Test mode and live mode have different ids, so set them per
-   environment.
+   environment. Use `node scripts/vercel_push_env.mjs production STRIPE_SECRET_KEY
+   STRIPE_WEBHOOK_SECRET STRIPE_PRICE_SOLO_MONTHLY STRIPE_PRICE_SOLO_YEARLY
+   STRIPE_PRICE_TEAM_SEASON`: piping a value into `vercel env add` from PowerShell leaves
+   a carriage return in it, and Stripe then rejects the Authorization header. A new
+   deployment is needed before functions see changed values.
+   Mint the prices with the same key the app runs with: a key from another Stripe
+   environment (a sandbox, or an older account) produces ids the app cannot see.
 5. **Webhook events** already subscribed stay the same: `checkout.session.completed`
    (now also handles `mode: payment` for Team), `customer.subscription.updated`,
    `customer.subscription.deleted`, `invoice.payment_failed`.

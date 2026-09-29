@@ -9,6 +9,30 @@ import { expect, test, type Page } from "@playwright/test";
 
 const CARD = { number: "4242 4242 4242 4242", expiry: "12 / 34", cvc: "123", zip: "94107" };
 
+// Click a buy button and surface the checkout route's real response: a
+// failure shows as a toast that is gone by the time a timeout fires.
+async function startCheckout(page: Page, button: ReturnType<Page["getByRole"]>) {
+  // Signed-in shell must be hydrated (Clerk user button present) before the
+  // click, and the session cookie must be there — otherwise diagnose, don't guess.
+  await expect(page.getByRole("button", { name: /open user menu/i })).toBeVisible({ timeout: 30_000 });
+  const cookieNames = (await page.context().cookies()).map((c) => c.name).filter((n) => n.startsWith("__")).sort();
+  const probe = await page.request.get("/api/billing/entitlements");
+  console.log(
+    `[checkout] cookies=${cookieNames.join(",")} entitlements=${probe.status()} ` +
+      `auth-reason=${probe.headers()["x-clerk-auth-reason"] ?? "-"} auth-status=${probe.headers()["x-clerk-auth-status"] ?? "-"}`,
+  );
+  const [res] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/api/billing/checkout"), { timeout: 30_000 }),
+    button.click(),
+  ]);
+  const body = await res.text();
+  console.log(
+    `[checkout] POST /api/billing/checkout -> ${res.status()} ${body.slice(0, 300)} ` +
+      `auth-reason=${res.headers()["x-clerk-auth-reason"] ?? "-"} auth-status=${res.headers()["x-clerk-auth-status"] ?? "-"}`,
+  );
+  expect(res.ok(), `checkout route returned ${res.status()}: ${body}`).toBeTruthy();
+}
+
 async function payOnStripe(page: Page) {
   await page.waitForURL(/checkout\.stripe\.com/, { timeout: 30_000 });
   // Stripe's hosted page: fields carry stable ids; email is prefilled when
@@ -49,7 +73,7 @@ test.describe.serial("stripe test-mode checkout", () => {
     if (!(await buy.isVisible({ timeout: 15_000 }).catch(() => false))) {
       test.skip(true, "Solo Pro is not purchasable for this user (already on a plan)");
     }
-    await buy.click();
+    await startCheckout(page, buy);
     await payOnStripe(page);
     await expect(page).toHaveURL(/\/billing\/success/);
 
@@ -69,15 +93,7 @@ test.describe.serial("stripe test-mode checkout", () => {
     if (!(await buy.isVisible({ timeout: 15_000 }).catch(() => false))) {
       test.skip(true, "Team season is not purchasable (already owned, or seasons endpoint missing)");
     }
-    await buy.click();
-    // A 409/500 from checkout surfaces as a toast, not a redirect.
-    const failed = page.getByText(/could not|couldn't|not configured|already have/i);
-    await Promise.race([
-      page.waitForURL(/checkout\.stripe\.com/, { timeout: 30_000 }),
-      failed.waitFor({ state: "visible", timeout: 30_000 }).then(async () => {
-        throw new Error(`checkout refused: ${await failed.textContent()}`);
-      }),
-    ]);
+    await startCheckout(page, buy);
     await payOnStripe(page);
 
     await expect
