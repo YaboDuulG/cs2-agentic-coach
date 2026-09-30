@@ -55,11 +55,16 @@ Legend: **DONE** = code in the tree with tests passing · **OWNER** = only you c
    Solo Pro monthly → `tier=SOLO_PRO source=stripe`; Team season → `tier=TEAM season=59
    season_until=2027-01-04` (webhook → `/api/billing/sync` → entitlements). The spec
    drives Stripe's hosted page (accordion, typed card fields, email typed last, guest
-   checkout without Link). For live mode: a live key into
-   `frontend/.env.local` as `STRIPE_SECRET_KEY`, re-run `stripe_setup_prices.ps1 -Live`,
-   recreate the webhook for `https://demo-sage.me/api/billing/webhook`, push with
-   `vercel_push_env.mjs`. The old $20 / $5 prices do not exist in this account; nothing to
-   archive.
+   checkout without Link).
+   **Live mode is set up (2026-09-30):** live prices minted with the live restricted key
+   (`demosage_solo_monthly` $10, `demosage_solo_yearly` $96, `demosage_team_season` $300
+   one-time), live webhook endpoint at `https://demo-sage.me/api/billing/webhook`, and the
+   live secret, webhook secret and price ids pushed to Vercel **Production**. They take
+   effect on the next production deployment — after that, production charges real cards
+   and the test-card spec must run against a Preview/test deployment instead.
+   `frontend/.env.local` is now LIVE too; for local testing switch it back to the test key
+   and test ids (they are in Stripe under the same lookup keys in test mode). The old
+   $20 / $5 prices do not exist in this account; nothing to archive.
 2. `alembic upgrade head` on staging (one migration: promo tables, season columns, `llm_usage`).
 3. Set the real rates on `/settings/admin` → Cost rates: DatHost's per-hour price for the
    server size you use (default $0.10 is a placeholder); Gemini list prices are pre-filled.
@@ -70,8 +75,15 @@ Legend: **DONE** = code in the tree with tests passing · **OWNER** = only you c
    env). Nothing reads them.
 6. Recreate the repo `.venv` (it points at a removed Python 3.14):
    `py -3.13 -m venv .venv; .venv\Scripts\pip install -r requirements.txt`.
-7. Move Clerk production to a production instance (the user menu shows "Development mode"),
-   using `demo-sage.me` as the instance domain.
+7. **Clerk production instance** `ins_3K3lTRa4SjQMndLMGMW7AQwOoHf` on `demo-sage.me`
+   (created 2026-09-30 with `clerk deploy`). The five Clerk CNAMEs (`clerk`, `accounts`,
+   `clkmail`, `clk._domainkey`, `clk2._domainkey`) are in the Vercel DNS zone; DNS, email
+   and SSL all verified (`clerk.demo-sage.me` serves TLS). Production keys
+   (`pk_live_`/`sk_live_`) are in `frontend/.env.local` and in Vercel **Production**; they
+   take effect on the next deployment, after which the vercel.app alias no longer signs
+   in (production Clerk is bound to the domain). **Still yours:** Google sign-in needs a
+   production OAuth client from Google Cloud Console (`clerk deploy` shows the redirect URI
+   to register, then asks for the client id and secret); email/password works without it.
 9. **Domain `demo-sage.me` is live** (2026-09-30): nameservers moved to Vercel
    (`ns1/ns2.vercel-dns.com`), both hostnames verified, certificates issued for
    `demo-sage.me` and `*.demo-sage.me`, HTTPS 200 on apex and www. The earlier "invalid
