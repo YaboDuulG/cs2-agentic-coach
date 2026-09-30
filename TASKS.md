@@ -51,9 +51,11 @@ Legend: **DONE** = code in the tree with tests passing · **OWNER** = only you c
    "Invalid character in header content" from Stripe). Lesson: the first restricted key
    pointed at a different Stripe environment, so its prices were invisible to the
    standard key; always mint prices with the same key the app runs with.
-   **Still yours:** redeploy production so the functions pick up the new values (merge
-   `domain-demo-sage` or click Redeploy in Vercel), then `npx playwright test
-   --project=checkout` verifies both purchases. For live mode: a live key into
+   **Verified 2026-09-30** on production with `npx playwright test --project=checkout`:
+   Solo Pro monthly → `tier=SOLO_PRO source=stripe`; Team season → `tier=TEAM season=59
+   season_until=2027-01-04` (webhook → `/api/billing/sync` → entitlements). The spec
+   drives Stripe's hosted page (accordion, typed card fields, email typed last, guest
+   checkout without Link). For live mode: a live key into
    `frontend/.env.local` as `STRIPE_SECRET_KEY`, re-run `stripe_setup_prices.ps1 -Live`,
    recreate the webhook for `https://demo-sage.me/api/billing/webhook`, push with
    `vercel_push_env.mjs`. The old $20 / $5 prices do not exist in this account; nothing to
@@ -71,9 +73,16 @@ Legend: **DONE** = code in the tree with tests passing · **OWNER** = only you c
 7. Move Clerk production to a production instance (the user menu shows "Development mode"),
    using `demo-sage.me` as the instance domain.
 9. **Domain `demo-sage.me`** is attached to the Vercel project (apex + www, 2026-09-29).
-   At the registrar set `A demo-sage.me 76.76.21.21` and `A www.demo-sage.me 76.76.21.21`
-   (or point the nameservers at `ns1/ns2.vercel-dns.com`). Vercel issues the certificate
-   once DNS resolves; `vercel domains inspect demo-sage.me` shows the state. Then: Clerk
+   The Vercel A record is in place, but GoDaddy's parked records are still there too
+   (2026-09-30): `@` and `www` each answer with `3.33.130.190` and `15.197.148.33` next to
+   `76.76.21.21`, and `www` also has a CNAME to the apex. Vercel reports "invalid DNS
+   configuration" and will not issue the certificate until only its records remain.
+   At GoDaddy: delete the two extra A records on `@` and on `www` (the ones GoDaddy
+   created for parking/forwarding, and turn off Domain Forwarding if it is on); keep
+   `A @ 76.76.21.21`; make `www` either a single `A 76.76.21.21` or a single `CNAME
+   cname.vercel-dns.com`. Then `vercel domains verify demo-sage.me` — or just wait; Vercel
+   re-checks and emails. Alternative that avoids all of this: change the nameservers to
+   `ns1.vercel-dns.com` / `ns2.vercel-dns.com`. Then: Clerk
    production instance on the domain, Stripe live webhook on the domain, and
    `PLAYWRIGHT_BASE_URL`. The CORS allowlist already includes it (branch `domain-demo-sage`).
 8. Decide the referrer bonus: both sides get 7 days today; `REFERRER_BONUS_DAYS` in
