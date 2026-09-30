@@ -3,11 +3,19 @@ import { expect, test } from "@playwright/test";
 // Security behavior of the Steam OpenID routes for a signed-OUT browser:
 // both must bounce to home, never start (or complete) a link for nobody.
 
+// "Home" on whatever host the suite targets (demo-sage.me, the vercel.app
+// alias, or a local dev server), with or without a trailing slash.
+function homeUrl(): RegExp {
+  const base = process.env.PLAYWRIGHT_BASE_URL ?? "https://demo-sage.me";
+  const host = new URL(base).host.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^https?://${host}/?$`);
+}
+
 test("steam login route requires a session", async ({ page }) => {
   await page.goto("/api/steam/login");
   // Signed out → redirected home, NOT to steamcommunity.com.
   await expect(page).not.toHaveURL(/steamcommunity\.com/);
-  await expect(page).toHaveURL(/cs2-agentic-coach\.vercel\.app\/?$|localhost:\d+\/?$/);
+  await expect(page).toHaveURL(homeUrl());
 });
 
 test("steam callback rejects an unauthenticated forged assertion", async ({ page }) => {
@@ -16,7 +24,7 @@ test("steam callback rejects an unauthenticated forged assertion", async ({ page
       encodeURIComponent("https://steamcommunity.com/openid/id/76561198000000001"),
   );
   await expect(page).not.toHaveURL(/steam=linked/);
-  await expect(page).toHaveURL(/cs2-agentic-coach\.vercel\.app\/?$|localhost:\d+\/?$/);
+  await expect(page).toHaveURL(homeUrl());
 });
 
 test("steam callback with a malformed claimed_id never links", async ({ request }) => {

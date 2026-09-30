@@ -19,7 +19,10 @@ export default defineConfig({
   retries: 1,
   reporter: [["list"]],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "https://cs2-agentic-coach.vercel.app",
+    // demo-sage.me is production (Vercel alias cs2-agentic-coach.vercel.app
+    // still serves the same deployment). Saved sessions are per host, so the
+    // setup project must run again when switching base URLs.
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "https://demo-sage.me",
     trace: "retain-on-failure",
   },
   projects: [

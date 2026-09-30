@@ -72,17 +72,12 @@ Legend: **DONE** = code in the tree with tests passing · **OWNER** = only you c
    `py -3.13 -m venv .venv; .venv\Scripts\pip install -r requirements.txt`.
 7. Move Clerk production to a production instance (the user menu shows "Development mode"),
    using `demo-sage.me` as the instance domain.
-9. **Domain `demo-sage.me`** is attached to the Vercel project (apex + www, 2026-09-29).
-   The Vercel A record is in place, but GoDaddy's parked records are still there too
-   (2026-09-30): `@` and `www` each answer with `3.33.130.190` and `15.197.148.33` next to
-   `76.76.21.21`, and `www` also has a CNAME to the apex. Vercel reports "invalid DNS
-   configuration" and will not issue the certificate until only its records remain.
-   At GoDaddy: delete the two extra A records on `@` and on `www` (the ones GoDaddy
-   created for parking/forwarding, and turn off Domain Forwarding if it is on); keep
-   `A @ 76.76.21.21`; make `www` either a single `A 76.76.21.21` or a single `CNAME
-   cname.vercel-dns.com`. Then `vercel domains verify demo-sage.me` — or just wait; Vercel
-   re-checks and emails. Alternative that avoids all of this: change the nameservers to
-   `ns1.vercel-dns.com` / `ns2.vercel-dns.com`. Then: Clerk
+9. **Domain `demo-sage.me` is live** (2026-09-30): nameservers moved to Vercel
+   (`ns1/ns2.vercel-dns.com`), both hostnames verified, certificates issued for
+   `demo-sage.me` and `*.demo-sage.me`, HTTPS 200 on apex and www. The earlier "invalid
+   configuration" was GoDaddy's parked A records living beside Vercel's; moving the
+   nameservers made them irrelevant. Playwright's default base URL is the domain now.
+   Then: Clerk
    production instance on the domain, Stripe live webhook on the domain, and
    `PLAYWRIGHT_BASE_URL`. The CORS allowlist already includes it (branch `domain-demo-sage`).
 8. Decide the referrer bonus: both sides get 7 days today; `REFERRER_BONUS_DAYS` in

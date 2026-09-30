@@ -36,5 +36,6 @@ test("/pricing does not 404 on a typed URL", async ({ page }) => {
 test("log in opens the Clerk sign-in dialog", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /log in/i }).first().click();
-  await expect(page.getByText(/sign in to demosage/i)).toBeVisible({ timeout: 10_000 });
+  // Clerk's modal JS loads lazily; the first open on a cold domain took >10s.
+  await expect(page.getByText(/sign in to demosage/i)).toBeVisible({ timeout: 30_000 });
 });
