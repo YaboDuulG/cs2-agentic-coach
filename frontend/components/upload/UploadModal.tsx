@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { UpgradeModal } from "@/components/paywall/UpgradeModal";
-import { Badge, Button, Modal } from "@/components/ui";
+import { Badge, Button, Input, Label, Modal } from "@/components/ui";
 import { DropZone } from "@/components/upload/DropZone";
 import { ModePicker, type ModeChoice, type UploadMode } from "@/components/upload/ModePicker";
 import { useDemoUpload } from "@/lib/upload/useDemoUpload";
@@ -33,7 +33,9 @@ function UploadFlow({ onClose, preset, initialFile }: Omit<UploadModalProps, "op
   const [choice, setChoice] = useState<ModeChoice>({ mode: preset?.mode ?? "personal", teamId: preset?.teamId ?? null });
   const [step, setStep] = useState<1 | 2>(preset ? 2 : 1);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [opponent, setOpponent] = useState("");
   const { state, upload, cancel } = useDemoUpload(onClose);
+  const target = { teamId: choice.teamId, isRecon: choice.mode === "scouting", opponent: opponent.trim() || null };
 
   // A carried file starts uploading the moment the drop step is reached.
   const pendingFile = useRef<File | null | undefined>(initialFile);
@@ -44,6 +46,7 @@ function UploadFlow({ onClose, preset, initialFile }: Omit<UploadModalProps, "op
       upload(file, { teamId: choice.teamId, isRecon: choice.mode === "scouting" });
     }
   }, [step, state.phase, upload, choice]);
+  const editable = state.phase === "idle" || state.phase === "error";
 
   const needsTeam = choice.mode !== "personal";
   const canContinue = !needsTeam || Boolean(choice.teamId);
@@ -82,11 +85,23 @@ function UploadFlow({ onClose, preset, initialFile }: Omit<UploadModalProps, "op
                 </button>
               ) : null}
             </div>
-            <DropZone
-              state={state}
-              onFile={(file) => upload(file, { teamId: choice.teamId, isRecon: choice.mode === "scouting" })}
-              onCancel={cancel}
-            />
+            {choice.mode === "scouting" ? (
+              <div>
+                <Label htmlFor="opponent" hint="Optional; the dossier is filed under this name">
+                  Opponent
+                </Label>
+                <Input
+                  id="opponent"
+                  value={opponent}
+                  onChange={(e) => setOpponent(e.target.value)}
+                  placeholder="e.g. Night Shift"
+                  maxLength={80}
+                  disabled={!editable}
+                  autoComplete="off"
+                />
+              </div>
+            ) : null}
+            <DropZone state={state} onFile={(file) => upload(file, target)} onCancel={cancel} />
           </div>
         )}
       </Modal>

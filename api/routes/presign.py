@@ -21,6 +21,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MAX_DEMO_SIZE_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB hard cap
+MAX_OPPONENT_LEN = 80
+
+
+def _opponent_name(body: "PresignRequest") -> str | None:
+    """Opponent label for a scouting upload; ignored on every other mode."""
+    if not body.is_recon or not body.opponent:
+        return None
+    name = " ".join(body.opponent.split())[:MAX_OPPONENT_LEN]
+    return name or None
 
 
 class PresignRequest(BaseModel):
@@ -30,6 +39,8 @@ class PresignRequest(BaseModel):
     team_id: str | None = None
     chunk_count: int = 1
     is_recon: bool = False
+    # Scouting only: who the dossier is about. Stored on matches.match_name.
+    opponent: str | None = None
     # Cheap content identity computed in the browser:
     # "<size>:<sha256 of first 1MB>:<sha256 of last 1MB>". Optional — without
     # it the upload proceeds, it just can't dedupe.
@@ -95,6 +106,7 @@ async def presign_demo_upload(body: PresignRequest, request: Request, db: Sessio
                 body.team_id,
                 uploader_steam_id,
                 body.is_recon,
+                match_name=_opponent_name(body),
                 fingerprint=None,  # demo row already exists
                 gcs_demo_uri=None,
                 demo_exists=True,
@@ -125,6 +137,7 @@ async def presign_demo_upload(body: PresignRequest, request: Request, db: Sessio
         body.team_id,
         uploader_steam_id,
         body.is_recon,
+        match_name=_opponent_name(body),
         fingerprint=body.fingerprint,
         gcs_demo_uri=gcs_demo_uri,
     )
@@ -403,6 +416,7 @@ def _create_records(
     uploader_steam_id: str | None = None,
     is_recon: bool = False,
     *,
+    match_name: str | None = None,
     fingerprint: str | None = None,
     gcs_demo_uri: str | None = None,
     demo_exists: bool = False,
@@ -431,6 +445,7 @@ def _create_records(
                     team_id=team_id,
                     uploader_steam_id=uploader_steam_id,
                     is_recon=is_recon,
+                    match_name=match_name,
                 )
             )
             db.commit()

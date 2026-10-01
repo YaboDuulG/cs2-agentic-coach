@@ -118,10 +118,10 @@ Backend (`ARCHITECTURE_REFACTOR_PLAN.md` §3):
 |---|---|---|
 | B1a | `mode` on `/api/analyses` rows and `/api/jobs/{id}` | DONE 2026-10-01 (`api/routes/analyses.py` `match_mode`) |
 | B1b | Job `stage` + `coach_status` / `coach_error` on `/api/jobs/{id}` (parse / coach / done / failed) | DONE 2026-10-01 (`api/routes/jobs.py` `coach_state`) |
-| B1c | `require_entitlement(TEAM_ANALYSIS)` on team create and server/training routes; join stays open | OPEN (UI gates client-side only) |
-| B1e | RCON console endpoint (`/api/chat` was never built); the server page shows the RCON password instead | OPEN |
-| B1f | Leave-team / remove-member endpoints; Team Settings shows a disabled Leave button | OPEN |
-| B1g | Opponent name on scouting rows (Opponents tab groups by map today) | PLANNED |
+| B1c | Team plan gate (402 + upgrade metadata) on team create, server spin-up and training sessions; join stays open; seats inherit the owner's season | DONE 2026-10-01 (`api/routes/{teams,servers,training_sessions}.py`, `tests/test_team_gates.py`) |
+| B1e | Practice-server console: `GET/POST /api/servers/{id}/console` through DatHost's console API; console card on the server page | DONE 2026-10-01 (`services/warlord/dathost_client.py` `send_console_command`/`read_console`, `components/teams/ServerConsole.tsx`) |
+| B1f | `DELETE /api/teams/{id}/members/{user}`: members leave, the captain removes; Team Settings has Leave and Remove with confirms | DONE 2026-10-01 |
+| B1g | Opponent name on scouting uploads (`opponent` on presign → `matches.match_name`), returned on match rows; Opponents tab groups by opponent, map as the fallback | DONE 2026-10-01 |
 | B1d | Server-hour caps per season (metering data first; see `docs/pricing.md`) | PLANNED |
 | 3.1 | Move `agents/` into `services/coaching_ai`, `db/jobs.py` into `services/ingestion`; delete `api/agents/tactician_heuristics.py` and the Steam branch of `api/routes/oauth.py` | OPEN |
 | 3.2 | import-linter contracts in CI; drop `\|\| true` from mypy | OPEN |

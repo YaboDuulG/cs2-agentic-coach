@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { TeamMark } from "@/components/teams/TeamMark";
 import { shortUserId } from "@/components/teams/util";
 import { Badge, Button, Card, CardHeader, FieldError, Input, Label, Modal, toast } from "@/components/ui";
-import { useDeleteTeam, useUpdateTeam, useUploadTeamLogo, type TeamDetail } from "@/lib/api/hooks";
+import { useDeleteTeam, useRemoveMember, useUpdateTeam, useUploadTeamLogo, type TeamDetail } from "@/lib/api/hooks";
 import { longDate, mb } from "@/lib/format";
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
@@ -16,8 +16,11 @@ export function SettingsTab({ team, viewerId, isOwner }: { team: TeamDetail; vie
   const update = useUpdateTeam(team.team_id);
   const uploadLogo = useUploadTeamLogo(team.team_id);
   const del = useDeleteTeam(team.team_id);
+  const remove = useRemoveMember(team.team_id);
   const [name, setName] = useState(team.name);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // "leave" is the viewer; otherwise the member id the captain is removing.
+  const [rosterTarget, setRosterTarget] = useState<string | null>(null);
   const [confirmName, setConfirmName] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -49,6 +52,23 @@ export function SettingsTab({ team, viewerId, isOwner }: { team: TeamDetail; vie
       toast.error(e instanceof Error ? e.message : "Could not upload the logo.");
     } finally {
       if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function onRoster() {
+    if (!rosterTarget) return;
+    const leaving = rosterTarget === viewerId;
+    try {
+      await remove.mutateAsync(rosterTarget);
+      setRosterTarget(null);
+      if (leaving) {
+        toast.success(`You left ${team.name}.`);
+        router.push("/teams");
+      } else {
+        toast.success("Player removed.");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not update the roster.");
     }
   }
 
@@ -102,7 +122,7 @@ export function SettingsTab({ team, viewerId, isOwner }: { team: TeamDetail; vie
       </Card>
 
       <Card>
-        <CardHeader title="Members" description="Share the invite code from Overview to add players." />
+        <CardHeader title="Members" description={isOwner ? "Share the invite code from Overview to add players; remove anyone who left the roster." : "Share the invite code from Overview to add players."} />
         <ul className="space-y-2">
           {team.members.map((m) => {
             const isYou = viewerId !== null && m.user_id === viewerId;
@@ -116,14 +136,23 @@ export function SettingsTab({ team, viewerId, isOwner }: { team: TeamDetail; vie
                     </p>
                   ) : null}
                 </div>
-                {m.role === "owner" ? <Badge tone="rank">Captain</Badge> : <Badge>Player</Badge>}
+                <div className="flex items-center gap-2">
+                  {m.role === "owner" ? <Badge tone="rank">Captain</Badge> : <Badge>Player</Badge>}
+                  {isOwner && !isYou && m.role !== "owner" ? (
+                    <Button size="sm" variant="ghost" onClick={() => setRosterTarget(m.user_id)} aria-label={`Remove ${shortUserId(m.user_id)}`}>
+                      Remove
+                    </Button>
+                  ) : null}
+                </div>
               </li>
             );
           })}
         </ul>
-        <p className="mt-3 text-[12px]" style={{ color: "var(--color-text-3)" }}>
-          Removing a member is not available yet.
-        </p>
+        {!isOwner ? (
+          <p className="mt-3 text-[12px]" style={{ color: "var(--color-text-3)" }}>
+            Only the captain can remove players.
+          </p>
+        ) : null}
       </Card>
 
       <Card className="lg:col-span-2" style={{ borderColor: "color-mix(in srgb, var(--color-danger) 40%, transparent)" }}>
@@ -133,10 +162,10 @@ export function SettingsTab({ team, viewerId, isOwner }: { team: TeamDetail; vie
             <div>
               <p className="text-sm font-semibold">Leave this team</p>
               <p className="text-[12px]" style={{ color: "var(--color-text-2)" }}>
-                {isOwner ? "Captains cannot leave; delete the team instead." : "Ask your captain to remove you. Self-service leaving is not available yet."}
+                {isOwner ? "Captains cannot leave; delete the team instead." : "You lose the team's matches, servers and stratbook. Rejoin with the invite code."}
               </p>
             </div>
-            <Button variant="secondary" size="sm" disabled title="Not available yet">
+            <Button variant="secondary" size="sm" disabled={isOwner || !viewerId} onClick={() => setRosterTarget(viewerId)}>
               Leave
             </Button>
           </div>
@@ -155,6 +184,27 @@ export function SettingsTab({ team, viewerId, isOwner }: { team: TeamDetail; vie
           ) : null}
         </div>
       </Card>
+
+      <Modal
+        open={rosterTarget !== null}
+        onClose={() => setRosterTarget(null)}
+        title={rosterTarget === viewerId ? `Leave ${team.name}?` : "Remove this player?"}
+        description={
+          rosterTarget === viewerId
+            ? "You can come back with the invite code; nothing of yours is deleted."
+            : `${rosterTarget ? shortUserId(rosterTarget) : ""} loses access to the team's matches, servers and stratbook.`
+        }
+        size="sm"
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setRosterTarget(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={onRoster} loading={remove.isPending}>
+            {rosterTarget === viewerId ? "Leave team" : "Remove"}
+          </Button>
+        </div>
+      </Modal>
 
       <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete team" description={`Type ${team.name} to confirm. Everything under this team is removed.`} size="sm">
         <Label htmlFor="confirm-team-name">Team name</Label>

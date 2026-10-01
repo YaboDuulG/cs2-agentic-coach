@@ -443,6 +443,44 @@ def provision_practice_server(
         raise ValueError(f"DatHost provision failed: {error_msg}")
 
 
+def send_console_command(dathost_id: str, line: str) -> None:
+    """Send one console (RCON) line to a running DatHost server."""
+    auth = get_dathost_auth()
+    try:
+        r = requests.post(
+            f"{DATHOST_API_URL}/game-servers/{dathost_id}/console",
+            auth=auth,
+            data={"line": line},
+            timeout=15,
+        )
+        r.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        detail = e.response.text if (e.response is not None and e.response.text) else str(e)
+        raise ValueError(f"Console command failed: {detail[:200]}")
+
+
+def read_console(dathost_id: str, max_lines: int = 50) -> list[str]:
+    """Tail of the server console. DatHost returns {"lines": [...]} (older
+    responses were a bare list); either shape is normalised to strings."""
+    auth = get_dathost_auth()
+    try:
+        r = requests.get(
+            f"{DATHOST_API_URL}/game-servers/{dathost_id}/console",
+            auth=auth,
+            params={"max_lines": max_lines},
+            timeout=15,
+        )
+        r.raise_for_status()
+        payload = r.json()
+    except requests.exceptions.RequestException as e:
+        detail = e.response.text if (e.response is not None and e.response.text) else str(e)
+        raise ValueError(f"Console read failed: {detail[:200]}")
+    except ValueError:
+        return []
+    lines = payload.get("lines", []) if isinstance(payload, dict) else payload
+    return [str(x) for x in (lines or [])][-max_lines:]
+
+
 def destroy_practice_server(dathost_id: str):
     """Terminates and deletes the DatHost server instance."""
     auth = get_dathost_auth()

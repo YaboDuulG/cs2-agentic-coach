@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { planHeaderFor } from "@/lib/server/plan";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -17,11 +18,13 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
+  // Team is a hard paywall on the backend; the header is its Clerk fallback.
   const res = await fetch(`${API_URL}/api/teams`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
+      "x-user-plan": await planHeaderFor(userId),
     },
     body: JSON.stringify({ ...body, user_id: userId }),
   });

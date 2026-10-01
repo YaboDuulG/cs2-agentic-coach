@@ -13,6 +13,7 @@ export interface MatchRowData {
   created_at: string | null;
   mode: MatchMode | string;
   uploader?: string | null;
+  opponent?: string | null;
 }
 
 function statusOf(status: string | null | undefined): "done" | "failed" | "working" {
@@ -38,6 +39,11 @@ export function MatchRow({ m, showUploader }: { m: MatchRowData; showUploader?: 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">{mapLabel(m.map)}</span>
+          {m.opponent ? (
+            <span className="text-sm" style={{ color: "var(--color-text-2)" }}>
+              vs {m.opponent}
+            </span>
+          ) : null}
           <ModeBadge mode={m.mode} />
           {state === "working" ? (
             <Badge tone="accent" icon={<Loader2 size={11} className="animate-spin" aria-hidden="true" />}>

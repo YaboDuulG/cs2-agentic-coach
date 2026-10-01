@@ -13,13 +13,14 @@ from datetime import UTC, datetime, timedelta
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from db.database import get_session
 from db.models import TeamMember, TrainingSession
+from services.billing import Entitlement, effective_entitlements, upgrade_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +98,16 @@ class SessionListResponse(BaseModel):
 def create_session(
     team_id: str,
     body: SessionCreateRequest,
+    request: Request,
     db: Session = Depends(get_session),
     user_id: str = "",
 ) -> SessionResponse:
-    """Create a training session record when a server is spun up."""
+    """Create a training session record when a server is spun up. Team
+    feature: 402 unless the caller holds (or inherits) the Team season."""
     _verify_team_member(db, user_id, team_id)
+    ents = effective_entitlements(db, user_id, request.headers.get("x-user-plan"), team_id)
+    if Entitlement.TEAM_ANALYSIS not in ents:
+        raise HTTPException(status_code=402, detail=upgrade_metadata(Entitlement.TEAM_ANALYSIS))
 
     session = TrainingSession(
         id=str(uuid.uuid4()),

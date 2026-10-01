@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { planHeaderFor } from "@/lib/server/plan";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -55,6 +56,7 @@ export async function POST(
       headers: {
         "Content-Type": "application/json",
         "x-clerk-user-id": userId,
+        "x-user-plan": await planHeaderFor(userId),
         Authorization: `Bearer ${process.env.API_SHARED_SECRET}`,
       },
       body: JSON.stringify(body),

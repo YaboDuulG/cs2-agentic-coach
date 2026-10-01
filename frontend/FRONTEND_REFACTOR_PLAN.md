@@ -32,7 +32,7 @@ proxy routes (`app/api/**`), the API types (`lib/api/client.ts`), the playback s
 | # | Outcome |
 |---|---|
 | W0 | Done. `/coach`, `/admin`, `/onboarding`, `/matches/[id]`, `/scouting`, `/profile` are redirects in `next.config.ts`; `/settings/admin` 404s for non-admins. |
-| B1 | `mode` on match rows, `stage` / `coach_status` / `coach_error` on jobs: done in `api/routes/{analyses,jobs,teams}.py`. Server-side `require_entitlement(TEAM_ANALYSIS)` on team create and server routes is still **open**; the UI gates it client-side via `/api/billing/entitlements`. |
+| B1 | Done. `mode` on match rows, `stage` / `coach_status` / `coach_error` on jobs (`api/routes/{analyses,jobs,teams}.py`); the Team plan is enforced server-side (402 with upgrade metadata) on team create, server spin-up and training sessions, with seat inheritance; roster leave/remove, the practice-server console and the opponent name on scouting rows followed on 2026-10-01 (`tests/test_team_gates.py`). |
 | W1 | Done. `lib/api/hooks.ts` is the only data layer (TanStack Query, `HttpError`); no event buses, no `localStorage.coaching_mode`. |
 | W2 | Done. `components/upload/{UploadModal,ModePicker,DropZone}` + `lib/upload/useDemoUpload.ts`; `preset` prop; the Team Hub and Opponents tab pre-select. |
 | W3 | Done. `components/shell/*`, `PageHeader`, `Tabs`, `/matches`, `/settings` (Profile · Appearance · Plan), Team Hub with Overview · Opponents · Stratbook · Coach · Settings, `/teams` paywall card. |

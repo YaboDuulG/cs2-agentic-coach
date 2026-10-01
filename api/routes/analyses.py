@@ -27,7 +27,7 @@ def match_mode(is_recon: bool, team_id: str | None) -> str:
     return "personal"
 
 
-_LIST_SELECT = "SELECT m.match_id, d.map_name, d.status, m.created_at, m.is_recon, m.team_id"
+_LIST_SELECT = "SELECT m.match_id, d.map_name, d.status, m.created_at, m.is_recon, m.team_id, m.match_name"
 
 
 @router.get("", summary="List analyses for a user")
@@ -90,6 +90,7 @@ async def list_analyses(user_id: str = "", scope: str = "personal", db: Session 
                 "is_recon": bool(r[4]),
                 "team_id": r[5],
                 "mode": match_mode(bool(r[4]), r[5]),
+                "opponent": r[6] if bool(r[4]) else None,
             }
             for r in rows
         ]

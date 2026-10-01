@@ -10,10 +10,11 @@ route. FastAPI errors are `{detail: string | object}`; proxy-generated errors ar
 `{error: string, detail?: string}`. Datetimes are ISO strings without `Z`.
 
 ## Upload
-- `POST /api/upload` body `{filename, size_bytes?, team_id?, chunk_count?, is_recon?, fingerprint?}` →
+- `POST /api/upload` body `{filename, size_bytes?, team_id?, chunk_count?, is_recon?, opponent?, fingerprint?}` →
   `{job_id, match_id, duplicate:true, demo_status}` | `{job_id, match_id, upload_url, gcs_path, local_mode}` |
   `{job_id, match_id, upload_urls[], gcs_path, local_mode}`. Errors: 429 `{error, upgrade_url}` (monthly quota from Clerk
-  `publicMetadata.uploadsThisMonth`), 400, 413, 403 (team membership), 502.
+  `publicMetadata.uploadsThisMonth`), 400, 413, 403 (team membership), 502. `opponent` (≤80 chars) is kept only when
+  `is_recon` and lands on `matches.match_name`; match rows return it as `opponent`.
 - `POST /api/upload/compose` `{match_id, filename, chunk_count, team_id?}` → `{ok, match_id, gcs_uri}`.
 - `POST /api/upload/complete` `{match_id}` → `{ok, match_id}` (queues the parse).
 
@@ -48,19 +49,24 @@ route. FastAPI errors are `{detail: string | object}`; proxy-generated errors ar
 
 ## Teams
 - `GET /api/teams` → `[{team_id, name, invite_code, is_owner, created_at, member_count, logo_url}]`.
-- `POST /api/teams` `{name}` → `{team_id, name, invite_code}`.
+- `POST /api/teams` `{name}` → `{team_id, name, invite_code}`. 402 `{detail: {locked, tier_needed, …}}` without the Team
+  plan (the proxy adds `x-user-plan` from Clerk as the backend's fallback; the subscriptions table is the authority).
 - `GET /api/teams/[id]` → `{team_id, name, invite_code, owner_user_id, created_at, logo_url, members[{user_id, role:"owner"|"member", joined_at}]}`.
 - `PATCH /api/teams/[id]` `{name?, logo_url?}` → `{status:"updated"}` (403 non-captain). `DELETE` → `{status:"deleted"}` (owner only).
 - `POST /api/teams/[id]/logo` multipart `file` → `{logo_url}`.
-- `POST /api/teams/join` `{invite_code}` → `{team_id, name, status:"joined"}` (404 "Invalid invite code").
-- `GET /api/teams/[id]?view=analyses` → `[{match_id, map, status, created_at, user_id, is_recon, mode, total_rounds}]`.
+- `POST /api/teams/join` `{invite_code}` → `{team_id, name, status:"joined"}` (404 "Invalid invite code"). Never gated.
+- `DELETE /api/teams/[id]/members/[userId]` → `{status:"left"|"removed", user_id}`. Own id = leave (400 for the captain:
+  delete the team instead); another id = captain removes (403 for players); 404 when not a member.
+- `GET /api/teams/[id]?view=analyses` → `[{match_id, map, status, created_at, user_id, is_recon, mode, total_rounds, opponent}]`.
 
 ## Servers & training
 - `GET /api/servers/modes` → `{modes[{key, description, game_mode}], update_window_active, update_detail}`.
 - `GET /api/teams/[id]/servers` → `Server[] {id, status:"booting"|"active"|…, ip_address:"host:port"|null, rcon_password, server_password, mode, expires_at}`.
-- `POST /api/teams/[id]/servers` `{mode?, region?:"eu"|"na", map?}` → `Server`. Errors 400 (active server exists / bad mode), 402 `{detail: string}` (DatHost credits), 503 (Valve update window).
+- `POST /api/teams/[id]/servers` `{mode?, region?:"eu"|"na", map?}` → `Server`. Errors 400 (active server exists / bad mode), 402 `{detail: string}` (DatHost credits) or 402 `{detail: {locked, …}}` (no Team plan), 503 (Valve update window).
 - `DELETE /api/servers/[id]` → `{status:"terminated"}`.
-- `GET/POST /api/teams/[id]/training-sessions` → `{sessions[{id, team_id, user_id, server_id, mode, map_name, region, started_at, ended_at, duration_seconds, job_id}], total_sessions, total_seconds, favourite_mode, sessions_this_week}` / `Session`.
+- `GET /api/servers/[id]/console?lines=80` → `{lines: string[]}`; `POST` `{command}` (≤200 chars, one line) → `{ok, lines}`.
+  Team members only (403). 409 when the server is not booting/active, 503 for `local-`/`mock-` servers, 502 when DatHost errors.
+- `GET/POST /api/teams/[id]/training-sessions` (POST is 402 without the Team plan) → `{sessions[{id, team_id, user_id, server_id, mode, map_name, region, started_at, ended_at, duration_seconds, job_id}], total_sessions, total_seconds, favourite_mode, sessions_this_week}` / `Session`.
 
 ## Strats & stratbook
 - `GET /api/teams/[id]/strats` → `[{id, team_id, title, map_name, side:"T"|"CT", buy_type, status:"DRAFT"|"IN_REVIEW"|"ACTIVE"|"ARCHIVED", current_revision_id, discord_thread_id, created_by, created_at, updated_at}]`.

@@ -16,6 +16,8 @@ export type UploadPhase = "idle" | "preparing" | "compressing" | "uploading" | "
 export interface UploadTarget {
   teamId?: string | null;
   isRecon?: boolean;
+  /** Scouting only: names the dossier. */
+  opponent?: string | null;
 }
 
 export interface UploadState {
@@ -136,6 +138,7 @@ export function useDemoUpload(onSuccess?: () => void) {
           team_id: target.teamId ?? undefined,
           chunk_count: chunkCount,
           is_recon: Boolean(target.isRecon),
+          opponent: target.isRecon && target.opponent ? target.opponent : undefined,
           fingerprint,
         });
         if (presigned.duplicate) {

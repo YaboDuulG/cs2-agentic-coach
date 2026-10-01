@@ -128,6 +128,8 @@ export interface MatchRow {
   is_recon: boolean;
   team_id: string | null;
   mode: MatchMode;
+  /** Scouting rows only: who the dossier is about (matches.match_name). */
+  opponent?: string | null;
 }
 
 const isActive = (s: string | null | undefined) => !!s && !["complete", "done", "parsed", "failed"].includes(s.toLowerCase());
@@ -329,6 +331,20 @@ export function useDeleteTeam(teamId: string) {
   });
 }
 
+/** Leave (memberId = own id) or, as captain, remove a member. */
+export function useRemoveMember(teamId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (memberId: string) => {
+      const res = await fetch(`/api/teams/${teamId}/members/${encodeURIComponent(memberId)}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new HttpError(messageOf(data, "Could not update the roster."), res.status, data);
+      return data as { status: "left" | "removed"; user_id: string };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["teams"] }),
+  });
+}
+
 export function useUploadTeamLogo(teamId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -382,6 +398,24 @@ export function useCreateServer(teamId: string) {
   return useMutation({
     mutationFn: (body: { mode: string; region: "eu" | "na"; map?: string }) => sendJson<Server>(`/api/teams/${teamId}/servers`, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["teams", teamId, "servers"] }),
+  });
+}
+
+export function useServerConsole(serverId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["servers", serverId, "console"],
+    queryFn: () => getJson<{ lines: string[] }>(`/api/servers/${serverId}/console?lines=80`),
+    enabled: Boolean(serverId) && enabled,
+    refetchInterval: 10_000,
+    retry: false,
+  });
+}
+
+export function useSendConsole(serverId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (command: string) => sendJson<{ ok: boolean; lines: string[] }>(`/api/servers/${serverId}/console`, { command }),
+    onSuccess: (data) => qc.setQueryData(["servers", serverId, "console"], { lines: data.lines }),
   });
 }
 

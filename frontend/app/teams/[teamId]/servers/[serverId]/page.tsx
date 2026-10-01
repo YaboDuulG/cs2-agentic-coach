@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import { CopyButton } from "@/components/teams/CopyButton";
+import { ServerConsole } from "@/components/teams/ServerConsole";
 import { trainingModeLabel } from "@/components/teams/trainingModes";
 import { expiresIn, isServerRunning } from "@/components/teams/util";
 import { Badge, Button, Card, CardHeader, EmptyState, Modal, PageHeader, SkeletonRows, toast } from "@/components/ui";
@@ -154,7 +155,7 @@ export default function ServerPage({ params }: { params: Promise<{ teamId: strin
         </Card>
 
         <Card>
-          <CardHeader title="RCON" description="For raw server commands from the console: rcon_password, then rcon <command>." />
+          <CardHeader title="Console" description="Run server commands from here, or from the in-game console with rcon_password then rcon <command>." />
           <div className="flex flex-wrap items-center gap-2">
             <code className="surface-2 num px-3 py-2 text-sm">{showRcon ? server.rcon_password : "•".repeat(Math.min(16, server.rcon_password.length || 8))}</code>
             <Button size="sm" variant="ghost" onClick={() => setShowRcon((v) => !v)} aria-pressed={showRcon}>
@@ -163,9 +164,7 @@ export default function ServerPage({ params }: { params: Promise<{ teamId: strin
             </Button>
             <CopyButton text={`rcon_password ${server.rcon_password}`} label="Copy rcon_password" />
           </div>
-          <p className="mt-3 text-[12px]" style={{ color: "var(--color-text-3)" }}>
-            The RCON console is not available here yet; use the in-game console.
-          </p>
+          <ServerConsole serverId={server.id} enabled={live && !booting} />
         </Card>
 
         <Card className="lg:col-span-2">

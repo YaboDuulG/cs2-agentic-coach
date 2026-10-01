@@ -12,11 +12,27 @@ import logging
 import os
 import uuid
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import text
 
+from services.billing import (
+    Entitlement,
+    effective_entitlements,
+    invalidate_user,
+    upgrade_metadata,
+)
+
 logger = logging.getLogger(__name__)
+
+
+def require_team_plan(db: Session, request: Request, user_id: str, team_id: str | None = None) -> None:
+    """Hard gate for Team features: 402 with upgrade metadata when the caller
+    has no team_analysis entitlement (own plan, trial, or seat on a team whose
+    owner holds the season). The x-user-plan header is the Clerk fallback."""
+    ents = effective_entitlements(db, user_id, request.headers.get("x-user-plan"), team_id)
+    if Entitlement.TEAM_ANALYSIS not in ents:
+        raise HTTPException(status_code=402, detail=upgrade_metadata(Entitlement.TEAM_ANALYSIS))
 router = APIRouter()
 
 
@@ -40,10 +56,12 @@ class JoinTeamRequest(BaseModel):
 
 
 @router.post("", summary="Create a new team")
-async def create_team(body: CreateTeamRequest, db: Session = Depends(get_session)):
-    """Docstring for create_team."""
+async def create_team(body: CreateTeamRequest, request: Request, db: Session = Depends(get_session)):
+    """Create a team. Team is a hard paywall: the creator needs the Team plan
+    (joining by invite code stays open so seats inherit the owner's season)."""
     if not body.name.strip():
         raise HTTPException(status_code=400, detail="Team name cannot be empty")
+    require_team_plan(db, request, body.user_id)
 
     team_id = str(uuid.uuid4())
     # 8-char uppercase invite code
@@ -172,7 +190,7 @@ async def team_analyses(team_id: str, user_id: str = "", db: Session = Depends(g
             text("""
                     SELECT m.match_id, d.map_name, d.status, m.created_at, m.user_id,
                            (SELECT COUNT(*) FROM rounds r WHERE r.demo_id = m.demo_id) AS total_rounds,
-                           m.is_recon
+                           m.is_recon, m.match_name
                     FROM matches m
                     JOIN demos d ON d.demo_id = m.demo_id
                     WHERE m.team_id = :team_id
@@ -192,6 +210,7 @@ async def team_analyses(team_id: str, user_id: str = "", db: Session = Depends(g
                 "total_rounds": r[5],
                 "is_recon": bool(r[6]),
                 "mode": "scouting" if r[6] else "team",
+                "opponent": r[7] if r[6] else None,
             }
             for r in rows
         ]
@@ -379,6 +398,51 @@ async def delete_team(team_id: str, user_id: str = "", db: Session = Depends(get
     except Exception as e:
         logger.error(f"Failed to delete team {team_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete team")
+
+
+@router.delete("/{team_id}/members/{member_user_id}", summary="Leave a team or remove a member")
+async def remove_member(
+    team_id: str, member_user_id: str, user_id: str = "", db: Session = Depends(get_session)
+):
+    """A member removes themselves (leave); the owner removes anyone else.
+    The owner cannot leave: delete the team instead."""
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID is required")
+    try:
+        team = db.execute(
+            text("SELECT owner_user_id FROM teams WHERE id = :id"), {"id": team_id}
+        ).fetchone()
+        if not team:
+            raise HTTPException(status_code=404, detail="Team not found")
+        owner_id = team[0]
+
+        target = db.execute(
+            text("SELECT id FROM team_members WHERE team_id = :tid AND user_id = :uid"),
+            {"tid": team_id, "uid": member_user_id},
+        ).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="Not a member of this team")
+
+        leaving = member_user_id == user_id
+        if leaving and user_id == owner_id:
+            raise HTTPException(
+                status_code=400, detail="The captain cannot leave; delete the team instead"
+            )
+        if not leaving and user_id != owner_id:
+            raise HTTPException(status_code=403, detail="Only the captain can remove members")
+
+        db.execute(
+            text("DELETE FROM team_members WHERE team_id = :tid AND user_id = :uid"),
+            {"tid": team_id, "uid": member_user_id},
+        )
+        db.commit()
+        invalidate_user(member_user_id)  # seat inheritance ends with the membership
+        return {"status": "left" if leaving else "removed", "user_id": member_user_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to remove member from team {team_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update the roster")
 
 
 class CreateStrategyRequest(BaseModel):
