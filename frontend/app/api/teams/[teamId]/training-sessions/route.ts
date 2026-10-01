@@ -12,7 +12,8 @@ export async function GET(
 
   const { teamId } = await params;
   try {
-    const res = await fetch(`${API_URL}/api/teams/${teamId}/training-sessions`, {
+    // The backend reads the member id from the query string, not the header.
+    const res = await fetch(`${API_URL}/api/teams/${teamId}/training-sessions?user_id=${userId}`, {
       headers: {
         Authorization: `Bearer ${process.env.API_SHARED_SECRET}`, "x-clerk-user-id": userId },
       cache: "no-store",
@@ -36,7 +37,7 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
 
   try {
-    const res = await fetch(`${API_URL}/api/teams/${teamId}/training-sessions`, {
+    const res = await fetch(`${API_URL}/api/teams/${teamId}/training-sessions?user_id=${userId}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

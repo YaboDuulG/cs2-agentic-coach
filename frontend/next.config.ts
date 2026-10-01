@@ -4,7 +4,15 @@ const nextConfig: NextConfig = {
   async redirects() {
     // The navbar calls it "Pricing"; the page lives at /billing. Catch the URL
     // people will actually type.
-    return [{ source: "/pricing", destination: "/billing", permanent: false }];
+    return [
+      { source: "/pricing", destination: "/billing", permanent: false },
+      // Routes removed in the 2026-10 rewrite; keep old links working.
+      { source: "/coach", destination: "/teams", permanent: false },
+      { source: "/admin", destination: "/settings/admin", permanent: false },
+      { source: "/onboarding", destination: "/settings", permanent: false },
+      { source: "/scouting", destination: "/teams", permanent: false },
+      { source: "/matches/:id((?!.*\\.).*)", destination: "/analysis/:id", permanent: false },
+    ];
   },
   async headers() {
     return [

@@ -21,6 +21,28 @@ Decisions already taken by the owner, not reopened here:
   entitlements (seat inheritance already exists in `services/billing/entitlements.py`).
 - `/settings/admin` returns 404 to non-admins.
 
+## 0. Status (2026-10-01): executed as a clean rewrite
+
+The owner chose a rewrite over the incremental workstreams: "clear the entire frontend
+and do a rewrite". Everything under `frontend/app` and `frontend/components` was
+deleted and rebuilt from §2 and §6 on branch `frontend-rewrite`, keeping only the
+proxy routes (`app/api/**`), the API types (`lib/api/client.ts`), the playback store,
+`components/minimap/*` and the e2e suites. What landed, by workstream:
+
+| # | Outcome |
+|---|---|
+| W0 | Done. `/coach`, `/admin`, `/onboarding`, `/matches/[id]`, `/scouting`, `/profile` are redirects in `next.config.ts`; `/settings/admin` 404s for non-admins. |
+| B1 | `mode` on match rows, `stage` / `coach_status` / `coach_error` on jobs: done in `api/routes/{analyses,jobs,teams}.py`. Server-side `require_entitlement(TEAM_ANALYSIS)` on team create and server routes is still **open**; the UI gates it client-side via `/api/billing/entitlements`. |
+| W1 | Done. `lib/api/hooks.ts` is the only data layer (TanStack Query, `HttpError`); no event buses, no `localStorage.coaching_mode`. |
+| W2 | Done. `components/upload/{UploadModal,ModePicker,DropZone}` + `lib/upload/useDemoUpload.ts`; `preset` prop; the Team Hub and Opponents tab pre-select. |
+| W3 | Done. `components/shell/*`, `PageHeader`, `Tabs`, `/matches`, `/settings` (Profile · Appearance · Plan), Team Hub with Overview · Opponents · Stratbook · Coach · Settings, `/teams` paywall card. |
+| W4 | Done. `globals.css` (`:root` CS2, `[data-theme=csgo]`, `[data-theme=khan]`), `lib/theme/*`, `components/identity/*`; theme in the navbar palette button, the mobile sheet and Settings → Appearance. |
+| W5 | Done. `components/debrief/*` (17 files, pure derivations in `derive.ts`), three-stage state machine, Recharts economy line, HTML opening-duel bars, SVG kill map. |
+| W6 | Partly. The capture specs assert no horizontal scroll and no page errors and run against localhost or the deployed app; the theme test switches all three. Not yet on a CI schedule; no 11px lint rule. |
+
+§5 "what this does not do" is stale on one point: the Team Hub *was* rewritten, since
+nothing of the old tree survived. Its five tabs follow §6.7.
+
 ## 1. Why one pass
 
 The review produced about fifty findings. They collapse into six root causes. Fixing a

@@ -1,103 +1,64 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "./Button";
 
 export interface ModalProps {
   open: boolean;
   onClose: () => void;
-  children: React.ReactNode;
-  /** Accessible name for the dialog. */
-  label: string;
-  panelClassName?: string;
-  showClose?: boolean;
+  /** Accessible name; rendered as the heading unless `hideTitle`. */
+  title: ReactNode;
+  description?: ReactNode;
+  hideTitle?: boolean;
+  children: ReactNode;
+  size?: "sm" | "md" | "lg";
+  className?: string;
 }
 
-type State = "closed" | "open" | "closing";
+const widths = { sm: "max-w-md", md: "max-w-xl", lg: "max-w-3xl" } as const;
 
-/**
- * Centered dialog. Enters at scale(0.96)+fade over 240ms with a strong
- * ease-out, exits faster (160ms). CSS transitions, not keyframes, so a rapid
- * open/close retargets instead of restarting; transform-origin stays centered
- * because modals aren't anchored to a trigger. Reduced motion drops the scale
- * and keeps the fade (see globals.css).
- */
-export function Modal({ open, onClose, children, label, panelClassName, showClose = true }: ModalProps) {
-  const [state, setState] = useState<State>(open ? "open" : "closed");
-  const panelRef = useRef<HTMLDivElement>(null);
-  const restoreFocusRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    // State changes happen in a rAF callback: the panel gets one paint in its
-    // hidden base styles before "open" lands, so the entrance transitions.
-    if (open) {
-      restoreFocusRef.current = document.activeElement as HTMLElement | null;
-      const raf = requestAnimationFrame(() => setState("open"));
-      return () => cancelAnimationFrame(raf);
-    }
-    const raf = requestAnimationFrame(() =>
-      setState(prev => (prev === "closed" ? prev : "closing")),
-    );
-    return () => cancelAnimationFrame(raf);
-  }, [open]);
-
-  const finishClose = useCallback(() => {
-    setState(prev => (prev === "closing" ? "closed" : prev));
-    restoreFocusRef.current?.focus?.();
-  }, []);
-
-  // Escape closes; body scroll locks while open.
-  useEffect(() => {
-    if (state !== "open") return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKeyDown);
-    panelRef.current?.focus();
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [state, onClose]);
-
-  if (state === "closed" && !open) return null;
-
+export function Modal({ open, onClose, title, description, hideTitle, children, size = "md", className }: ModalProps) {
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-      data-state={state}
-    >
-      <div className="ds-modal-backdrop" onClick={onClose} aria-hidden="true" />
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-        tabIndex={-1}
-        onTransitionEnd={e => {
-          if (!open && e.target === e.currentTarget && e.propertyName === "opacity") finishClose();
-        }}
-        className={cn(
-          "ds-modal-panel card-elevated w-full max-w-[580px] p-6 md:p-8 overflow-hidden focus:outline-none",
-          panelClassName,
-        )}
-      >
-        {showClose && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
+    <Dialog.Root open={open} onOpenChange={(o) => (o ? undefined : onClose())}>
+      <Dialog.Portal>
+        <Dialog.Overlay
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] data-[state=open]:animate-[enter_var(--dur-fast)_var(--ease-out)]"
+        />
+        <Dialog.Content
+          className={cn(
+            "surface fixed left-1/2 top-1/2 z-50 w-[calc(100%-2*var(--gutter))] -translate-x-1/2 -translate-y-1/2 p-6 outline-none",
+            "max-h-[calc(100dvh-32px)] overflow-y-auto",
+            widths[size],
+            className,
+          )}
+          style={{ boxShadow: "var(--shadow-pop)" }}
+        >
+          <div className={cn("mb-4 flex items-start justify-between gap-4", hideTitle && "sr-only")}>
+            <div>
+              <Dialog.Title asChild>
+                <h2 className="text-lg">{title}</h2>
+              </Dialog.Title>
+              {description ? (
+                <Dialog.Description className="mt-1 text-sm" style={{ color: "var(--color-text-2)" }}>
+                  {description}
+                </Dialog.Description>
+              ) : (
+                <Dialog.Description className="sr-only">{typeof title === "string" ? title : "Dialog"}</Dialog.Description>
+              )}
+            </div>
+          </div>
+          <Dialog.Close
+            className="absolute right-3 top-3 rounded-(--radius-sm) p-1.5 transition-colors duration-[var(--dur-fast)] hover:bg-(--color-surface-2)"
             aria-label="Close"
-            className="absolute top-4 right-4 rounded-xl"
+            style={{ color: "var(--color-text-2)" }}
           >
-            <X size={18} />
-          </Button>
-        )}
-        {children}
-      </div>
-    </div>
+            <X size={16} />
+          </Dialog.Close>
+          {children}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

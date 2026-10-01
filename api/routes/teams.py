@@ -166,11 +166,15 @@ async def team_analyses(team_id: str, user_id: str = "", db: Session = Depends(g
             if not member:
                 raise HTTPException(status_code=403, detail="Not a member of this team")
 
+        # Map, status and rounds live on the shared demo since the demo/match
+        # split; the old query read dropped columns and always returned [].
         rows = db.execute(
             text("""
-                    SELECT m.match_id, m.map_name, m.status, m.created_at, m.user_id,
-                           m.total_rounds
+                    SELECT m.match_id, d.map_name, d.status, m.created_at, m.user_id,
+                           (SELECT COUNT(*) FROM rounds r WHERE r.demo_id = m.demo_id) AS total_rounds,
+                           m.is_recon
                     FROM matches m
+                    JOIN demos d ON d.demo_id = m.demo_id
                     WHERE m.team_id = :team_id
                     ORDER BY m.created_at DESC
                     LIMIT 50
@@ -182,10 +186,12 @@ async def team_analyses(team_id: str, user_id: str = "", db: Session = Depends(g
             {
                 "match_id": r[0],
                 "map": r[1],
-                "status": r[2],
+                "status": str(r[2]).lower() if r[2] else None,
                 "created_at": r[3].isoformat() if r[3] else None,
                 "user_id": r[4],
                 "total_rounds": r[5],
+                "is_recon": bool(r[6]),
+                "mode": "scouting" if r[6] else "team",
             }
             for r in rows
         ]

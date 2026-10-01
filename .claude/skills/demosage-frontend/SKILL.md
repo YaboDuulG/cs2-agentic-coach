@@ -6,37 +6,54 @@ description: Use when building, reviewing, or refactoring anything under fronten
 # DemoSage frontend
 
 Source of truth, in precedence order: the user's words → `frontend/FRONTEND_REFACTOR_PLAN.md`
-(the plan: target IA, upload flow, theme slots, shell, debrief) → `frontend/DESIGN_PLAN.md`
-(design system) → `frontend/UX_REVIEW.md` (evidence: findings and capture specs) → this file.
+(target IA, upload flow, theme slots, shell, debrief; §6 is the page map the rewrite was
+built from) → `app/globals.css` (the tokens as shipped) → `frontend/UX_REVIEW.md`
+(the pre-rewrite evidence) → this file. `frontend/DESIGN_PLAN.md` predates the rewrite;
+where it disagrees with `globals.css`, the CSS wins.
+
+The frontend was rewritten from scratch on 2026-10-01 (branch `frontend-rewrite`). Every
+page, primitive and theme file is new; only `app/api/**`, `lib/api/client.ts`,
+`lib/stores/playback.ts`, `components/minimap/*` and the e2e suites carried over.
 
 ## Non-negotiables
 
 1. **Colors come from tokens.** `var(--color-…)` from `app/globals.css`, never a literal
    hex, never Tailwind palette classes (`slate-*`, `neutral-*`, `blue-500`). Three themes
-   switch on `[data-theme]`; a literal breaks two of them. Side colors are
-   `--color-ct` / `--color-t`. Gold (`--color-accent-secondary`) means rank or
-   achievement; blue (`--color-accent-primary`) means action; `--color-danger` means
-   death or error, never decoration.
-2. **Fonts by role.** `var(--font-heading)` for page titles and section headings only,
-   `var(--font-body)` for prose, `var(--font-mono)` for every number (economy, K/D,
-   ticks, rounds, timers). Data labels never below 11px.
-3. **Primitives first.** `components/ui`: `Button`, `Card`, `Modal`, `Progress`,
-   `Spinner`, `Toast`, `PageTransition`, `PageSection`. No shadcn, no new UI library.
-   Errors go through `toast()`, never `alert()`.
+   switch on `[data-theme]` (`:root` = CS2, `csgo`, `khan`); a literal breaks two of
+   them. Side colors are `--color-ct` / `--color-t` and never change per theme.
+   `--color-accent` means action; `--color-rank` (gold) means rank, achievement or the
+   Team tier; `--color-focus` is links and focus rings; `--color-good` / `--color-warning`
+   / `--color-danger` are status only (danger = death or error, never decoration).
+   Allowed literals: canvas fallbacks in `components/minimap`, theme swatches in
+   `lib/theme/config.ts`, and the Clerk `appearance.variables` in `app/layout.tsx`.
+2. **Fonts by role.** `var(--font-heading)` for page titles and section headings only
+   (the `h1`–`h4` rule in `globals.css` applies it), `var(--font-body)` for prose, and
+   the `num` class (`--font-mono`, tabular) for every number: economy, K/D, ticks,
+   rounds, timers, ids. Data labels never below 11px; `eyebrow` is the small-caps label.
+3. **Primitives first.** `components/ui` (one barrel, `@/components/ui`): `Button`
+   (`asChild` for links, `loading`), `Card`/`CardHeader`, `Badge`/`ModeBadge`/`GradeChip`,
+   `Modal` (Radix), `Tabs`, `PageHeader`, `Field` (Input/Select/Textarea/Label/Switch),
+   `Feedback` (Skeleton, EmptyState, Notice, Stat, ProgressBar), `Toast`. CSS utilities:
+   `surface`, `surface-2`, `hairline`, `container-app`, `enter`, `link`. No shadcn, no new
+   UI library. Errors go through `toast()`, never `alert()`.
 4. **Motion budget.** Transitions name properties (no `transition-all`), under 300ms,
-   `--ease-out`, never ease-in. One page-enter fade-up via `PageTransition`; the only
-   orchestrated moment is `SoyomboProgress` on the waiting screen. Content must be
-   visible at rest — never leave sections at `opacity: 0` waiting for `whileInView`.
-   Respect `prefers-reduced-motion`.
+   `--ease-out`, never ease-in. One page-enter fade-up via the `enter` class; the only
+   orchestrated moment is `ProgressMark` on the waiting screen (three identity marks,
+   one per theme). Content must be visible at rest — never leave sections at
+   `opacity: 0` waiting for `whileInView`. Respect `prefers-reduced-motion`.
 5. **Data flow.** Server routes under `app/api/*` attach auth and the shared secret;
    components never call FastAPI directly. New reads go through TanStack Query hooks in
    `lib/api/hooks.ts`, not hand-rolled `useEffect` poll loops. Playback tick state lives in
    the Zustand store (`lib/stores/playback.ts`), never in React state.
 6. **Gating is server-driven.** Components render the shape the server sent (full,
    redacted, teaser). No client-side hiding of paid content.
-7. **Mode belongs to the match**, not to a global preference. Do not add readers of
-   `localStorage.coaching_mode` or the `coachingModeChange` event; FRONTEND_REFACTOR_PLAN
-   W1/W2 remove them and put the choice in the upload modal's mode picker.
+7. **Mode belongs to the match**, not to a global preference. The upload modal's mode
+   picker sends `team_id` / `is_recon`; the server derives `mode` and returns it on every
+   match row. There is no global toggle, no `localStorage.coaching_mode`, no window
+   event bus. Do not reintroduce any of them.
+8. **No `setState` inside `useEffect`.** The lint rule `react-hooks/set-state-in-effect`
+   is an error here. Derive state during render, key a component to remount it (see
+   `UploadModal`), or subscribe with `useSyncExternalStore` (see `Toast`, `useTheme`).
 
 ## Page rules
 
@@ -60,17 +77,25 @@ Run this on any frontend diff before calling it done:
       fixed categorical order from tokens, no radar for counts, a legend for ≥2 series,
       status colors only for status.
 - [ ] Full-page screenshot at 1440 and 390 shows everything (nothing hidden behind a
-      scroll-triggered animation); no horizontal scroll.
+      scroll-triggered animation); no horizontal scroll. Locally: start
+      `next dev` with the Clerk DEV keys from `.env.e2e`, then
+      `PLAYWRIGHT_BASE_URL=http://localhost:3000 npx playwright test --project=shots
+      --project=shots-mobile --project=team-shots --project=team-shots-mobile`
+      (`E2E_EMAIL=<existing test user>` to reuse a user that owns a team).
 - [ ] For a chart or dashboard change, load the `dataviz` skill first; for a new page,
       load `artifact-design` for the fundamentals even though nothing is published.
 
-## Where things are
+## Where things are (after the 2026-10 rewrite)
 
 | Concern | Path |
 |---|---|
-| Tokens, themes, motion vars | `app/globals.css`, `lib/theme-config.ts`, `lib/themes.ts` |
-| Nav and upload entry | `components/Navbar.tsx`, `components/UploadModal.tsx`, `components/UploadZone.tsx` |
-| Debrief | `app/analysis/[jobId]/page.tsx` (being split into `components/debrief/*`), `components/analysis/*` |
-| Paywall shapes | `components/paywall/*`, `lib/api/client.ts` (`ReportV2`, `PaywalledPreview`) |
-| Replay (beta) | `app/analysis/[jobId]/replay`, `components/minimap/*` |
-| E2E | `e2e/*.spec.ts`, runs against the deployed app unless `PLAYWRIGHT_BASE_URL` is set |
+| Tokens, three themes, motion vars | `app/globals.css` (`:root` = CS2, `[data-theme=csgo]`, `[data-theme=khan]`), `lib/theme/config.ts`, `lib/theme/useTheme.ts` |
+| Primitives | `components/ui/*` (Button, Card, Badge/ModeBadge/GradeChip, Modal, Tabs, PageHeader, Field, Feedback, Toast) |
+| Identity per theme | `components/identity/*` (BrandMark, ProgressMark, Ambience, ThemePicker) |
+| Shell | `app/layout.tsx`, `components/shell/*` (Navbar, Footer, Providers, ReferralRedeemer) |
+| Data layer | `lib/api/hooks.ts` (every read/mutation), `lib/api/client.ts` (types), `lib/api/contract.md` (what each proxy returns) |
+| Upload | `components/upload/*` (UploadModal with ModePicker + DropZone), `lib/upload/useDemoUpload.ts` |
+| Pages | `app/page.tsx` (Landing / Home in `components/home`), `app/matches`, `app/analysis/[jobId]` (+ `components/debrief/*`), `app/teams` (+ `components/teams/*`), `app/stratbook` (+ `components/stratbook/*`), `app/settings` (+ `components/settings/*`), `app/settings/admin` (+ `components/admin/*`), `app/billing` |
+| Paywall | `components/paywall/UpgradeModal.tsx`; gating shapes in `lib/api/client.ts` (`ReportV2`, `PaywalledPreview`) |
+| Replay (beta) | `app/analysis/[jobId]/replay`, `components/minimap/*`, `lib/stores/playback.ts` |
+| E2E | `e2e/*.spec.ts`; base URL `https://demo-sage.me` unless `PLAYWRIGHT_BASE_URL` is set; `shots*` projects assert no horizontal scroll and no page errors |

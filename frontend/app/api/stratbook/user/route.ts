@@ -25,7 +25,8 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const res = await fetch(`${API_URL}/api/stratbook/user?user_id=${userId}`, {
+  // The backend lists per user at /user/{user_id}; the bare /user path is POST-only.
+  const res = await fetch(`${API_URL}/api/stratbook/user/${encodeURIComponent(userId)}`, {
     cache: "no-store",
     headers: { Authorization: `Bearer ${process.env.API_SHARED_SECRET}` },
   });

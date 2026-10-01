@@ -42,7 +42,7 @@ export function TickScrubber({
           onChange={(e) => setTick(Number(e.target.value))}
           aria-label="Seek playback tick"
           className="w-full cursor-pointer"
-          style={{ accentColor: "var(--color-accent-primary)" }}
+          style={{ accentColor: "var(--color-accent)" }}
         />
         {/* Kill notches under the track */}
         <div className="pointer-events-none relative h-1.5" aria-hidden="true">
@@ -58,7 +58,7 @@ export function TickScrubber({
           ))}
         </div>
       </div>
-      <div className="mt-1 flex justify-between font-mono text-xs text-[var(--color-text-muted)]">
+      <div className="mt-1 flex justify-between font-mono text-xs text-[var(--color-text-3)]">
         <span>{formatTime((tick - minTick) / rate)}</span>
         <span>{formatTime(span / rate)}</span>
       </div>

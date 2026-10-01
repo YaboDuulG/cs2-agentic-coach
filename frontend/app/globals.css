@@ -1,525 +1,308 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   DemoSage design tokens.
+
+   Three themes switch on [data-theme] on <html>. The bare :root is the CS2
+   theme (the default); "csgo" and "khan" override tokens only. Components
+   never use literal colours: every colour is a token here, every number is
+   --font-mono, every heading is --font-heading.
+
+   Fixed across themes on purpose: side colours (--color-ct / --color-t) and
+   status colours. Side colour is data, not brand (dataviz rule: colour follows
+   the entity). Status colours mean good/warning/danger only.
+   ========================================================================== */
+
 @layer base {
   :root {
-    /* ==========================================
-       THE GREAT KHAN (Default Theme)
-       Eternal Blue Sky, Gold Authority
-    ========================================== */
-    --color-bg-primary: #050C15;
-    --color-bg-secondary: #08152A;
-    --color-bg-card: rgba(8, 20, 40, 0.8);
-    --color-bg-elevated: rgba(13, 30, 60, 0.9);
+    /* ---- CS2 (default): slate surfaces, signal orange ---- */
+    --color-bg: #0b0f14;
+    --color-bg-2: #0f151c;
+    --color-surface: #141b24;
+    --color-surface-2: #1a232e;
+    --color-line: #263240;
+    --color-line-strong: #34445a;
 
-    --color-accent-primary: #2D7DD2;
-    --color-accent-secondary: #C9A227;
-    --color-accent-electric: #38BDF8;
-    --color-accent-glow: rgba(45, 125, 210, 0.3);
-    --color-accent-soft: rgba(45, 125, 210, 0.12);
-    --color-secondary-soft: rgba(201, 162, 39, 0.12);
+    --color-text: #e9eef4;
+    --color-text-2: #a7b4c3;
+    --color-text-3: #6b7a8c;
 
-    --color-text-primary: #F0F4FF;
-    --color-text-secondary: #8BA7CC;
-    --color-text-muted: #4A6080;
+    --color-accent: #f2a33a;          /* action */
+    --color-accent-hover: #ffb64f;
+    --color-accent-ink: #1a1206;      /* text on accent */
+    --color-accent-soft: rgba(242, 163, 58, 0.14);
+    --color-focus: #6db3f2;           /* focus rings, links, "electric" */
+    --color-rank: #e8c547;            /* grades, achievements — never actions */
 
-    --color-border-primary: rgba(45, 125, 210, 0.2);
-    --color-border-secondary: rgba(201, 162, 39, 0.15);
-    --color-border-strong: rgba(45, 125, 210, 0.4);
+    --color-ct: #5e98d9;
+    --color-t: #e8b14b;
+    --color-good: #35d399;
+    --color-warning: #f59e0b;
+    --color-danger: #ff5c7a;
 
-    --color-ct: #2D7DD2;
-    --color-t: #C9A227;
-    --color-success: #22D3A0;
-    --color-warning: #F59E0B;
-    --color-danger: #FF4D6D;
+    --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
 
-    --gradient-hero: linear-gradient(135deg, #050C15 0%, #0A1628 50%, #0D2040 100%);
-    --gradient-card: linear-gradient(135deg, rgba(13, 28, 52, 0.9), rgba(8, 20, 40, 0.95));
-    --gradient-accent: linear-gradient(135deg, #1B4F8A, #2D7DD2);
-    --gradient-gold: linear-gradient(135deg, #8B6914, #C9A227, #E8B94F);
+    --font-heading: var(--font-barlow), "Inter", system-ui, sans-serif;
+    --font-body: var(--font-inter), system-ui, sans-serif;
+    --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, monospace;
+    --heading-case: none;
+    --heading-tracking: -0.01em;
+    --heading-weight: 600;
 
-    --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(45, 125, 210, 0.1);
-    --shadow-glow: 0 0 40px rgba(45, 125, 210, 0.15);
-    --shadow-gold: 0 0 20px rgba(201, 162, 39, 0.2);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
 
-    /* Identity fonts are per-theme: the Khan speaks in Cinzel. */
-    --font-heading: var(--font-cinzel), serif;
-    --font-body: var(--font-inter), sans-serif;
-    --font-mono: var(--font-jetbrains), monospace;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --dur-press: 120ms;
+    --dur-fast: 160ms;
+    --dur-base: 220ms;
+
+    --nav-h: 56px;
+    --gutter: 16px;
+    --content-w: 1200px;
+
+    color-scheme: dark;
+  }
+
+  [data-theme="csgo"] {
+    /* ---- Global Offensive: near-black, Global orange, condensed caps ---- */
+    --color-bg: #0a0a0a;
+    --color-bg-2: #101010;
+    --color-surface: #161616;
+    --color-surface-2: #1f1f1f;
+    --color-line: #2a2a2a;
+    --color-line-strong: #3a3a3a;
+
+    --color-text: #f3efe6;
+    --color-text-2: #b6b0a3;
+    --color-text-3: #776f63;
+
+    --color-accent: #f58b1f;
+    --color-accent-hover: #ff9d3f;
+    --color-accent-ink: #1a0f04;
+    --color-accent-soft: rgba(245, 139, 31, 0.14);
+    --color-focus: #7fc4ff;
+    --color-rank: #e3c15a;
+
+    --font-heading: var(--font-barlow-condensed), "Barlow", system-ui, sans-serif;
+    --heading-case: uppercase;
+    --heading-tracking: 0.04em;
+    --heading-weight: 600;
+
+    --radius-sm: 3px;
+    --radius-md: 4px;
+    --radius-lg: 6px;
+    --radius-xl: 8px;
+  }
+
+  [data-theme="khan"] {
+    /* ---- The Great Khan: eternal blue sky, gold authority ---- */
+    --color-bg: #050c15;
+    --color-bg-2: #08152a;
+    --color-surface: #0b1a30;
+    --color-surface-2: #102340;
+    --color-line: rgba(45, 125, 210, 0.22);
+    --color-line-strong: rgba(45, 125, 210, 0.45);
+
+    --color-text: #f0f4ff;
+    --color-text-2: #8ba7cc;
+    --color-text-3: #4a6080;
+
+    --color-accent: #2d7dd2;
+    --color-accent-hover: #4a94e0;
+    --color-accent-ink: #ffffff;
+    --color-accent-soft: rgba(45, 125, 210, 0.14);
+    --color-focus: #38bdf8;
+    --color-rank: #c9a227;
+
+    --font-heading: var(--font-cinzel), Georgia, serif;
+    --heading-case: none;
+    --heading-tracking: 0.02em;
+    --heading-weight: 700;
 
     --radius-sm: 6px;
     --radius-md: 12px;
     --radius-lg: 18px;
     --radius-xl: 24px;
-
-    /* ==========================================
-       Motion tokens — strong curves, sub-300ms UI.
-       Built-in CSS easings are too weak; never ease-in on UI.
-    ========================================== */
-    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
-    --dur-press: 140ms;
-    --dur-fast: 180ms;
-    --dur-base: 220ms;
-    --dur-modal: 240ms;
   }
 
-  [data-theme='purple-void'] {
-    /* ==========================================
-       PURPLE VOID
-       Deep Space Purple, Electric Violet
-    ========================================== */
-    --color-bg-primary: #0A0612;
-    --color-bg-secondary: #110820;
-    --color-bg-card: rgba(16, 8, 30, 0.85);
-    --color-bg-elevated: rgba(28, 12, 50, 0.95);
-
-    --color-accent-primary: #7C3AED;
-    --color-accent-secondary: #D946EF;
-    --color-accent-electric: #A78BFA;
-    --color-ct: #4A90E2;
-    --color-t: #E58E26;
-    --color-accent-glow: rgba(124, 58, 237, 0.35);
-    --color-accent-soft: rgba(124, 58, 237, 0.12);
-    --color-secondary-soft: rgba(217, 70, 239, 0.12);
-
-    --color-text-primary: #F5F0FF;
-    --color-text-secondary: #9B8EC4;
-    --color-text-muted: #5B4E7A;
-
-    --color-border-primary: rgba(124, 58, 237, 0.25);
-    --color-border-secondary: rgba(217, 70, 239, 0.15);
-    --color-border-strong: rgba(124, 58, 237, 0.45);
-
-    --gradient-hero: linear-gradient(135deg, #0A0612 0%, #150A28 50%, #1E0A3C 100%);
-    --gradient-card: linear-gradient(135deg, rgba(22, 10, 42, 0.9), rgba(16, 8, 30, 0.95));
-    --gradient-accent: linear-gradient(135deg, #5B21B6, #7C3AED);
-    --gradient-gold: linear-gradient(135deg, #A855F7, #D946EF);
-
-    --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(124, 58, 237, 0.15);
-    --shadow-glow: 0 0 40px rgba(124, 58, 237, 0.2);
-    --shadow-gold: 0 0 20px rgba(217, 70, 239, 0.25);
-
-    /* No imperial serif outside the Khan theme. */
-    --font-heading: var(--font-inter), sans-serif;
-  }
-
-  [data-theme='tactical'] {
-    /* ==========================================
-       TACTICAL COMMAND
-       Gunmetal, Tactical Green
-    ========================================== */
-    --color-bg-primary: #0E1117;
-    --color-bg-secondary: #1A1F2E;
-    --color-bg-card: rgba(22, 28, 40, 0.85);
-    --color-bg-elevated: rgba(28, 36, 52, 0.95);
-
-    --color-accent-primary: #22C55E;
-    --color-accent-secondary: #84CC16;
-    --color-accent-electric: #4ADE80;
-    --color-ct: #4A90E2;
-    --color-t: #E58E26;
-    --color-accent-glow: rgba(34, 197, 94, 0.25);
-    --color-accent-soft: rgba(34, 197, 94, 0.12);
-    --color-secondary-soft: rgba(132, 204, 22, 0.12);
-
-    --color-text-primary: #E8EDF5;
-    --color-text-secondary: #7A8FA6;
-    --color-text-muted: #4A5568;
-
-    --color-border-primary: rgba(34, 197, 94, 0.2);
-    --color-border-secondary: rgba(132, 204, 22, 0.15);
-    --color-border-strong: rgba(34, 197, 94, 0.4);
-
-    --gradient-hero: linear-gradient(135deg, #0E1117 0%, #141922 50%, #1A2030 100%);
-    --gradient-card: linear-gradient(135deg, rgba(22, 30, 44, 0.9), rgba(18, 24, 36, 0.95));
-    --gradient-accent: linear-gradient(135deg, #15803D, #22C55E);
-    --gradient-gold: linear-gradient(135deg, #65A30D, #84CC16);
-
-    --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(34, 197, 94, 0.1);
-    --shadow-glow: 0 0 40px rgba(34, 197, 94, 0.12);
-    --shadow-gold: 0 0 20px rgba(132, 204, 22, 0.15);
-
-    --font-heading: var(--font-mono);
-  }
-}
-
-/* IMPORTANT: element styles live in @layer base and component classes in
-   @layer components. Tailwind v4 emits its utilities in native cascade
-   layers, and UNLAYERED css always beats layered css — an unlayered
-   universal margin/padding reset here silently zeroed every margin,
-   padding, and gap utility (and mx-auto centering) across the whole app.
-   Keep everything layered. (Also: never write an asterisk-slash sequence
-   inside this comment — it ends the comment early and the parser eats
-   the next block.) */
-
-@layer base {
   html {
-    scroll-behavior: smooth;
+    background: var(--color-bg);
   }
 
   body {
-    background-color: var(--color-bg-primary);
-    color: var(--color-text-primary);
+    background: var(--color-bg);
+    color: var(--color-text);
     font-family: var(--font-body);
-    line-height: 1.6;
+    font-size: 15px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1, h2, h3, h4 {
     font-family: var(--font-heading);
-    color: var(--color-text-primary);
-    line-height: 1.2;
+    font-weight: var(--heading-weight);
+    text-transform: var(--heading-case);
+    letter-spacing: var(--heading-tracking);
+    text-wrap: balance;
+    line-height: 1.15;
   }
 
-  code, pre {
-    font-family: var(--font-mono);
+  a {
+    color: inherit;
   }
 
-  /* Every interactive element gets a visible keyboard ring; mouse clicks don't. */
   :focus-visible {
-    outline: 2px solid var(--color-accent-primary);
+    outline: 2px solid var(--color-focus);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
 
-  /* Scrollbar styling */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: var(--color-bg-secondary);
-  }
-  ::-webkit-scrollbar-thumb {
-    background: var(--color-accent-primary);
-    border-radius: 3px;
-    opacity: 0.6;
-  }
-
-  /* Selection */
   ::selection {
-    background: var(--color-accent-glow);
-    color: var(--color-text-primary);
-  }
-}
-
-/* ==========================================
-   Component layer
-   Transitions name exact properties (never `all`), UI stays under 300ms,
-   entrances never start at scale(0), hover motion is gated to real pointers.
-========================================== */
-
-@layer components {
-
-.card {
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-  backdrop-filter: blur(12px);
-}
-
-.card-elevated {
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-glow);
-  backdrop-filter: blur(16px);
-}
-
-.ds-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: transform var(--dur-press) var(--ease-out),
-    background-color var(--dur-press) ease,
-    border-color var(--dur-press) ease,
-    color var(--dur-press) ease,
-    opacity var(--dur-press) ease;
-}
-.ds-btn:active {
-  transform: scale(0.97);
-}
-.ds-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.ds-btn-md {
-  padding: 0.6rem 1.4rem;
-  font-size: 0.875rem;
-}
-.ds-btn-sm {
-  padding: 0.35rem 0.9rem;
-  font-size: 0.8125rem;
-}
-.ds-btn-icon {
-  padding: 0.5rem;
-}
-
-.ds-btn-primary {
-  background: var(--gradient-accent);
-  color: #fff;
-  letter-spacing: 0.02em;
-}
-.ds-btn-secondary {
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-color: var(--color-border-primary);
-  font-weight: 500;
-}
-.ds-btn-ghost {
-  background: transparent;
-  color: var(--color-text-secondary);
-}
-.ds-btn-danger {
-  background: transparent;
-  color: var(--color-danger);
-  border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .ds-btn-primary:hover:not(:disabled) {
-    box-shadow: var(--shadow-glow);
-    opacity: 0.92;
-  }
-  .ds-btn-secondary:hover:not(:disabled) {
-    color: var(--color-text-primary);
-    border-color: var(--color-accent-primary);
     background: var(--color-accent-soft);
   }
-  .ds-btn-ghost:hover:not(:disabled) {
-    color: var(--color-text-primary);
-    background: var(--color-accent-soft);
+
+  input, select, textarea, button {
+    font: inherit;
+    color: inherit;
   }
-  .ds-btn-danger:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+
+  /* Numbers always align: tables, stats, timers. Hero figures opt out. */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
-}
 
-/* Legacy aliases — pages still using these keep working. */
-.btn-primary,
-.btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border-radius: var(--radius-sm);
-  padding: 0.6rem 1.4rem;
-  font-size: 0.875rem;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: transform var(--dur-press) var(--ease-out),
-    background-color var(--dur-press) ease,
-    border-color var(--dur-press) ease,
-    color var(--dur-press) ease,
-    opacity var(--dur-press) ease;
-}
-.btn-primary {
-  background: var(--gradient-accent);
-  color: #fff;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.btn-secondary {
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-color: var(--color-border-primary);
-  font-weight: 500;
-}
-.btn-primary:active,
-.btn-secondary:active {
-  transform: scale(0.97);
-}
-@media (hover: hover) and (pointer: fine) {
-  .btn-primary:hover {
-    opacity: 0.92;
-    box-shadow: var(--shadow-glow);
-  }
-  .btn-secondary:hover {
-    color: var(--color-text-primary);
-    border-color: var(--color-accent-primary);
-    background: var(--color-accent-soft);
-  }
-}
-
-/* Modal / dialog. Transitions (not keyframes) so rapid open/close retargets
-   smoothly. Modals scale from center — they aren't anchored to a trigger. */
-.ds-modal-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(2, 6, 12, 0.72);
-  backdrop-filter: blur(8px);
-  opacity: 0;
-  transition: opacity var(--dur-modal) var(--ease-out);
-}
-.ds-modal-panel {
-  position: relative;
-  opacity: 0;
-  transform: scale(0.96);
-  transition: opacity var(--dur-modal) var(--ease-out),
-    transform var(--dur-modal) var(--ease-out);
-}
-[data-state='open'] > .ds-modal-backdrop {
-  opacity: 1;
-}
-[data-state='open'] > .ds-modal-panel {
-  opacity: 1;
-  transform: scale(1);
-}
-[data-state='closing'] > .ds-modal-backdrop,
-[data-state='closing'] > .ds-modal-panel {
-  transition-duration: 160ms;
-}
-
-/* Progress bar — the fill animates scaleX (GPU) rather than width (layout). */
-.ds-progress {
-  width: 100%;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border-primary);
-  overflow: hidden;
-}
-.ds-progress-fill {
-  height: 100%;
-  width: 100%;
-  border-radius: 999px;
-  background: var(--gradient-accent);
-  transform-origin: left;
-  transform: scaleX(0);
-  transition: transform 200ms linear;
-}
-
-/* Fast spinner: perceived performance — a quicker spin reads as a faster app. */
-.ds-spinner {
-  border-radius: 999px;
-  border: 2px solid var(--color-border-primary);
-  border-top-color: var(--color-accent-primary);
-  animation: ds-spin 650ms linear infinite;
-}
-@keyframes ds-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Entrance for list items / cards; pair with inline animation-delay stagger
-   (30–80ms per item). Decorative only — never blocks interaction. */
-.ds-enter {
-  opacity: 0;
-  transform: translateY(8px);
-  animation: ds-fade-up 300ms var(--ease-out) forwards;
-}
-@keyframes ds-fade-up {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.accent-text {
-  color: var(--color-accent-primary);
-}
-
-.gold-text {
-  color: var(--color-accent-secondary);
-}
-
-.glow-border {
-  border: 1px solid var(--color-accent-primary);
-  box-shadow: var(--shadow-glow);
-}
-
-.section-heading {
-  font-family: var(--font-heading);
-  font-size: clamp(1.5rem, 3vw, 2.5rem);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-} /* end @layer components */
-
-/* ==========================================
-   Reduced motion: fewer and gentler, not zero.
-   Deliberately unlayered so it outranks utility animations too.
-   Keep opacity/color transitions that aid comprehension; drop movement.
-========================================== */
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-  .ds-btn:active,
-  .btn-primary:active,
-  .btn-secondary:active {
-    transform: none;
-  }
-  .ds-modal-panel {
-    transform: none;
-    transition: opacity var(--dur-modal) ease;
-  }
-  .ds-enter {
-    transform: none;
-    animation-name: ds-fade;
-  }
-  @keyframes ds-fade {
-    to {
-      opacity: 1;
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
     }
   }
-  .ds-decorative-motion {
-    animation: none !important;
-    transition: none !important;
-  }
 }
 
-/* Signature-moment pulse for the SoyomboProgress active element — opacity
-   only, so it survives prefers-reduced-motion semantics; still stilled by
-   the decorative kill-switch pattern below for strict reduce. */
-.soyombo-active {
-  animation: soyombo-pulse 1.6s ease-in-out infinite;
-}
-@keyframes soyombo-pulse {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 0.8; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .soyombo-active {
-    animation: none;
-    opacity: 0.6 !important;
-  }
-}
-
-/* Toast enter/exit — transitions, not keyframes, so rapid stacking retargets. */
 @layer components {
-  .ds-toast {
-    opacity: 1;
-    transform: translateY(0);
-    transition: opacity var(--dur-fast) var(--ease-out),
-      transform var(--dur-fast) var(--ease-out);
-    @starting-style {
-      opacity: 0;
-      transform: translateY(8px);
-    }
+  .container-app {
+    width: 100%;
+    max-width: var(--content-w);
+    margin-inline: auto;
+    padding-inline: var(--gutter);
   }
-  .ds-toast[data-leaving="true"] {
-    opacity: 0;
-    transform: translateY(4px);
-    transition-duration: 160ms;
+
+  .surface {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
   }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ds-toast,
-  .ds-toast[data-leaving="true"] {
-    transform: none;
+
+  .surface-2 {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+  }
+
+  .hairline {
+    border-color: var(--color-line);
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-text-3);
+  }
+
+  .link {
+    color: var(--color-focus);
+    text-decoration: none;
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+  .link:hover {
+    text-decoration: underline;
+  }
+
+  /* One page entrance, visible at rest: starts rendered, nudges up. */
+  .enter {
+    animation: enter var(--dur-base) var(--ease-out) both;
+  }
+  @keyframes enter {
+    from { opacity: 0.001; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* Identity ambience layers — behind content, never animated continuously. */
+  .ambience-grid {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at top, black 0%, transparent 70%);
+  }
+  .ambience-scanlines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.03) 0px,
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+    mask-image: linear-gradient(to bottom, black 0%, transparent 60%);
+  }
+  .ambience-cloud {
+    background-image:
+      radial-gradient(60% 40% at 20% 10%, rgba(45, 125, 210, 0.18), transparent 60%),
+      radial-gradient(50% 35% at 85% 20%, rgba(201, 162, 39, 0.12), transparent 60%);
+  }
+
+  .progress-mark-active {
+    animation: pulse 1.6s var(--ease-out) infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+
+  /* Scrollable tab strips: no page-level horizontal scroll, ever. */
+  .tabstrip {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabstrip::-webkit-scrollbar { display: none; }
+
+  /* Clerk components inherit the theme instead of shipping white. */
+  .cl-userButtonPopoverCard, .cl-card, .cl-modalContent {
+    background: var(--color-surface) !important;
+    color: var(--color-text) !important;
+    border: 1px solid var(--color-line) !important;
+    box-shadow: var(--shadow-pop) !important;
+  }
+  .cl-userButtonPopoverActionButton, .cl-headerTitle, .cl-formFieldLabel,
+  .cl-socialButtonsBlockButton, .cl-footerActionLink, .cl-userPreviewMainIdentifier {
+    color: var(--color-text) !important;
+  }
+  .cl-headerSubtitle, .cl-dividerText, .cl-userPreviewSecondaryIdentifier,
+  .cl-footerActionText, .cl-formFieldHintText {
+    color: var(--color-text-2) !important;
+  }
+  .cl-formFieldInput, .cl-socialButtonsBlockButton {
+    background: var(--color-bg-2) !important;
+    border-color: var(--color-line) !important;
+  }
+  .cl-formButtonPrimary {
+    background: var(--color-accent) !important;
+    color: var(--color-accent-ink) !important;
+  }
+  .cl-internal-b3fm6y, .cl-footer, .cl-userButtonPopoverFooter {
+    background: var(--color-bg-2) !important;
   }
 }

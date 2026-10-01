@@ -18,12 +18,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def match_mode(is_recon: bool, team_id: str | None) -> str:
+    """The same rule as agents/scribe/modes.derive_mode, for list rows."""
+    if is_recon:
+        return "scouting"
+    if team_id:
+        return "team"
+    return "personal"
+
+
+_LIST_SELECT = "SELECT m.match_id, d.map_name, d.status, m.created_at, m.is_recon, m.team_id"
+
+
 @router.get("", summary="List analyses for a user")
 async def list_analyses(user_id: str = "", scope: str = "personal", db: Session = Depends(get_session)):
     """
-    Return matches for a Clerk user_id, newest first. scope=personal (default)
-    lists the user's own uploads; scope=team lists matches belonging to any
-    team the user is a member of (drives the Command Center's mode toggle).
+    Return matches for a Clerk user_id, newest first (≤100). scope=personal
+    lists the user's own uploads; scope=team lists matches of every team the
+    user belongs to; scope=all is both. Rows carry `team_id` and `mode`
+    (personal | team | scouting) so lists never derive the mode themselves.
     """
     if not user_id:
         return []
@@ -31,8 +44,8 @@ async def list_analyses(user_id: str = "", scope: str = "personal", db: Session 
     try:
         if scope == "team":
             rows = db.execute(
-                text("""
-                        SELECT m.match_id, d.map_name, d.status, m.created_at, m.is_recon
+                text(f"""
+                        {_LIST_SELECT}
                         FROM matches m
                         JOIN demos d ON d.demo_id = m.demo_id
                         JOIN team_members tm ON tm.team_id = m.team_id
@@ -42,10 +55,23 @@ async def list_analyses(user_id: str = "", scope: str = "personal", db: Session 
                     """),
                 {"user_id": user_id},
             ).fetchall()
+        elif scope == "all":
+            rows = db.execute(
+                text(f"""
+                        {_LIST_SELECT}
+                        FROM matches m
+                        JOIN demos d ON d.demo_id = m.demo_id
+                        WHERE (m.user_id = :user_id AND m.team_id IS NULL)
+                           OR m.team_id IN (SELECT team_id FROM team_members WHERE user_id = :user_id)
+                        ORDER BY m.created_at DESC
+                        LIMIT 100
+                    """),
+                {"user_id": user_id},
+            ).fetchall()
         else:
             rows = db.execute(
-                text("""
-                        SELECT m.match_id, d.map_name, d.status, m.created_at, m.is_recon
+                text(f"""
+                        {_LIST_SELECT}
                         FROM matches m
                         JOIN demos d ON d.demo_id = m.demo_id
                         WHERE m.user_id = :user_id AND m.team_id IS NULL
@@ -59,10 +85,11 @@ async def list_analyses(user_id: str = "", scope: str = "personal", db: Session 
             {
                 "match_id": r[0],
                 "map": r[1],
-                "status": r[2],
+                "status": str(r[2]).lower() if r[2] else None,
                 "created_at": r[3].isoformat() if r[3] else None,
-                # Scouting page filters on this to list opposition-research demos
                 "is_recon": bool(r[4]),
+                "team_id": r[5],
+                "mode": match_mode(bool(r[4]), r[5]),
             }
             for r in rows
         ]

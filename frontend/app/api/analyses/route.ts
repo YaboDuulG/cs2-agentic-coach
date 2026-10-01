@@ -7,8 +7,9 @@ export async function GET(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // scope=personal (default) | team — drives the Command Center mode toggle
-  const scope = req.nextUrl.searchParams.get("scope") === "team" ? "team" : "personal";
+  // scope=personal (default) | team | all; rows carry team_id and mode.
+  const requested = req.nextUrl.searchParams.get("scope");
+  const scope = requested === "team" || requested === "all" ? requested : "personal";
   const res = await fetch(`${API_URL}/api/analyses?user_id=${userId}&scope=${scope}`, { cache: "no-store", headers: {
         Authorization: `Bearer ${process.env.API_SHARED_SECRET}` } });
   return NextResponse.json(await res.json(), { status: res.status });

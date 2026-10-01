@@ -55,7 +55,7 @@ export function PlaybackControls({ totalRounds }: { totalRounds: number }) {
         >
           Prev
         </Button>
-        <span className="whitespace-nowrap px-1 font-mono text-sm text-[var(--color-text-secondary)]">
+        <span className="whitespace-nowrap px-1 font-mono text-sm text-[var(--color-text-2)]">
           Round {round} / {totalRounds}
         </span>
         <Button

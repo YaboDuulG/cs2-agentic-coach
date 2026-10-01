@@ -1,97 +1,93 @@
 "use client";
 
-// House toast — replaces browser alert() everywhere. Event-based so any
-// code can call toast("...") without context plumbing. Emil rules: CSS
-// transitions (interruptible), enter/exit under 300ms on the ease token,
-// reduced motion keeps the fade. Errors are direct about what happened.
-
-import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
+import { useSyncExternalStore } from "react";
 
-type Variant = "success" | "danger" | "info";
-
-export interface ToastItem {
+type Kind = "info" | "success" | "error";
+interface ToastItem {
   id: number;
+  kind: Kind;
   message: string;
-  variant: Variant;
 }
 
-type Listener = (t: ToastItem) => void;
-let listener: Listener | null = null;
+const listeners = new Set<() => void>();
+let items: ToastItem[] = [];
 let nextId = 1;
 
-export function toast(message: string, variant: Variant = "info") {
-  listener?.({ id: nextId++, message, variant });
+function emit() {
+  listeners.forEach((l) => l());
 }
-toast.success = (m: string) => toast(m, "success");
-toast.error = (m: string) => toast(m, "danger");
 
-const VARIANT_META: Record<Variant, { icon: typeof Info; color: string }> = {
-  success: { icon: CheckCircle2, color: "var(--color-success)" },
-  danger: { icon: AlertCircle, color: "var(--color-danger)" },
-  info: { icon: Info, color: "var(--color-accent-primary)" },
+function subscribe(l: () => void) {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
+  };
+}
+const getSnapshot = () => items;
+const EMPTY: ToastItem[] = [];
+const getServerSnapshot = () => EMPTY;
+
+function push(message: string, kind: Kind = "info") {
+  const id = nextId++;
+  items = [...items, { id, kind, message }];
+  emit();
+  setTimeout(() => dismiss(id), kind === "error" ? 7000 : 4500);
+}
+
+function dismiss(id: number) {
+  items = items.filter((t) => t.id !== id);
+  emit();
+}
+
+/** toast("Saved") · toast.success(...) · toast.error(...) */
+export const toast = Object.assign((message: string, kind: Kind = "info") => push(message, kind), {
+  success: (m: string) => push(m, "success"),
+  error: (m: string) => push(m, "error"),
+  info: (m: string) => push(m, "info"),
+});
+
+const icons: Record<Kind, React.ReactNode> = {
+  info: <Info size={16} />,
+  success: <CheckCircle2 size={16} />,
+  error: <AlertCircle size={16} />,
+};
+const colors: Record<Kind, string> = {
+  info: "var(--color-focus)",
+  success: "var(--color-good)",
+  error: "var(--color-danger)",
 };
 
-const DISMISS_MS = 4500;
-
 export function Toaster() {
-  const [items, setItems] = useState<(ToastItem & { leaving?: boolean })[]>([]);
-  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
-
-  // Stable: touches only refs and functional setState.
-  const dismiss = useCallback((id: number) => {
-    const timer = timers.current.get(id);
-    if (timer) clearTimeout(timer);
-    timers.current.delete(id);
-    // Two-phase: mark leaving (exit transition), then remove.
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, leaving: true } : i)));
-    setTimeout(() => setItems((prev) => prev.filter((i) => i.id !== id)), 180);
-  }, []);
-
-  useEffect(() => {
-    listener = (t) => {
-      setItems((prev) => [...prev.slice(-3), t]); // cap the stack at 4
-      timers.current.set(
-        t.id,
-        setTimeout(() => dismiss(t.id), DISMISS_MS),
-      );
-    };
-    const map = timers.current;
-    return () => {
-      listener = null;
-      map.forEach(clearTimeout);
-    };
-  }, [dismiss]);
-
-  if (items.length === 0) return null;
-
+  const list = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  if (list.length === 0) return null;
   return (
-    <div className="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 w-[min(92vw,380px)]">
-      {items.map((item) => {
-        const meta = VARIANT_META[item.variant];
-        const Icon = meta.icon;
-        return (
-          <div
-            key={item.id}
-            role={item.variant === "danger" ? "alert" : "status"}
-            className="card ds-toast flex items-start gap-3 p-3.5 shadow-lg"
-            data-leaving={item.leaving ? "true" : undefined}
-            style={{ borderColor: `color-mix(in srgb, ${meta.color} 35%, transparent)` }}
+    <div
+      className="pointer-events-none fixed inset-x-(--gutter) bottom-4 z-[60] flex flex-col items-center gap-2 sm:inset-x-auto sm:right-4"
+      role="region"
+      aria-label="Notifications"
+    >
+      {list.map((t) => (
+        <div
+          key={t.id}
+          role={t.kind === "error" ? "alert" : "status"}
+          className="surface enter pointer-events-auto flex w-full max-w-sm items-start gap-3 px-4 py-3 text-sm"
+        >
+          <span style={{ color: colors[t.kind] }} className="mt-0.5 shrink-0">
+            {icons[t.kind]}
+          </span>
+          <span className="min-w-0 flex-1">{t.message}</span>
+          <button
+            type="button"
+            onClick={() => dismiss(t.id)}
+            aria-label="Dismiss"
+            className="shrink-0 rounded p-0.5"
+            style={{ color: "var(--color-text-3)" }}
           >
-            <Icon size={16} style={{ color: meta.color, marginTop: 1 }} className="flex-shrink-0" />
-            <p className="flex-1 text-sm leading-snug" style={{ color: "var(--color-text-primary)" }}>
-              {item.message}
-            </p>
-            <button
-              onClick={() => dismiss(item.id)}
-              aria-label="Dismiss"
-              className="ds-btn ds-btn-ghost p-1 rounded"
-            >
-              <X size={13} />
-            </button>
-          </div>
-        );
-      })}
+            <X size={14} />
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

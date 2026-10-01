@@ -19,6 +19,39 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def coach_state(db: Session, match_id: str) -> dict:
+    """The coaching stage for a parsed match, from the jobs table, so the
+    debrief renders one screen per outcome instead of guessing from fields.
+
+    stage: "coach" while pending/running, "done" after, "failed" on a dead
+    coach job. coach_status mirrors the job row (pending|running|done|failed);
+    no row yet means the fan-out has not happened: still "pending".
+    """
+    from db.models import Job, JobKind  # noqa: PLC0415
+
+    try:
+        job = (
+            db.query(Job)
+            .filter(Job.match_id == match_id, Job.kind == JobKind.COACH)
+            .order_by(Job.created_at.desc())
+            .first()
+        )
+    except Exception as e:  # never let a status lookup break the poll
+        logger.warning(f"coach_state lookup failed for {match_id}: {e}")
+        job = None
+    if job is None:
+        return {"stage": "coach", "coach_status": "pending", "coach_error": None, "coach_attempts": 0}
+    status = getattr(job.status, "value", job.status)
+    status = str(status).lower()
+    stage = "done" if status == "done" else "failed" if status == "failed" else "coach"
+    return {
+        "stage": stage,
+        "coach_status": status,
+        "coach_error": job.error_message if status == "failed" else None,
+        "coach_attempts": job.attempts,
+    }
+
+
 @router.get("/{match_id}", summary="Get demo parse job status and results")
 async def get_job_status(
     match_id: str,
@@ -142,6 +175,7 @@ async def get_job_status(
         if match_status in ("pending", "queued"):
             return {
                 "status": "queued",
+                "stage": "parse",
                 "match_id": match_id,
                 "created_at": created_at.isoformat() if created_at else None,
                 "elapsed_seconds": elapsed_seconds,
@@ -151,6 +185,7 @@ async def get_job_status(
         if match_status not in ("done", "complete", "parsed"):
             return {
                 "status": "processing",
+                "stage": "parse",
                 "match_id": match_id,
                 "map": result[1],
                 "created_at": created_at.isoformat() if created_at else None,
@@ -165,6 +200,7 @@ async def get_job_status(
                 "map": result[1],
                 "parse_duration_seconds": parse_duration_seconds,
                 "is_recon": is_recon,
+                **coach_state(db, match_id),
             }
 
         # Fetch kills
@@ -307,9 +343,12 @@ async def get_job_status(
             "rounds": clean_rounds,
             "parse_duration_seconds": parse_duration_seconds,
             "is_recon": is_recon,
+            **coach_state(db, match_id),
         }
         return sanitize_nan(response_data)
 
+    except HTTPException:
+        raise  # access denials are 403s, not "failed to fetch"
     except Exception as e:
         logger.error(f"Job status query failed for {match_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch job status.")

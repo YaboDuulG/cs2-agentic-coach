@@ -118,16 +118,16 @@ export function TacticalRadar({ telemetry }: { telemetry: RoundTelemetry }) {
     const token = (name: string, fallback: string) =>
       styles.getPropertyValue(name).trim() || fallback;
     const colors = {
-      bg: token("--color-bg-primary", "#050C15"),
-      grid: token("--color-border-primary", "rgba(45, 125, 210, 0.2)"),
-      ct: token("--color-ct", "#2D7DD2"),
-      t: token("--color-t", "#C9A227"),
-      danger: token("--color-danger", "#FF4D6D"),
-      accent: token("--color-accent-secondary", "#C9A227"),
-      electric: token("--color-accent-electric", "#38BDF8"),
-      warning: token("--color-warning", "#F59E0B"),
-      text: token("--color-text-primary", "#F0F4FF"),
-      muted: token("--color-text-secondary", "#8BA7CC"),
+      bg: token("--color-bg", "#0b0f14"),
+      grid: token("--color-line", "rgba(45, 125, 210, 0.2)"),
+      ct: token("--color-ct", "#5e98d9"),
+      t: token("--color-t", "#e8b14b"),
+      danger: token("--color-danger", "#ff5c7a"),
+      accent: token("--color-rank", "#e8b14b"),
+      electric: token("--color-focus", "#6db3f2"),
+      warning: token("--color-warning", "#f59e0b"),
+      text: token("--color-text", "#e9eef4"),
+      muted: token("--color-text-2", "#a7b4c3"),
     };
     const fontFamily = styles.fontFamily || "sans-serif";
 
@@ -387,7 +387,7 @@ export function TacticalRadar({ telemetry }: { telemetry: RoundTelemetry }) {
   return (
     <div
       ref={containerRef}
-      className="relative w-full aspect-square overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-primary)] bg-[var(--color-bg-primary)]"
+      className="relative w-full aspect-square overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-line)] bg-[var(--color-bg)]"
     >
       <canvas
         ref={canvasRef}

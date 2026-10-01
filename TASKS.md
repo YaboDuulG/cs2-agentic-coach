@@ -40,6 +40,21 @@ Legend: **DONE** = code in the tree with tests passing · **OWNER** = only you c
 | Screenshot suite | Signed-in, Team Hub and debrief captures at 1440/390; upload spec waits for coaching | `frontend/e2e/*`, `playwright.config.ts` | run manually |
 | Docs | Refactor plans, UX review with evidence, page map, pricing, this file, project skill | see §5 | — |
 
+### 2b. Frontend rewrite (DONE 2026-10-01, branch `frontend-rewrite`, uncommitted)
+
+| Area | What | Files | Verified |
+|---|---|---|---|
+| Foundation | Tokens for three themes (CS2 root, CS:GO, Khan), fonts by role, primitives, identity marks, app shell with one navbar, footer, toaster | `app/globals.css`, `lib/theme/*`, `components/ui/*`, `components/identity/*`, `components/shell/*`, `app/layout.tsx` | tsc, lint, `next build`, screenshots in all three themes |
+| Data layer | Every read and mutation as a TanStack Query hook; `useJob` polls light then full; `HttpError` | `lib/api/hooks.ts`, `lib/api/contract.md` | tsc |
+| Upload | Two-step modal (who is it for → drop), locked Team cards, Steam-link gate, gzip + chunked upload hook | `components/upload/*`, `lib/upload/useDemoUpload.ts` | modal screenshots; pipeline spec (see below) |
+| Pages | Landing, Home, Matches, Debrief (3 stages), Teams + paywall, Team Hub (5 tabs), Training, Server, Stratbook, Settings (3 tabs + Clerk account), Admin (metering + trial codes), Billing, Sign in/up | `app/**`, `components/{home,matches,debrief,teams,stratbook,settings,admin}/*` | `shots`, `shots-mobile`, `team-shots*` suites on localhost |
+| Backend support | `mode` on match rows; `stage`/`coach_status`/`coach_error` on jobs; team analyses list includes recon rows | `api/routes/{analyses,jobs,teams}.py` | ruff, pytest (251 passed, 1 xfail) |
+| E2E | Setup creates/signs in the test user through Clerk's Backend API (no CAPTCHA); specs wait for data; `E2E_EMAIL` reuses a user | `frontend/e2e/*` | run locally |
+
+Deleted: 25 legacy files (old pages, `components/analysis/*`, `CS2PlanningBoard`,
+`ServerControlPanel`, `AddStrategyModal`, old stratbook canvas, old paywall cards, old
+theme files). Known gaps carried in §4.
+
 ## 3. Owner to-do (OWNER)
 
 1. Stripe **test mode is done** (2026-09-29) in account `acct_1TZdVcGYeJKiKc7G` (activated:
@@ -101,9 +116,12 @@ Backend (`ARCHITECTURE_REFACTOR_PLAN.md` §3):
 
 | # | Item | Status |
 |---|---|---|
-| B1a | `mode` on `/api/analyses` rows and `/api/jobs/{id}` | OPEN |
-| B1b | Job `stage` + `failure_reason` on `/api/jobs/{id}` (parse / stats / coaching) | OPEN |
-| B1c | `require_entitlement(TEAM_ANALYSIS)` on team create and server/training routes; join stays open | OPEN |
+| B1a | `mode` on `/api/analyses` rows and `/api/jobs/{id}` | DONE 2026-10-01 (`api/routes/analyses.py` `match_mode`) |
+| B1b | Job `stage` + `coach_status` / `coach_error` on `/api/jobs/{id}` (parse / coach / done / failed) | DONE 2026-10-01 (`api/routes/jobs.py` `coach_state`) |
+| B1c | `require_entitlement(TEAM_ANALYSIS)` on team create and server/training routes; join stays open | OPEN (UI gates client-side only) |
+| B1e | RCON console endpoint (`/api/chat` was never built); the server page shows the RCON password instead | OPEN |
+| B1f | Leave-team / remove-member endpoints; Team Settings shows a disabled Leave button | OPEN |
+| B1g | Opponent name on scouting rows (Opponents tab groups by map today) | PLANNED |
 | B1d | Server-hour caps per season (metering data first; see `docs/pricing.md`) | PLANNED |
 | 3.1 | Move `agents/` into `services/coaching_ai`, `db/jobs.py` into `services/ingestion`; delete `api/agents/tactician_heuristics.py` and the Steam branch of `api/routes/oauth.py` | OPEN |
 | 3.2 | import-linter contracts in CI; drop `\|\| true` from mypy | OPEN |
@@ -115,13 +133,10 @@ Frontend (`frontend/FRONTEND_REFACTOR_PLAN.md` §3, page specs in §6):
 
 | # | Workstream | Status |
 |---|---|---|
-| W0 | Delete `/coach`, `/admin`, `/onboarding`, `/matches/[id]`; `proxy.ts` matcher | OPEN (admin guard part is DONE) |
-| W1 | Server truth: `/api/me`, query hooks, delete the three event buses and `localStorage.coaching_mode` | OPEN |
-| W2 | Upload modal mode picker (Steam-link gate, team selector, locked cards, scouting via team) | OPEN |
-| W3 | App shell, `PageHeader`, `SectionTabs`, themed Clerk menu, `/matches`, `/settings` (Profile · Appearance · Plan incl. invite card), Team Hub Opponents tab, `/teams` paywall | OPEN |
-| W4 | Theme system: CS2 root, CS:GO, Khan; identity slots; switcher in avatar menu | OPEN |
-| W5 | Debrief split + three-stage state machine + chart pass | OPEN |
-| W6 | Three-theme capture matrix with assertions | OPEN |
+| W0–W5 | All shipped by the 2026-10-01 rewrite (see §2b and `FRONTEND_REFACTOR_PLAN.md` §0) | DONE |
+| W6 | Capture matrix: assertions and the three-theme switch exist; CI schedule and an 11px label lint rule do not | PARTLY |
+| W7 | Clerk `UserButton` custom menu items (Settings / Plan / Theme) once `@clerk/nextjs` exposes them again; today they are navbar icons | PLANNED |
+| W8 | Debrief Players table: ADR, utility damage, flash assists, trade rate need backend fields (`3.3`) | PLANNED |
 
 ## 5. Where the detail lives
 

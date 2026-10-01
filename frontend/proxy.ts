@@ -3,8 +3,10 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 // NOTE: /billing is deliberately public — it's the pricing page; prospects
 // must see tiers before signing up. Checkout itself still requires a session.
 const isProtected = createRouteMatcher([
-  "/dashboard(.*)",
+  "/matches(.*)",
   "/profile(.*)",
+  "/settings(.*)",
+  "/stratbook(.*)",
   "/analysis(.*)",
   "/teams(.*)",
 ]);

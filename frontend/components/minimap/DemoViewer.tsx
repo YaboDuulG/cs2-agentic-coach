@@ -62,7 +62,7 @@ export function DemoViewer({
           <Card className="flex aspect-square w-full items-center justify-center">
             <div className="flex flex-col items-center gap-3">
               <Spinner size={28} />
-              <p className="font-mono text-xs text-[var(--color-text-muted)]">
+              <p className="font-mono text-xs text-[var(--color-text-3)]">
                 Loading round {round} telemetry…
               </p>
             </div>
@@ -77,7 +77,7 @@ export function DemoViewer({
           <TacticalRadar telemetry={telemetry} />
         ) : (
           <Card className="flex aspect-square w-full items-center justify-center p-6 text-center">
-            <p className="font-mono text-sm text-[var(--color-text-muted)]">
+            <p className="font-mono text-sm text-[var(--color-text-3)]">
               No trajectory data for round {round}.
             </p>
           </Card>

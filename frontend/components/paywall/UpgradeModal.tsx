@@ -1,139 +1,99 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { Button, Modal, Spinner } from "@/components/ui";
-import { useCheckout } from "@/lib/api/hooks";
+import { Badge, Button, Modal } from "@/components/ui";
+import { useCheckout, useSeasons } from "@/lib/api/hooks";
+import { shortDate } from "@/lib/format";
 
-export interface UpgradeModalProps {
-  open: boolean;
-  onClose: () => void;
-  /** Tier the locked content needs (PaywalledPreview.tier_needed) — highlights that card. */
-  tierNeeded?: string;
-}
+type TierKey = "SOLO_PRO" | "TEAM";
 
-// Mirrors the tier matrix in services/billing/entitlements.py (plan keys from
-// app/billing/page.tsx: "basic" → SOLO_PRO, "pro" → TEAM).
-const PLAN_CARDS = [
+const CARDS: { tier: TierKey; plan: "basic" | "pro"; name: string; price: string; period: string; features: string[] }[] = [
   {
-    plan: "basic",
     tier: "SOLO_PRO",
+    plan: "basic",
     name: "Solo Pro",
     price: "$10",
-    period: "/ month · $96 / year",
-    features: [
-      "Deep individual coaching",
-      "Corrective drills with tick references",
-      "Pro benchmarks on every finding",
-      "Positioning heatmaps",
-    ],
+    period: "/ month · or $96 / year",
+    features: ["Every finding with round + tick references", "Pro benchmarks on each finding", "Corrective drills", "30-day history"],
   },
   {
-    plan: "pro",
     tier: "TEAM",
+    plan: "pro",
     name: "Team",
     price: "$300",
     period: "/ ESEA season · one payment",
-    features: [
-      "Everything in Solo Pro, for the whole roster",
-      "Team macro analysis",
-      "Opposition research & scouting dossiers",
-      "Practice servers, stratbook with Discord sync",
-    ],
+    features: ["Team analysis and opponent scouting", "Seats for the whole roster", "Practice servers and training modes", "Stratbook with Discord sync"],
   },
-] as const;
+];
 
-export function UpgradeModal({ open, onClose, tierNeeded }: UpgradeModalProps) {
+/**
+ * The upsell, server-shaped: the caller says which tier the locked thing
+ * needs; that card is highlighted. Checkout goes through the same route as
+ * the pricing page.
+ */
+export function UpgradeModal({ open, onClose, tierNeeded }: { open: boolean; onClose: () => void; tierNeeded?: TierKey | string | null }) {
   const checkout = useCheckout();
+  const seasons = useSeasons();
+  const season = seasons.data?.purchasable;
 
   return (
-    <Modal open={open} onClose={onClose} label="Upgrade your plan" panelClassName="max-w-[640px]">
-      <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-heading)" }}>
-        Unlock the full report
-      </h2>
-      <p className="mt-1 text-sm" style={{ color: "var(--color-text-secondary)" }}>
-        Every finding, drill, and pro benchmark — pick the tier that fits.
-      </p>
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        {PLAN_CARDS.map((card) => {
-          const highlighted = card.tier === (tierNeeded ?? "").toUpperCase();
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={tierNeeded === "TEAM" ? "Team is a season pass" : "Unlock the full report"}
+      description={tierNeeded === "TEAM" ? "One payment covers the whole roster until the next ESEA season starts." : "Pick the plan that fits how you play."}
+      size="lg"
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        {CARDS.map((card) => {
+          const highlighted = (tierNeeded ?? "SOLO_PRO") === card.tier;
           const pending = checkout.isPending && checkout.variables?.plan === card.plan;
           return (
-            <div
-              key={card.plan}
-              className="flex flex-col rounded-lg p-4"
-              style={{
-                background: highlighted ? "var(--color-accent-soft)" : "var(--color-bg-secondary)",
-                border: `1px solid ${
-                  highlighted ? "var(--color-border-strong)" : "var(--color-border-primary)"
-                }`,
-              }}
-            >
-              <div className="flex items-baseline justify-between">
-                <h3 className="text-base font-bold" style={{ color: "var(--color-text-primary)" }}>
-                  {card.name}
-                </h3>
-                {highlighted && (
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
-                    style={{
-                      color: "var(--color-accent-secondary)",
-                      border: "1px solid var(--color-border-secondary)",
-                      background: "var(--color-secondary-soft)",
-                    }}
-                  >
-                    Required
-                  </span>
-                )}
+            <div key={card.tier} className="surface-2 flex flex-col p-4" style={{ borderColor: highlighted ? "var(--color-accent)" : undefined }}>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-base">{card.name}</h3>
+                {highlighted ? <Badge tone="accent">Unlocks this</Badge> : null}
               </div>
-              <div className="mt-1 flex items-baseline gap-1">
-                <span className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>
-                  {card.price}
-                </span>
-                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+              <p className="mb-1">
+                <span className="num text-2xl font-semibold">{card.price}</span>
+                <span className="ml-1 text-[12px]" style={{ color: "var(--color-text-2)" }}>
                   {card.period}
                 </span>
-              </div>
-              <ul className="mt-3 mb-4 flex-1 space-y-2">
-                {card.features.map((feature) => (
-                  <li
-                    key={feature}
-                    className="flex items-start gap-2 text-xs"
-                    style={{ color: "var(--color-text-secondary)" }}
-                  >
-                    <Check
-                      size={12}
-                      className="mt-0.5 shrink-0"
-                      style={{ color: "var(--color-success)" }}
-                    />
-                    {feature}
+              </p>
+              {card.tier === "TEAM" && season ? (
+                <p className="mb-3 text-[12px]" style={{ color: "var(--color-text-2)" }}>
+                  {season.label} · {shortDate(season.start)} – {shortDate(season.end)}
+                  {season.projected ? " (dates to be confirmed)" : ""}
+                </p>
+              ) : (
+                <p className="mb-3" />
+              )}
+              <ul className="mb-4 space-y-1.5 text-[13px]">
+                {card.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2">
+                    <Check size={14} className="mt-0.5 shrink-0" style={{ color: "var(--color-good)" }} aria-hidden="true" />
+                    <span>{f}</span>
                   </li>
                 ))}
               </ul>
               <Button
+                className="mt-auto"
                 variant={highlighted ? "primary" : "secondary"}
-                size="sm"
+                loading={pending}
                 disabled={checkout.isPending}
                 onClick={() => checkout.mutate({ plan: card.plan })}
               >
-                {pending ? (
-                  <>
-                    <Spinner size={14} /> Redirecting…
-                  </>
-                ) : (
-                  card.plan === "pro" ? "Buy this season" : `Upgrade to ${card.name}`
-                )}
+                {card.tier === "TEAM" ? (season ? `Buy ${season.label}` : "Buy this season") : "Upgrade to Solo Pro"}
               </Button>
             </div>
           );
         })}
       </div>
-
-      {checkout.isError && (
-        <p className="mt-3 text-xs" style={{ color: "var(--color-danger)" }}>
-          Checkout failed to start. Please try again.
+      {checkout.isError ? (
+        <p className="mt-3 text-[13px]" style={{ color: "var(--color-danger)" }} role="alert">
+          {(checkout.error as Error).message}
         </p>
-      )}
+      ) : null}
     </Modal>
   );
 }

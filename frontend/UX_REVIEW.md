@@ -1,5 +1,10 @@
 # Frontend UX Review — why it is hard to use, and what to change
 
+> **Update 2026-10-01: superseded by the rewrite.** The frontend this document reviews was
+> deleted and rebuilt from `FRONTEND_REFACTOR_PLAN.md` §6 on branch `frontend-rewrite`.
+> Keep this file for the evidence and the finding ids the plan cites; do not treat its
+> file paths or component names as current (`SKILL.md` "Where things are" is).
+
 Reviewed 2026-09-29 against `main` (`023e587`). Companion to `DESIGN_PLAN.md` (the design
 system of record) and `../ARCHITECTURE_REFACTOR_PLAN.md` §3.6.
 

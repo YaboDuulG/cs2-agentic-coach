@@ -1,242 +1,199 @@
 "use client";
 
-import { toast } from "@/components/ui";
 import { useUser } from "@clerk/nextjs";
-import { useQuery } from "@tanstack/react-query";
+import { Check } from "lucide-react";
 import { useState } from "react";
-import { type BillingInterval, SOLO_PRICE_USD, TEAM_SEASON_PRICE_USD } from "@/lib/flags";
+import { Badge, Button, PageHeader } from "@/components/ui";
+import { useCheckout, useEntitlements, useSeasons } from "@/lib/api/hooks";
+import { shortDate } from "@/lib/format";
+import { SOLO_PRICE_USD, TEAM_SEASON_PRICE_USD } from "@/lib/flags";
 
-interface SeasonInfo {
-  number: number;
-  label: string;
-  start: string;
-  end: string;
-  access_until: string;
-  projected: boolean;
-}
+const FREE = ["2 demo uploads a month", "Headline and one finding per match", "7-day history"];
+const SOLO = ["10 demo uploads a month", "Every finding with round and tick references", "Pro benchmarks and corrective drills", "30-day history"];
+const TEAM = ["Create a team, seats for the roster", "Team analysis and opponent scouting", "Practice servers and training modes", "Stratbook with Discord sync", "Unlimited uploads, 365-day history"];
 
-// Display names follow the entitlement tiers (services/billing): the keys
-// stay "basic"/"pro" — Stripe checkout and plan metadata depend on them.
-//
-// Pricing (owner decision 2026-09-29): Solo Pro $10 / month or $96 / year;
-// Team is a flat $300 per ESEA season, bought once, not a subscription.
-const FREE_FEATURES = ["2 demo uploads / month", "Headline + one finding per match", "7-day history"];
-const SOLO_FEATURES = [
-  "10 demo uploads / month",
-  "Full AI coaching, built around you",
-  "Pro-benchmark comparisons",
-  "30-day history",
-];
-const TEAM_FEATURES = [
-  "Create a team, seats for the whole roster",
-  "Team analysis and opponent scouting",
-  "Practice servers and training modes",
-  "Stratbook with Discord sync",
-  "Unlimited uploads, 365-day history",
+const FAQ = [
+  ["What counts as an upload?", "One demo file. If a teammate already uploaded the same match, it is detected and does not count against you."],
+  ["How do Team seats work?", "The team owner buys the season. Every member of that team gets team features on that team's demos, with no per-seat charge."],
+  ["Refunds?", "Solo Pro can be cancelled any time and runs out at the end of the period. A Team season is refundable within 7 days of purchase if no team demo has been analysed."],
 ];
 
-function fmtDate(iso: string) {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
+/** Pricing. Reachable signed out. Team is sold per ESEA season. */
 export default function BillingPage() {
-  const { user } = useUser();
-  const meta = (user?.publicMetadata ?? {}) as { plan?: string; plan_season?: number };
-  const currentPlan = meta.plan ?? "free";
-  const [interval, setInterval] = useState<BillingInterval>("month");
-  const [loading, setLoading] = useState<string | null>(null);
+  const { isSignedIn } = useUser();
+  const ents = useEntitlements(Boolean(isSignedIn));
+  const seasons = useSeasons();
+  const checkout = useCheckout();
+  const [interval, setInterval] = useState<"month" | "year">("month");
 
-  const { data: seasons } = useQuery<{ purchasable: SeasonInfo }>({
-    queryKey: ["billing", "seasons"],
-    queryFn: async () => {
-      const r = await fetch("/api/billing/seasons");
-      if (!r.ok) throw new Error("seasons unavailable");
-      return r.json();
-    },
-    staleTime: 60 * 60 * 1000,
-  });
-  const season = seasons?.purchasable;
-  const ownsThisSeason = currentPlan === "pro" && season !== undefined && meta.plan_season === season.number;
-
-  const handleCheckout = async (planKey: "basic" | "pro") => {
-    setLoading(planKey);
-    try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planKey, interval }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Checkout couldn't start. Try again in a moment.");
-        return;
-      }
-      if (data.url) window.location.assign(data.url);
-    } catch {
-      toast.error("Checkout couldn't start. Try again in a moment.");
-    } finally {
-      setLoading(null);
-    }
-  };
+  const tier = ents.data?.tier ?? "FREE";
+  const season = seasons.data?.purchasable;
+  const ownsSeason = Boolean(ents.data?.season_until && season && new Date(ents.data.season_until) >= new Date(season.access_until));
 
   const soloPrice = interval === "year" ? `$${SOLO_PRICE_USD.year / 12}` : `$${SOLO_PRICE_USD.month}`;
   const soloPeriod = interval === "year" ? `/ month · $${SOLO_PRICE_USD.year} billed yearly` : "/ month";
 
-  const plans = [
-    {
-      key: "free" as const,
-      name: "Free",
-      price: "$0",
-      period: "forever",
-      sub: "2 demos / month",
-      color: "border-white/10",
-      highlight: false,
-      features: FREE_FEATURES,
-      cta: null as string | null,
-    },
-    {
-      key: "basic" as const,
-      name: "Solo Pro",
-      price: soloPrice,
-      period: soloPeriod,
-      sub: interval === "year" ? "20% off — two months free" : "Cancel anytime",
-      color: "border-[#2D7DD2]/60",
-      highlight: false,
-      features: SOLO_FEATURES,
-      cta: "Upgrade to Solo Pro",
-    },
-    {
-      key: "pro" as const,
-      name: "Team",
-      price: `$${TEAM_SEASON_PRICE_USD}`,
-      period: "/ season · one payment",
-      sub: season
-        ? `${season.label} · ${fmtDate(season.start)} – ${fmtDate(season.end)}${season.projected ? " (dates to be confirmed)" : ""}`
-        : "Runs season to season with ESEA",
-      color: "border-[#FFE135]/60",
-      highlight: true,
-      features: TEAM_FEATURES,
-      cta: season ? `Buy ${season.label}` : "Buy this season",
-    },
-  ];
+  const buy = (plan: "basic" | "pro") => {
+    if (!isSignedIn) {
+      window.location.assign(`/sign-up?next=${encodeURIComponent("/billing")}`);
+      return;
+    }
+    checkout.mutate({ plan, interval: plan === "basic" ? interval : undefined });
+  };
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-[#080E1A] px-6 py-20">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-10 text-center">
-          <h1 className="font-cinzel text-4xl font-bold text-white md:text-5xl">
-            Choose Your Plan
-          </h1>
-          <p className="mt-4 text-lg text-slate-400">
-            Start free. Upgrade when you need more.
-          </p>
-        </div>
+    <div>
+      <PageHeader eyebrow="Pricing" title="Choose your plan" description="Start free. Upgrade when the headline isn't enough." />
 
-        {/* Monthly / yearly applies to Solo Pro only; Team is per season. */}
-        <div className="mb-10 flex justify-center" role="group" aria-label="Solo Pro billing interval">
-          {(["month", "year"] as const).map((opt) => {
-            const active = interval === opt;
-            return (
-              <button
-                key={opt}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setInterval(opt)}
-                className={`px-4 py-2 text-sm font-semibold first:rounded-l-lg last:rounded-r-lg border ${
-                  active
-                    ? "bg-[#2D7DD2] border-[#2D7DD2] text-white"
-                    : "border-white/10 text-slate-400 hover:text-white"
-                }`}
-              >
-                {opt === "month" ? "Monthly" : "Yearly · save 20%"}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-3">
-          {plans.map((plan) => {
-            const isCurrent =
-              plan.key === "pro" ? ownsThisSeason : currentPlan === plan.key;
-            const canBuy =
-              plan.key === "basic"
-                ? currentPlan === "free"
-                : plan.key === "pro"
-                  ? !ownsThisSeason
-                  : false;
-
-            return (
-              <div
-                key={plan.key}
-                className={`relative rounded-2xl border p-8 transition-all ${plan.color} ${
-                  plan.highlight
-                    ? "bg-gradient-to-b from-[#FFE135]/5 to-transparent shadow-[0_0_40px_rgba(255,225,53,0.08)]"
-                    : "bg-white/[0.02]"
-                }`}
-              >
-                {plan.highlight && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="rounded-full bg-[#FFE135] px-4 py-1 text-xs font-bold text-black">
-                      FOR ROSTERS
-                    </span>
-                  </div>
-                )}
-
-                <div className="mb-6">
-                  <h2 className={`font-cinzel text-2xl font-bold ${plan.highlight ? "text-[#FFE135]" : "text-white"}`}>
-                    {plan.name}
-                  </h2>
-                  <div className="mt-3 flex items-baseline gap-1 flex-wrap">
-                    <span className="text-4xl font-bold text-white">{plan.price}</span>
-                    <span className="text-slate-400 text-sm">{plan.period}</span>
-                  </div>
-                  <p className="mt-1 text-sm font-semibold text-[#2D7DD2]">{plan.sub}</p>
-                </div>
-
-                <ul className="mb-8 space-y-3">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-slate-300">
-                      <span className="text-[#2D7DD2]">✓</span>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                {isCurrent ? (
-                  <div className="w-full rounded-xl border border-white/10 py-3 text-center text-sm font-semibold text-slate-400">
-                    {plan.key === "pro" && season ? `You have ${season.label}` : "Current plan"}
-                  </div>
-                ) : canBuy && plan.cta ? (
-                  <button
-                    onClick={() => handleCheckout(plan.key as "basic" | "pro")}
-                    disabled={loading === plan.key}
-                    className={`w-full rounded-xl py-3 text-sm font-bold transition-all disabled:opacity-60 ${
-                      plan.highlight
-                        ? "bg-[#FFE135] text-black hover:bg-[#FFE135]/90"
-                        : "bg-[#2D7DD2] text-white hover:bg-[#2D7DD2]/80"
-                    }`}
-                  >
-                    {loading === plan.key ? "Redirecting…" : plan.cta}
-                  </button>
-                ) : plan.key === "free" ? (
-                  <div className="w-full rounded-xl border border-white/5 py-3 text-center text-sm font-semibold text-slate-600">
-                    {currentPlan === "free" ? "Current plan" : "Included"}
-                  </div>
-                ) : (
-                  <div className="w-full rounded-xl border border-white/5 py-3 text-center text-sm font-semibold text-slate-600">
-                    Included in your plan
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <p className="mt-10 text-center text-sm text-slate-500">
-          Solo Pro renews monthly or yearly and can be cancelled anytime. Team is one payment per
-          ESEA season; access runs until the next season starts, so renewing is seamless.
-        </p>
+      <div className="mb-6 flex items-center gap-1" role="group" aria-label="Solo Pro billing interval">
+        {(["month", "year"] as const).map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            aria-pressed={interval === opt}
+            onClick={() => setInterval(opt)}
+            className="rounded-full px-3 py-1 text-[13px] font-semibold"
+            style={{
+              background: interval === opt ? "var(--color-accent-soft)" : "var(--color-surface-2)",
+              color: interval === opt ? "var(--color-accent)" : "var(--color-text-2)",
+              border: "1px solid var(--color-line)",
+            }}
+          >
+            {opt === "month" ? "Monthly" : "Yearly · save 20%"}
+          </button>
+        ))}
+        <span className="ml-2 text-[12px]" style={{ color: "var(--color-text-3)" }}>
+          Applies to Solo Pro. Team is one payment per season.
+        </span>
       </div>
-    </main>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <PlanCard
+          name="Free"
+          price="$0"
+          period="forever"
+          sub="2 demos a month"
+          features={FREE}
+          footer={
+            <Button variant="secondary" disabled>
+              {tier === "FREE" ? "Current plan" : "Included"}
+            </Button>
+          }
+        />
+        <PlanCard
+          name="Solo Pro"
+          price={soloPrice}
+          period={soloPeriod}
+          sub={interval === "year" ? "Two months free" : "Cancel anytime"}
+          features={SOLO}
+          footer={
+            tier === "SOLO_PRO" ? (
+              <Button variant="secondary" disabled>
+                Current plan
+              </Button>
+            ) : tier === "TEAM" ? (
+              <Button variant="secondary" disabled>
+                Included in Team
+              </Button>
+            ) : (
+              <Button onClick={() => buy("basic")} loading={checkout.isPending && checkout.variables?.plan === "basic"}>
+                Upgrade to Solo Pro
+              </Button>
+            )
+          }
+        />
+        <PlanCard
+          name="Team"
+          highlight
+          price={`$${TEAM_SEASON_PRICE_USD}`}
+          period="/ season · one payment"
+          sub={season ? `${season.label} · ${shortDate(season.start)} – ${shortDate(season.end)}${season.projected ? " (dates to be confirmed)" : ""}` : "Runs season to season with ESEA"}
+          features={TEAM}
+          footer={
+            ownsSeason ? (
+              <Button variant="secondary" disabled>
+                You have {season?.label}
+              </Button>
+            ) : (
+              <Button variant="rank" onClick={() => buy("pro")} loading={checkout.isPending && checkout.variables?.plan === "pro"}>
+                {season ? `Buy ${season.label}` : "Buy this season"}
+              </Button>
+            )
+          }
+        />
+      </div>
+
+      {checkout.isError ? (
+        <p className="mt-4 text-sm" style={{ color: "var(--color-danger)" }} role="alert">
+          {(checkout.error as Error).message}
+        </p>
+      ) : null}
+
+      <p className="mt-6 text-sm" style={{ color: "var(--color-text-2)" }}>
+        Solo Pro renews monthly or yearly. Team is one payment per ESEA season; access runs until the next season starts, so
+        renewing is seamless.
+      </p>
+
+      <section className="mt-10 max-w-2xl">
+        <h2 className="mb-3 text-xl">Questions</h2>
+        <dl className="space-y-4">
+          {FAQ.map(([q, a]) => (
+            <div key={q} className="surface-2 p-4">
+              <dt className="font-semibold">{q}</dt>
+              <dd className="mt-1 text-sm" style={{ color: "var(--color-text-2)" }}>
+                {a}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    </div>
+  );
+}
+
+function PlanCard({
+  name,
+  price,
+  period,
+  sub,
+  features,
+  footer,
+  highlight,
+}: {
+  name: string;
+  price: string;
+  period: string;
+  sub: string;
+  features: string[];
+  footer: React.ReactNode;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="surface relative flex flex-col p-5" style={{ borderColor: highlight ? "var(--color-rank)" : undefined }}>
+      {highlight ? (
+        <Badge tone="rank" className="absolute -top-2.5 left-4 z-10">
+          For rosters
+        </Badge>
+      ) : null}
+      <h2 className="text-lg">{name}</h2>
+      <p className="mt-2 flex flex-wrap items-baseline gap-1">
+        <span className="num text-3xl font-semibold">{price}</span>
+        <span className="text-[12px]" style={{ color: "var(--color-text-2)" }}>
+          {period}
+        </span>
+      </p>
+      <p className="mt-1 text-[13px] font-semibold" style={{ color: "var(--color-focus)" }}>
+        {sub}
+      </p>
+      <ul className="my-5 space-y-2 text-sm">
+        {features.map((f) => (
+          <li key={f} className="flex items-start gap-2">
+            <Check size={14} className="mt-0.5 shrink-0" style={{ color: "var(--color-good)" }} aria-hidden="true" />
+            <span>{f}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-auto [&>button]:w-full">{footer}</div>
+    </div>
   );
 }

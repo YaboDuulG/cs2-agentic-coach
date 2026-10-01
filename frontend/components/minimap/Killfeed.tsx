@@ -42,12 +42,12 @@ export function Killfeed({ telemetry }: { telemetry: RoundTelemetry }) {
 
   return (
     <div className="flex min-h-0 flex-col">
-      <h3 className="mb-2 font-mono text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+      <h3 className="mb-2 font-mono text-xs font-bold uppercase tracking-wider text-[var(--color-text-2)]">
         Killfeed
       </h3>
       <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
         {visible.length === 0 ? (
-          <p className="py-3 text-center font-mono text-xs italic text-[var(--color-text-muted)]">
+          <p className="py-3 text-center font-mono text-xs italic text-[var(--color-text-3)]">
             No kills yet this round
           </p>
         ) : (
@@ -59,7 +59,7 @@ export function Killfeed({ telemetry }: { telemetry: RoundTelemetry }) {
                 setTick(k.tick);
                 selectPlayer(k.attacker);
               }}
-              className="flex w-full items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-border-primary)] bg-[var(--color-bg-secondary)] p-2 text-left text-xs transition-[background-color,border-color] duration-[var(--dur-fast)] hover:border-[var(--color-border-strong)]"
+              className="flex w-full items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-bg-2)] p-2 text-left text-xs transition-[background-color,border-color] duration-[var(--dur-fast)] hover:border-[var(--color-line-strong)]"
               aria-label={`Seek to ${k.attacker} killing ${k.victim}`}
             >
               <span
@@ -69,18 +69,18 @@ export function Killfeed({ telemetry }: { telemetry: RoundTelemetry }) {
               >
                 {k.attacker}
               </span>
-              <span className="shrink-0 rounded border border-[var(--color-border-primary)] px-1 font-mono text-[9px] text-[var(--color-text-muted)]">
+              <span className="shrink-0 rounded border border-[var(--color-line)] px-1 font-mono text-[9px] text-[var(--color-text-3)]">
                 {formatWeapon(k.weapon)}
               </span>
               {k.headshot && (
                 <span
-                  className="shrink-0 font-mono text-[9px] font-bold text-[var(--color-accent-secondary)]"
+                  className="shrink-0 font-mono text-[9px] font-bold text-[var(--color-rank)]"
                   title="Headshot"
                 >
                   HS
                 </span>
               )}
-              <span className="shrink-0 text-[var(--color-text-muted)]" aria-hidden="true">
+              <span className="shrink-0 text-[var(--color-text-3)]" aria-hidden="true">
                 →
               </span>
               <span
