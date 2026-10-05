@@ -5,11 +5,17 @@
 // tick range on load, and lays out radar + controls + scrubber + killfeed.
 // The loading skeleton only occupies the radar square — the surrounding
 // controls stay mounted and interactive.
+//
+// Telemetry keys players by SteamID and carries no side. The optional
+// `roster` (the job's player_stats) turns ids into names and gives each
+// player the side they are on in this round, halftime included.
 
 import { useEffect, useMemo } from "react";
 
+import { sideInRound, sideOf } from "@/components/debrief/derive";
 import { Card, Spinner } from "@/components/ui";
-import { useRoundTelemetry } from "@/lib/api/hooks";
+import type { RoundTelemetry } from "@/lib/api/client";
+import { useRoundTelemetry, type JobPayload } from "@/lib/api/hooks";
 import { usePlayback } from "@/lib/stores/playback";
 
 import { Killfeed } from "./Killfeed";
@@ -17,16 +23,38 @@ import { PlaybackControls } from "./PlaybackControls";
 import { TacticalRadar } from "./TacticalRadar";
 import { TickScrubber } from "./TickScrubber";
 
+export type Roster = NonNullable<JobPayload["player_stats"]>;
+
+/** Names for ids and this round's side for every player, kill and grenade. */
+export function enrichTelemetry(telemetry: RoundTelemetry, roster: Roster | undefined): RoundTelemetry {
+  // A malformed payload (proxy error body, old backend) must not take the page down.
+  if (!roster) return { ...telemetry, players: telemetry.players ?? [], kills: telemetry.kills ?? [], grenades: telemetry.grenades ?? [] };
+  const name = (raw: string) => roster[raw]?.name ?? raw;
+  const side = (raw: string, fallback: string) => {
+    const start = sideOf(roster[raw]?.team) ?? sideOf(fallback);
+    return start ? sideInRound(start, telemetry.round) : fallback;
+  };
+  return {
+    ...telemetry,
+    players: (telemetry.players ?? []).map((p) => ({ ...p, player: name(p.player), team: side(p.player, p.team) })),
+    kills: (telemetry.kills ?? []).map((k) => ({ ...k, attacker: name(k.attacker), victim: name(k.victim) })),
+    grenades: (telemetry.grenades ?? []).map((g) => ({ ...g, thrower: name(g.thrower) })),
+  };
+}
+
 export function DemoViewer({
   matchId,
   totalRounds,
+  roster,
 }: {
   matchId: string;
   totalRounds: number;
+  roster?: Roster;
 }) {
   const round = usePlayback((s) => s.round);
   const setRange = usePlayback((s) => s.setRange);
-  const { data: telemetry, isLoading, isError } = useRoundTelemetry(matchId, round);
+  const { data: raw, isLoading, isError } = useRoundTelemetry(matchId, round);
+  const telemetry = useMemo(() => (raw ? enrichTelemetry(raw, roster) : raw), [raw, roster]);
 
   const range = useMemo(() => {
     if (!telemetry) return null;

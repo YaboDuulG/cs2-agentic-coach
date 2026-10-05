@@ -104,6 +104,7 @@ async def discord_webhook(
     body = await request.body()
 
     secret = os.environ.get("DISCORD_WEBHOOK_SECRET")
+    local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
     if secret:
         signature = request.headers.get("X-Webhook-Signature")
         if not signature:
@@ -112,6 +113,10 @@ async def discord_webhook(
         expected_sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(signature, expected_sig):
             raise HTTPException(status_code=401, detail="Invalid signature")
+    elif not local_mode:
+        # Fail closed outside local dev, like the interactions endpoint: this
+        # route writes into a team's knowledge base and spends Gemini calls.
+        raise HTTPException(status_code=401, detail="DISCORD_WEBHOOK_SECRET is not configured")
 
     try:
         payload = json.loads(body)

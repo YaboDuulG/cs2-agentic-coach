@@ -12,10 +12,11 @@ register instantly for one server while testing:
 
 import os
 import sys
+from typing import Any
 
 import httpx
 
-STRAT_COMMAND = {
+STRAT_COMMAND: dict[str, Any] = {
     "name": "strat",
     "description": "Team stratbook",
     "options": [
@@ -30,11 +31,22 @@ STRAT_COMMAND = {
         },
         {
             "type": 1,
+            "name": "channels",
+            "description": "Show which channel of the bound group stands for which map",
+        },
+        {
+            "type": 1,
+            "name": "ingest",
+            "description": "Read this channel since the last ingest and save the strategies discussed",
+        },
+        {
+            "type": 1,
             "name": "create",
-            "description": "Create a draft strat",
+            "description": "Create a draft strat (the map defaults to this map channel)",
             "options": [
                 {"type": 3, "name": "title", "description": "Strat name", "required": True},
-                {"type": 3, "name": "map", "description": "Map (e.g. de_mirage)", "required": True},
+                {"type": 3, "name": "map", "description": "Map, when not in a map channel",
+                 "required": False},
                 {"type": 3, "name": "side", "description": "T or CT", "required": False,
                  "choices": [{"name": "T", "value": "T"}, {"name": "CT", "value": "CT"}]},
                 {"type": 3, "name": "buy", "description": "Buy type", "required": False,
@@ -45,9 +57,10 @@ STRAT_COMMAND = {
         {
             "type": 1,
             "name": "view",
-            "description": "List strats for a map",
+            "description": "List strats for a map (defaults to this map channel)",
             "options": [
-                {"type": 3, "name": "map", "description": "Map name", "required": True},
+                {"type": 3, "name": "map", "description": "Map, when not in a map channel",
+                 "required": False},
                 {"type": 3, "name": "name", "description": "Strat title filter", "required": False},
             ],
         },

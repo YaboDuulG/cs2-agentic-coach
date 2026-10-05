@@ -199,8 +199,8 @@ export const api = {
     del<{ status: string }>(`/api/servers/${serverId}`),
   stratTransition: (stratId: string, status: StratStatus) =>
     post<StratSummary>(`/api/strats/${stratId}/transition`, { status }),
-  stratBindCode: (stratId: string) =>
-    post<{ code: string }>(`/api/strats/${stratId}/bind-code`, {}),
+  teamBindCode: (teamId: string) =>
+    post<{ team_id: string; code: string }>(`/api/teams/${teamId}/discord`, {}),
   checkout: (plan: string, interval: "month" | "year" = "month") =>
     post<{ url: string }>(`/api/billing/checkout`, { plan, interval }),
 };

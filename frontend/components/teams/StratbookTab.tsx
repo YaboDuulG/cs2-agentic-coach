@@ -87,7 +87,7 @@ export function StratbookTab({ teamId, isOwner }: { teamId: string; isOwner: boo
 
       <div className="space-y-6">
         <StratDetailPanel teamId={teamId} strat={selected} />
-        <DiscordCard strat={selected} isOwner={isOwner} />
+        <DiscordCard teamId={teamId} isOwner={isOwner} />
       </div>
     </div>
   );

@@ -497,8 +497,45 @@ export function useStratTransition(teamId: string | null) {
   });
 }
 
-export function useStratBindCode() {
-  return useMutation({ mutationFn: (stratId: string) => sendJson<{ team_id: string; code: string }>(`/api/strats/${stratId}/bind-code`, {}) });
+export interface TeamDiscordStatus {
+  /** The server has the public key, the bot token and the bind secret. */
+  configured: boolean;
+  settings: { public_key: boolean; bot_token: boolean; bind_secret: boolean };
+  bound: boolean;
+  guild_id: string | null;
+  /** The bound channel group; null in single-channel mode. */
+  category_id: string | null;
+  fallback_channel_id: string | null;
+  bound_at: string | null;
+  channels: { channel_id: string; name: string; map_name: string }[];
+}
+
+export function useTeamDiscord(teamId: string | null) {
+  return useQuery({
+    queryKey: ["teams", teamId, "discord"],
+    queryFn: () => getJson<TeamDiscordStatus>(`/api/teams/${teamId}/discord`),
+    enabled: Boolean(teamId),
+    // The worker maps the group's channels a few seconds after /strat bind.
+    refetchInterval: (q) => (q.state.data?.bound && q.state.data.category_id && q.state.data.channels.length === 0 ? 5_000 : 30_000),
+  });
+}
+
+/** The code `/strat bind` takes. One per team; captain only. */
+export function useTeamBindCode(teamId: string) {
+  return useMutation({ mutationFn: () => sendJson<{ team_id: string; code: string }>(`/api/teams/${teamId}/discord`, {}) });
+}
+
+export function useUnbindDiscord(teamId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/teams/${teamId}/discord`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new HttpError(messageOf(data, "Could not unbind Discord."), res.status, data);
+      return data as { status: string };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["teams", teamId, "discord"] }),
+  });
 }
 
 export interface TeamStrategy {

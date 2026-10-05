@@ -12,8 +12,14 @@ Layout:
     interactions.py - FastAPI router for POST /api/discord/interactions.
                       DB work + outbox inserts ONLY — never Discord REST or
                       LLM calls inside the request.
+    channels.py     - Channel groups: a team binds a Discord category with one
+                      channel per map; channel names are matched to maps and
+                      cached so a strat's thread opens in its map's channel.
     sync.py         - Worker-side outbox processor: Discord REST (httpx) and
                       the Gemini `ai_adapt` refinement.
+    ingest.py       - `/strat ingest`: read a channel's history since the last
+                      ingest over REST, Gemini-extract the strategies, save
+                      them to the team's knowledge base.
 
 Deviation from the original module brief: free-text @mention listening (a
 gateway feature) is replaced by the in-thread `/strat adapt prompt:` slash

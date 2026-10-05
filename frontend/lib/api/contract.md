@@ -57,6 +57,10 @@ route. FastAPI errors are `{detail: string | object}`; proxy-generated errors ar
 - `POST /api/teams/join` `{invite_code}` → `{team_id, name, status:"joined"}` (404 "Invalid invite code"). Never gated.
 - `DELETE /api/teams/[id]/members/[userId]` → `{status:"left"|"removed", user_id}`. Own id = leave (400 for the captain:
   delete the team instead); another id = captain removes (403 for players); 404 when not a member.
+- `GET /api/teams/[id]/discord` → `{configured, settings{public_key, bot_token, bind_secret}, bound, guild_id, category_id,
+  fallback_channel_id, bound_at, channels[{channel_id, name, map_name}]}` (members; 403 otherwise). `category_id` null =
+  single-channel mode. `POST` → `{team_id, code}` for `/strat bind` (captain; 503 until the server has the bind secret).
+  `DELETE` → `{status:"unbound"|"not_bound"}` (captain).
 - `GET /api/teams/[id]?view=analyses` → `[{match_id, map, status, created_at, user_id, is_recon, mode, total_rounds, opponent}]`.
 
 ## Servers & training
@@ -71,7 +75,7 @@ route. FastAPI errors are `{detail: string | object}`; proxy-generated errors ar
 ## Strats & stratbook
 - `GET /api/teams/[id]/strats` → `[{id, team_id, title, map_name, side:"T"|"CT", buy_type, status:"DRAFT"|"IN_REVIEW"|"ACTIVE"|"ARCHIVED", current_revision_id, discord_thread_id, created_by, created_at, updated_at}]`.
 - `GET /api/strats/[id]` → strat + `revisions[{id, revision_no, canvas{steps[{label, positions, utility[]}], callouts[]}, description, utility[], author_id, source, created_at}]`.
-- `POST /api/strats/[id]/transition` `{status}` → strat (409 on a disallowed transition). `POST /api/strats/[id]/bind-code` → `{team_id, code}` (owner only; 503 if Discord unconfigured).
+- `POST /api/strats/[id]/transition` `{status}` → strat (409 on a disallowed transition). The bind code moved to the team (below); the per-strat proxy is gone.
 - `GET/POST /api/teams/[id]/strategies` → `[{id, content, created_at, title, map_name, side, author, summary, steps[], raw_content}]` (RAG rows).
 - `POST /api/teams/[id]/strategies/chat` `{message, history?[{role, content}], map_name?}` → `{response}`.
 - `POST /api/stratbook/user` `{map_name, title, strategy_json}` → `{status, id}`. `GET /api/stratbook/user` → `{strategies[{id, map_name, title, strategy_json, created_at}]}`.

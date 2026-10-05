@@ -55,6 +55,23 @@ Deleted: 25 legacy files (old pages, `components/analysis/*`, `CS2PlanningBoard`
 `ServerControlPanel`, `AddStrategyModal`, old stratbook canvas, old paywall cards, old
 theme files). Known gaps carried in §4.
 
+### 2c. Discord channel groups and test suites (DONE 2026-10-02, branch `discord-channel-groups`, uncommitted)
+
+Audit result: the Discord code was complete but **production was never configured**
+(the live endpoint answers `401 DISCORD_PUBLIC_KEY is not configured`; no `DISCORD_*`
+secret in Secret Manager). `docs/discord.md` is the reference: model, setup, testing.
+
+| Area | What | Files | Tests |
+|---|---|---|---|
+| Channel groups | `/strat bind` inside a Discord category binds the whole group; each text channel named after a map is that map's channel; strat threads open there; `/strat create` and `/strat view` take the map from the channel; `/strat channels` lists the mapping | `services/discord_bot/{channels,interactions,sync}.py`, `db/models.py` (`team_discord_links.category_id`, `team_discord_channels`), migration `c5d8e2f4a7b1`, deploy migrate job | `tests/test_discord_channels.py` |
+| Review button | Submitting a strat for review now posts the embed with **Approve** (before, only a new revision did, so a first review could not be approved from Discord) | `services/discord_bot/sync.py` | same |
+| Web | Team-level status / bind code / unbind; the Discord card shows Connected and the channel → map list, and gives the right command (it used to say to bind inside a strat thread) | `api/routes/teams.py`, `app/api/teams/[teamId]/discord`, `components/teams/DiscordCard.tsx` | same |
+| Security fix | `POST /api/discord/webhook` was open in production (no secret set → no check): anyone could write into a team's knowledge base and spend Gemini calls. It now fails closed outside `LOCAL_MODE`; the Next relay passes the sender's signature through instead of adding none | `api/routes/discord.py`, `app/api/discord/webhook/route.ts` | same |
+| End-to-end suite | Plays Discord with a real Ed25519 key and enforced signatures: bind → channel mapping → create in a map channel → thread → review → Approve → ACTIVE; web-made strat landing in its map channel; outage and recovery | `tests/test_discord_e2e.py`, `tests/discord_fakes.py` | 349 backend tests pass (81 new) |
+| `/strat ingest` | Reads a channel's history since the last ingest (first run: from the beginning), Gemini extracts the strategies, saved as `team_strategy` rows with embeddings (the web's "Ingested from Discord" list and the team coach read them); cursor per channel; long channels chain runs; Gemini metered as `purpose=ingest` | `services/discord_bot/ingest.py`, `db/models.py` (`team_discord_ingest_cursors`) | `tests/test_discord_ingest.py` |
+| Replay lab fix (2026-10-05) | "2D and 3D maps not loading": the 2D radar drew dots on a dark square because no map image source was configured, and the 3D view had been dropped in the rewrite. Now: per-map radar calibration (`lib/maps.ts`, de_dust2 verified against a real demo), the real radar image under the 2D tracks, names and this round's side from the job roster, and a restored 3D kill view (three.js) sharing the same calibration, behind a 2D / 3D toggle | `lib/maps.ts`, `components/minimap/{TacticalRadar,DemoViewer,Viewer3D}.tsx`, `app/analysis/[jobId]/replay/page.tsx` | checked in the browser with the owner's dust2 match |
+| Doctor | `python scripts/discord_doctor.py [--guild id]`: read-only PASS/FAIL report of settings, application, endpoint, commands and the channel group | `scripts/discord_doctor.py` | `tests/test_discord_doctor.py` |
+
 ## 3. Owner to-do (OWNER)
 
 1. Stripe **test mode is done** (2026-09-29) in account `acct_1TZdVcGYeJKiKc7G` (activated:
@@ -109,6 +126,13 @@ theme files). Known gaps carried in §4.
    `PLAYWRIGHT_BASE_URL`. The CORS allowlist already includes it (branch `domain-demo-sage`).
 8. Decide the referrer bonus: both sides get 7 days today; `REFERRER_BONUS_DAYS` in
    `services/billing/promo.py` sets the referrer's share.
+10. **Discord: configure production** (`docs/discord.md` §3). Create the Discord
+    application and bot, put `DISCORD_APP_ID`, `DISCORD_PUBLIC_KEY`, `DISCORD_BOT_TOKEN`
+    and `DISCORD_WEBHOOK_SECRET` in the root `.env`, create the three secrets in Secret
+    Manager and add them to the API and worker `--set-secrets` in
+    `deploy-staging.yml`, set the Interactions Endpoint URL, switch on the Message
+    Content intent, invite the bot to the server, register the commands, then run `python scripts/discord_doctor.py --guild <id>`
+    until every line passes and walk the five-minute manual check in §2.3.
 
 ## 4. Engineering backlog (OPEN / PLANNED)
 
@@ -135,6 +159,8 @@ Frontend (`frontend/FRONTEND_REFACTOR_PLAN.md` §3, page specs in §6):
 |---|---|---|
 | W0–W5 | All shipped by the 2026-10-01 rewrite (see §2b and `FRONTEND_REFACTOR_PLAN.md` §0) | DONE |
 | W6 | Capture matrix: assertions and the three-theme switch exist; CI schedule and an 11px label lint rule do not | PARTLY |
+| D1 | Live listening (the bot reacting to messages or mentions as they are posted) needs a gateway connection in the worker plus the Message Content intent; `/strat ingest` is the chosen alternative. Revisit only if on-demand ingest proves too slow for the team | PLANNED |
+| D2 | Forum channels as map channels (threads are created differently there); only text channels are mapped today | PLANNED |
 | W7 | Clerk `UserButton` custom menu items (Settings / Plan / Theme) once `@clerk/nextjs` exposes them again; today they are navbar icons | PLANNED |
 | W8 | Debrief Players table: ADR, utility damage, flash assists, trade rate need backend fields (`3.3`) | PLANNED |
 
@@ -145,6 +171,7 @@ Frontend (`frontend/FRONTEND_REFACTOR_PLAN.md` §3, page specs in §6):
 | `frontend/FRONTEND_REFACTOR_PLAN.md` | Root causes, workstreams, upload flow, theme slots, shell, debrief state machine, page-by-page spec (§6) |
 | `frontend/UX_REVIEW.md` | Findings with screenshot evidence (§2, §6, §7), capture specs |
 | `ARCHITECTURE_REFACTOR_PLAN.md` | Backend status vs the architect prompt, deviations, remaining backend work |
+| `docs/discord.md` | Discord: channel-group model, commands, setup checklist, the three ways to test |
 | `docs/pricing.md` | Competitor prices, decided prices, season model, Stripe checklist, metering rationale |
 | `TECHNICAL_SPEC.md` §15 | One row per shipped decision (updated 2026-09-29) |
 | `.claude/skills/demosage-frontend/SKILL.md` | Frontend rules and review checklist for future sessions |

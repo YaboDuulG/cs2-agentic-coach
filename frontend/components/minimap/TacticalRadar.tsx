@@ -8,18 +8,19 @@
 // paints straight onto the 2D context. React re-renders only when the
 // telemetry prop changes (round switch / new match).
 //
-// Documented approximations:
-// - World→canvas mapping is derived from the telemetry's own bounding box
-//   (8% padding, aspect preserved, letterboxed) — pending per-map radar
-//   calibration. Positions are internally consistent but not aligned to
-//   official radar imagery; the optional underlay is stretched to the same
-//   letterboxed viewport and is likewise approximate.
-// - The "vision cone" is the motion direction from the last two trajectory
-//   points — the telemetry carries no view angles.
+// World→canvas mapping: when lib/maps.ts has a radar calibration for the
+// map, positions are projected onto the real 1024×1024 radar image (fitted
+// to the square, so the underlay and the dots agree). Without one, the
+// telemetry's own bounding box is fitted with 8% padding and no underlay is
+// drawn; dots are then consistent with each other but not with any image.
+//
+// The "vision cone" is the motion direction from the last two trajectory
+// points — the telemetry carries no view angles.
 
 import { useEffect, useRef } from "react";
 
 import { RoundTelemetry, RoundTelemetryPoint } from "@/lib/api/client";
+import { RADAR_SIZE, radarCalibration, radarImageUrl, worldToRadar } from "@/lib/maps";
 import { usePlayback } from "@/lib/stores/playback";
 
 const TRAIL_LEN = 8; // fading trail of the last ~8 sampled positions
@@ -142,35 +143,48 @@ export function TacticalRadar({ telemetry }: { telemetry: RoundTelemetry }) {
       return { color: colors.muted, glyph: (type[0] || "?").toUpperCase() };
     };
 
-    // World bounds from all telemetry points, 8% padding.
+    // Calibrated: the viewport is the radar image itself. Otherwise fall
+    // back to the telemetry's bounding box (8% padding).
+    const calibration = radarCalibration(telemetry.map);
+    const toRadar = (x: number, y: number) =>
+      calibration ? worldToRadar(calibration, x, y) : { x, y: -y }; // both branches y-down
+
     let minX = Infinity;
     let maxX = -Infinity;
     let minY = Infinity;
     let maxY = -Infinity;
     const include = (x: number, y: number) => {
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
+      const r = toRadar(x, y);
+      if (r.x < minX) minX = r.x;
+      if (r.x > maxX) maxX = r.x;
+      if (r.y < minY) minY = r.y;
+      if (r.y > maxY) maxY = r.y;
     };
-    for (const p of telemetry.players) for (const pt of p.points) include(pt.x, pt.y);
-    for (const k of telemetry.kills) {
-      include(k.attacker_x, k.attacker_y);
-      include(k.victim_x, k.victim_y);
-    }
-    for (const g of telemetry.grenades) include(g.x, g.y);
-    if (!Number.isFinite(minX)) {
+    if (calibration) {
       minX = 0;
-      maxX = 1;
       minY = 0;
-      maxY = 1;
+      maxX = RADAR_SIZE;
+      maxY = RADAR_SIZE;
+    } else {
+      for (const p of telemetry.players) for (const pt of p.points) include(pt.x, pt.y);
+      for (const k of telemetry.kills) {
+        include(k.attacker_x, k.attacker_y);
+        include(k.victim_x, k.victim_y);
+      }
+      for (const g of telemetry.grenades) include(g.x, g.y);
+      if (!Number.isFinite(minX)) {
+        minX = 0;
+        maxX = 1;
+        minY = 0;
+        maxY = 1;
+      }
+      const padX = (maxX - minX || 1) * 0.08;
+      const padY = (maxY - minY || 1) * 0.08;
+      minX -= padX;
+      maxX += padX;
+      minY -= padY;
+      maxY += padY;
     }
-    const padX = (maxX - minX || 1) * 0.08;
-    const padY = (maxY - minY || 1) * 0.08;
-    minX -= padX;
-    maxX += padX;
-    minY -= padY;
-    maxY += padY;
     const worldW = maxX - minX;
     const worldH = maxY - minY;
 
@@ -183,16 +197,15 @@ export function TacticalRadar({ telemetry }: { telemetry: RoundTelemetry }) {
       .filter((t) => t.points.length > 0);
     const trackByName = new Map(tracks.map((t) => [t.name, t]));
 
-    // Optional map underlay, drawn dimmed when the env base URL is set.
+    // The radar image, only when the projection is calibrated to it.
     let underlay: HTMLImageElement | null = null;
-    const base = process.env.NEXT_PUBLIC_MINIMAP_BASE_URL;
-    if (base) {
-      const mapKey = telemetry.map.split("/").pop() || telemetry.map;
+    if (calibration) {
       const img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
         underlay = img;
       };
-      img.src = `${base.replace(/\/$/, "")}/${mapKey}.png`;
+      img.src = radarImageUrl(telemetry.map);
     }
 
     const ro = new ResizeObserver(() => {
@@ -212,24 +225,24 @@ export function TacticalRadar({ telemetry }: { telemetry: RoundTelemetry }) {
       ctx.fillStyle = colors.bg;
       ctx.fillRect(0, 0, w, h);
 
-      // Preserve aspect ratio, letterbox (approximation — see header note).
+      // Preserve aspect ratio, letterbox.
       const scale = Math.min(w / worldW, h / worldH);
       const offX = (w - worldW * scale) / 2;
       const offY = (h - worldH * scale) / 2;
-      const px = (x: number) => offX + (x - minX) * scale;
-      const py = (y: number) => offY + (maxY - y) * scale; // CS2 y-up → canvas y-down
+      const px = (x: number, y: number) => offX + (toRadar(x, y).x - minX) * scale;
+      const py = (x: number, y: number) => offY + (toRadar(x, y).y - minY) * scale;
 
       if (underlay) {
-        ctx.globalAlpha = 0.22;
+        ctx.globalAlpha = 0.9;
         ctx.drawImage(underlay, offX, offY, worldW * scale, worldH * scale);
         ctx.globalAlpha = 1;
       }
 
-      // Dark tactical grid.
+      // Tactical grid: faint over the image, the only texture without one.
       const step = Math.max(24, Math.min(w, h) / 14);
       ctx.strokeStyle = colors.grid;
       ctx.lineWidth = 1;
-      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha = underlay ? 0.18 : 0.5;
       ctx.beginPath();
       for (let gx = 0; gx <= w; gx += step) {
         ctx.moveTo(gx, 0);
@@ -246,8 +259,8 @@ export function TacticalRadar({ telemetry }: { telemetry: RoundTelemetry }) {
       for (const g of telemetry.grenades) {
         if (g.tick > tick) continue;
         const { color, glyph } = grenadeStyle(g.type);
-        const lx = px(g.x);
-        const ly = py(g.y);
+        const lx = px(g.x, g.y);
+        const ly = py(g.x, g.y);
         const thrower = trackByName.get(g.thrower);
         const origin = thrower ? clampedAt(thrower.points, g.tick) : null;
         if (origin) {
@@ -256,7 +269,7 @@ export function TacticalRadar({ telemetry }: { telemetry: RoundTelemetry }) {
           ctx.lineWidth = 1 * u;
           ctx.setLineDash([4 * u, 4 * u]);
           ctx.beginPath();
-          ctx.moveTo(px(origin.x), py(origin.y));
+          ctx.moveTo(px(origin.x, origin.y), py(origin.x, origin.y));
           ctx.lineTo(lx, ly);
           ctx.stroke();
           ctx.setLineDash([]);
@@ -279,8 +292,8 @@ export function TacticalRadar({ telemetry }: { telemetry: RoundTelemetry }) {
         const pos = playerAt(tr.points, tick);
         if (!pos) continue; // trajectory ended (dead / round over)
         const color = tr.isCT ? colors.ct : colors.t;
-        const cx = px(pos.x);
-        const cy = py(pos.y);
+        const cx = px(pos.x, pos.y);
+        const cy = py(pos.x, pos.y);
 
         const startJ = Math.max(0, pos.idx - (TRAIL_LEN - 1));
         ctx.strokeStyle = color;
@@ -290,13 +303,13 @@ export function TacticalRadar({ telemetry }: { telemetry: RoundTelemetry }) {
           const age = pos.idx - j;
           ctx.globalAlpha = 0.35 * (1 - age / TRAIL_LEN);
           ctx.beginPath();
-          ctx.moveTo(px(tr.points[j].x), py(tr.points[j].y));
-          ctx.lineTo(px(tr.points[j + 1].x), py(tr.points[j + 1].y));
+          ctx.moveTo(px(tr.points[j].x, tr.points[j].y), py(tr.points[j].x, tr.points[j].y));
+          ctx.lineTo(px(tr.points[j + 1].x, tr.points[j + 1].y), py(tr.points[j + 1].x, tr.points[j + 1].y));
           ctx.stroke();
         }
         ctx.globalAlpha = 0.35;
         ctx.beginPath();
-        ctx.moveTo(px(tr.points[pos.idx].x), py(tr.points[pos.idx].y));
+        ctx.moveTo(px(tr.points[pos.idx].x, tr.points[pos.idx].y), py(tr.points[pos.idx].x, tr.points[pos.idx].y));
         ctx.lineTo(cx, cy);
         ctx.stroke();
         ctx.globalAlpha = 1;
@@ -343,8 +356,8 @@ export function TacticalRadar({ telemetry }: { telemetry: RoundTelemetry }) {
       // Kill markers — X at victim position from the kill tick onward.
       for (const k of telemetry.kills) {
         if (k.tick > tick) continue;
-        const x = px(k.victim_x);
-        const y = py(k.victim_y);
+        const x = px(k.victim_x, k.victim_y);
+        const y = py(k.victim_x, k.victim_y);
         const s = 5 * u;
         ctx.strokeStyle = colors.danger;
         ctx.lineWidth = 2 * u;

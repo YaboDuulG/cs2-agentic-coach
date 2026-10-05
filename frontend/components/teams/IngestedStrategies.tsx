@@ -57,7 +57,7 @@ export function IngestedStrategies({ teamId }: { teamId: string }) {
         <SkeletonRows rows={2} />
       ) : rows.length === 0 ? (
         <p className="text-sm" style={{ color: "var(--color-text-2)" }}>
-          Nothing ingested yet. Post a strat in your bound Discord channel or add one here.
+          Nothing ingested yet. Run <span className="num">/strat ingest</span> in a map channel to read its history, or add one here.
         </p>
       ) : (
         <ul className="space-y-2">

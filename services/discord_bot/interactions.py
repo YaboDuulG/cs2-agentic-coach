@@ -6,8 +6,13 @@ Ed25519 key; we verify against DISCORD_PUBLIC_KEY before touching the body.
 
 Handled here:
     PING                → PONG (Discord's endpoint validation)
-    /strat bind code:   → cryptographic guild↔team binding (bind code HMAC)
-    /strat create ...   → new DRAFT strat via the stratbook service
+    /strat bind code:   → cryptographic guild↔team binding (bind code HMAC);
+                          run inside a channel group it binds the whole group
+    /strat channels     → which channel of the group stands for which map
+    /strat ingest       → read this channel since the last ingest and save the
+                          strategies it describes (worker job)
+    /strat create ...   → new DRAFT strat via the stratbook service; the map
+                          defaults to the map channel the command ran in
     /strat view ...     → list matching strats + status + revision
     /strat analyze ...  → best-effort round findings from cached coaching notes
     /strat adapt ...    → enqueue an `ai_adapt` outbox row (in-thread only)
@@ -28,6 +33,15 @@ from sqlalchemy.orm import Session
 
 from db.database import get_session
 from db.models import Match, Strat, StratRevision, StratStatus, Team, TeamDiscordLink
+from services.discord_bot.channels import (
+    category_of,
+    channel_for_map,
+    interaction_channel,
+    list_channels,
+    map_for_channel,
+    map_from_name,
+    remember_channel,
+)
 from services.discord_bot.security import verify_bind_code, verify_signature
 from services.stratbook.service import (
     InvalidTransition,
@@ -131,9 +145,10 @@ def _handle_command(db: Session, payload: dict) -> dict:
     guild_id = payload.get("guild_id")
     channel_id = payload.get("channel_id")
     user_id = _invoker_id(payload)
+    channel = interaction_channel(payload)
 
     if sub == "bind":
-        return _cmd_bind(db, opts, guild_id, channel_id, user_id)
+        return _cmd_bind(db, opts, guild_id, channel_id, user_id, channel)
 
     # Every other subcommand requires the guild to be bound to a team.
     link = _guild_link(db, guild_id)
@@ -144,10 +159,21 @@ def _handle_command(db: Session, payload: dict) -> dict:
             ephemeral=True,
         )
 
+    # Every command teaches us one channel of the group; the worker's
+    # channels_sync job is what learns the rest. Committed here because the
+    # read-only subcommands never commit.
+    if remember_channel(db, link, channel):
+        db.commit()
+    channel_map = map_for_channel(db, link, channel)
+
+    if sub == "channels":
+        return _cmd_channels(db, link)
+    if sub == "ingest":
+        return _cmd_ingest(db, link, channel, channel_map, user_id)
     if sub == "create":
-        return _cmd_create(db, opts, link, user_id)
+        return _cmd_create(db, opts, link, user_id, channel_map)
     if sub == "view":
-        return _cmd_view(db, opts, link)
+        return _cmd_view(db, opts, link, channel_map)
     if sub == "analyze":
         return _cmd_analyze(db, opts, link)
     if sub == "adapt":
@@ -156,9 +182,16 @@ def _handle_command(db: Session, payload: dict) -> dict:
 
 
 def _cmd_bind(
-    db: Session, opts: dict, guild_id: str | None, channel_id: str | None, user_id: str
+    db: Session,
+    opts: dict,
+    guild_id: str | None,
+    channel_id: str | None,
+    user_id: str,
+    channel: dict[str, Any],
 ) -> dict:
-    """Verify the HMAC bind code, then link this guild+channel to the team."""
+    """Verify the HMAC bind code, then link this guild to the team. Run in a
+    channel that sits in a channel group (category), the whole group is bound:
+    one channel per map, matched by name. Otherwise this one channel is."""
     if not guild_id or not channel_id:
         return _reply("`/strat bind` only works inside a server channel.", ephemeral=True)
 
@@ -174,29 +207,122 @@ def _cmd_bind(
     if db.get(TeamDiscordLink, team_id) is not None:
         return _reply("That team is already bound to another server.", ephemeral=True)
 
-    db.add(
-        TeamDiscordLink(
-            team_id=team_id, guild_id=guild_id, channel_id=channel_id, bound_by=user_id
+    category_id = category_of(channel)
+    link = TeamDiscordLink(
+        team_id=team_id,
+        guild_id=guild_id,
+        channel_id=channel_id,
+        category_id=category_id,
+        bound_by=user_id,
+    )
+    db.add(link)
+    db.flush()
+    remember_channel(db, link, channel)
+    # The worker lists the guild's channels and maps the rest of the group
+    # (and finds the category itself when bind ran from inside a thread).
+    enqueue_sync(db, "channels_sync", {"team_id": team_id})
+    db.commit()
+    logger.info(
+        f"[Discord] guild {guild_id} bound to team {team_id} by {user_id} "
+        f"(category={category_id or 'none'})"
+    )
+    if category_id:
+        return _reply(
+            f"Bound this server to **{team.name}**. Every channel in this channel group "
+            "whose name is a map (mirage, inferno, dust2, ...) now gets that map's strats "
+            "as threads. Run `/strat channels` to see the mapping."
         )
+    return _reply(
+        f"Bound this server to **{team.name}**. This channel is not in a channel group, "
+        "so every strat will sync into this channel."
+    )
+
+
+def _cmd_channels(db: Session, link: TeamDiscordLink) -> dict:
+    """List the map channels of the bound group and queue a refresh."""
+    enqueue_sync(db, "channels_sync", {"team_id": link.team_id})
+    db.commit()
+    rows = list_channels(db, link.team_id)
+    if not link.category_id:
+        return _reply(
+            f"Single-channel mode: every strat syncs into <#{link.channel_id}>. To use one "
+            "channel per map, put the channels in a channel group and bind from inside it.",
+            ephemeral=True,
+        )
+    if not rows:
+        return _reply(
+            "No map channels found in this channel group yet. Name a channel after its map "
+            "(mirage, de-inferno, dust2, ...) and run this again in a minute; I just "
+            "queued a refresh.",
+            ephemeral=True,
+        )
+    lines = [f"- <#{r.channel_id}> → {r.map_name}" for r in rows]
+    return _reply(
+        "Map channels in this group:\n"
+        + "\n".join(lines)
+        + f"\nAny other map falls back to <#{link.channel_id}>.",
+        ephemeral=True,
+    )
+
+
+def _cmd_ingest(
+    db: Session, link: TeamDiscordLink, channel: dict[str, Any], channel_map: str | None, user_id: str
+) -> dict:
+    """Queue a read of this channel's history since the last ingest (the
+    first run reads it from the beginning). The worker does the reading and
+    replies here when it is done."""
+    from db.models import TeamDiscordIngestCursor  # noqa: PLC0415
+
+    channel_id = str(channel.get("id") or "")
+    if not channel_id or channel.get("type") not in (0, 10, 11, 12):
+        return _reply("`/strat ingest` works in a text channel or a thread.", ephemeral=True)
+    channel_name = str(channel.get("name") or channel_id)
+    enqueue_sync(
+        db,
+        "channel_ingest",
+        {
+            "team_id": link.team_id,
+            "channel_id": channel_id,
+            "channel_name": channel_name,
+            "map_name": channel_map,
+            "requested_by": user_id,
+        },
     )
     db.commit()
-    logger.info(f"[Discord] guild {guild_id} bound to team {team_id} by {user_id}")
+    cursor = db.get(TeamDiscordIngestCursor, channel_id)
+    since = (
+        f"since {cursor.last_run_at.strftime('%d %b %H:%M')} UTC"
+        if cursor is not None and cursor.last_run_at
+        else "from the beginning"
+    )
     return _reply(
-        f"Bound this server to **{team.name}**. Strats will sync into this channel."
+        f"Reading <#{channel_id}> {since}"
+        + (f" as {channel_map} strategies" if channel_map else "")
+        + ". I'll post what I found here in a minute."
     )
 
 
-def _cmd_create(db: Session, opts: dict, link: TeamDiscordLink, user_id: str) -> dict:
+def _cmd_create(
+    db: Session, opts: dict, link: TeamDiscordLink, user_id: str, channel_map: str | None
+) -> dict:
     """Docstring for _cmd_create."""
     title = str(opts.get("title") or "").strip()
     if not title:
         return _reply("A strat needs a title.", ephemeral=True)
+    typed_map = str(opts.get("map") or "").strip()
+    # A typed map wins; an unknown one is kept as typed rather than rejected.
+    map_name = (map_from_name(typed_map) or typed_map) if typed_map else channel_map
+    if not map_name:
+        return _reply(
+            "Which map? Run this in a map channel, or pass `map:` (e.g. `map:mirage`).",
+            ephemeral=True,
+        )
     try:
         strat = create_strat(
             db,
             team_id=link.team_id,
             title=title,
-            map_name=str(opts.get("map") or "unknown"),
+            map_name=map_name,
             side=str(opts.get("side") or "T"),
             buy_type=str(opts.get("buy") or "full_buy"),
             canvas={},
@@ -208,15 +334,22 @@ def _cmd_create(db: Session, opts: dict, link: TeamDiscordLink, user_id: str) ->
     except ValueError as e:
         return _reply(str(e), ephemeral=True)
     db.commit()
+    home = channel_for_map(db, link.team_id, strat.map_name) or link.channel_id
     return _reply(
         f"Created **{strat.title}** ({strat.map_name}, {strat.side}, {strat.buy_type}) "
-        f"as DRAFT. A thread will open here once it syncs."
+        f"as DRAFT. A thread will open in <#{home}> once it syncs."
     )
 
 
-def _cmd_view(db: Session, opts: dict, link: TeamDiscordLink) -> dict:
+def _cmd_view(db: Session, opts: dict, link: TeamDiscordLink, channel_map: str | None) -> dict:
     """Docstring for _cmd_view."""
-    map_name = str(opts.get("map") or "")
+    typed_map = str(opts.get("map") or "").strip()
+    map_name = (map_from_name(typed_map) or typed_map) if typed_map else channel_map
+    if not map_name:
+        return _reply(
+            "Which map? Run this in a map channel, or pass `map:` (e.g. `map:mirage`).",
+            ephemeral=True,
+        )
     query = db.query(Strat).filter(Strat.team_id == link.team_id, Strat.map_name == map_name)
     name = str(opts.get("name") or "").strip()
     if name:

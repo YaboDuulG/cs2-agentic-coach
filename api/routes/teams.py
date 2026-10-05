@@ -445,6 +445,88 @@ async def remove_member(
         raise HTTPException(status_code=500, detail="Failed to update the roster")
 
 
+def _discord_configured() -> dict[str, bool]:
+    """Which Discord settings the server has. Names only, never values."""
+    return {
+        "public_key": bool(os.environ.get("DISCORD_PUBLIC_KEY")),
+        "bot_token": bool(os.environ.get("DISCORD_BOT_TOKEN")),
+        "bind_secret": bool(os.environ.get("DISCORD_WEBHOOK_SECRET")),
+    }
+
+
+@router.get("/{team_id}/discord", summary="Discord link status for a team")
+async def team_discord(team_id: str, user_id: str = "", db: Session = Depends(get_session)):
+    """Whether Discord is configured on the server, whether this team is bound,
+    and which channel of the bound group stands for which map. Members only."""
+    from db.models import TeamDiscordLink  # noqa: PLC0415
+    from services.discord_bot.channels import list_channels  # noqa: PLC0415
+
+    member = db.execute(
+        text("SELECT id FROM team_members WHERE team_id = :tid AND user_id = :uid"),
+        {"tid": team_id, "uid": user_id},
+    ).fetchone()
+    if not member:
+        raise HTTPException(status_code=403, detail="Not a member of this team")
+
+    settings = _discord_configured()
+    link = db.get(TeamDiscordLink, team_id)
+    return {
+        "configured": all(settings.values()),
+        "settings": settings,
+        "bound": link is not None,
+        "guild_id": link.guild_id if link else None,
+        "category_id": link.category_id if link else None,
+        "fallback_channel_id": link.channel_id if link else None,
+        "bound_at": link.bound_at.isoformat() if link and link.bound_at else None,
+        "channels": [
+            {"channel_id": c.channel_id, "name": c.name, "map_name": c.map_name}
+            for c in (list_channels(db, team_id) if link else [])
+        ],
+    }
+
+
+@router.post("/{team_id}/discord/bind-code", summary="Mint the team's Discord bind code")
+async def team_discord_bind_code(
+    team_id: str, user_id: str = "", db: Session = Depends(get_session)
+):
+    """The code `/strat bind` takes. Captain only; 503 until the server has
+    DISCORD_WEBHOOK_SECRET."""
+    from services.discord_bot.security import make_bind_code  # noqa: PLC0415
+
+    team = db.execute(
+        text("SELECT owner_user_id FROM teams WHERE id = :id"), {"id": team_id}
+    ).fetchone()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    if not user_id or team[0] != user_id:
+        raise HTTPException(status_code=403, detail="Only the captain can mint bind codes")
+    try:
+        return {"team_id": team_id, "code": make_bind_code(team_id)}
+    except ValueError:
+        raise HTTPException(status_code=503, detail="Discord binding is not configured")
+
+
+@router.delete("/{team_id}/discord", summary="Unbind the team from its Discord server")
+async def team_discord_unbind(team_id: str, user_id: str = "", db: Session = Depends(get_session)):
+    """Captain only. Strats keep their thread ids; nothing is deleted in Discord."""
+    from db.models import TeamDiscordChannel, TeamDiscordLink  # noqa: PLC0415
+
+    team = db.execute(
+        text("SELECT owner_user_id FROM teams WHERE id = :id"), {"id": team_id}
+    ).fetchone()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    if not user_id or team[0] != user_id:
+        raise HTTPException(status_code=403, detail="Only the captain can unbind Discord")
+    link = db.get(TeamDiscordLink, team_id)
+    if link is None:
+        return {"status": "not_bound"}
+    db.query(TeamDiscordChannel).filter(TeamDiscordChannel.team_id == team_id).delete()
+    db.delete(link)
+    db.commit()
+    return {"status": "unbound"}
+
+
 class CreateStrategyRequest(BaseModel):
     """Docstring for CreateStrategyRequest."""
     title: str

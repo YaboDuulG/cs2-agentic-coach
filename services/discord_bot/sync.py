@@ -6,10 +6,15 @@ process_outbox_item(db, item); raising here makes db/outbox.fail requeue the
 item (up to max_attempts), returning cleanly marks it DONE.
 
 Kinds:
-    strat_upsert  - ensure the strat has a Discord thread, post the embed
-    strat_status  - post a status-change line into the thread
+    strat_upsert  - ensure the strat has a Discord thread (in the channel for
+                    its map when the team bound a channel group), post the embed
+    strat_status  - post a status-change line into the thread; entering review
+                    also posts the embed with the Approve button
     discord_reply - post plain text into a thread
     ai_adapt      - Gemini-adapt the canvas, add an `ai` revision, reply
+    channels_sync - list the guild's channels and rebuild the map-channel cache
+    channel_ingest - read a channel's history since the last ingest and save
+                    the strategies it describes (services/discord_bot/ingest.py)
 
 Design note: Strat has no discord_message_id column (deliberate — see
 db/models.py), so upserts and status changes POST new messages instead of
@@ -25,6 +30,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from db.models import Strat, StratRevision, StratStatus, SyncOutbox, TeamDiscordLink
+from services.discord_bot.channels import channel_for_map, store_category_channels
 from services.stratbook.service import add_revision, enqueue_sync
 
 logger = logging.getLogger(__name__)
@@ -50,6 +56,12 @@ def process_outbox_item(db: Session, item: SyncOutbox) -> None:
         _handle_discord_reply(payload)
     elif item.kind == "ai_adapt":
         _handle_ai_adapt(db, payload)
+    elif item.kind == "channels_sync":
+        _handle_channels_sync(db, payload)
+    elif item.kind == "channel_ingest":
+        from services.discord_bot.ingest import run_channel_ingest  # noqa: PLC0415
+
+        run_channel_ingest(db, payload, _discord_request)
     else:
         raise ValueError(f"Unknown outbox kind {item.kind!r}")
 
@@ -165,6 +177,36 @@ def _current_revision(db: Session, strat: Strat, revision_id: int | None = None)
     return db.get(StratRevision, rev_id) if rev_id else None
 
 
+def _refresh_channels(db: Session, link: TeamDiscordLink) -> bool:
+    """Rebuild the team's map-channel cache from Discord. False when Discord
+    is unreachable by design (LOCAL_MODE / no bot token)."""
+    channels = _discord_request("GET", f"/guilds/{link.guild_id}/channels")
+    if channels is None:
+        return False
+    store_category_channels(db, link, channels if isinstance(channels, list) else [])
+    db.commit()
+    return True
+
+
+def _handle_channels_sync(db: Session, payload: dict) -> None:
+    """Docstring for _handle_channels_sync."""
+    link = db.get(TeamDiscordLink, payload["team_id"])
+    if link is None:
+        logger.info(f"[Discord sync] team {payload['team_id']} is not bound; nothing to sync")
+        return
+    _refresh_channels(db, link)
+
+
+def _thread_home(db: Session, link: TeamDiscordLink, strat: Strat) -> str:
+    """Channel a strat's thread opens in: the group's channel for its map,
+    else the channel bind ran in. A miss refreshes the cache once, so a strat
+    made on the web lands in a map channel nobody has used a command in yet."""
+    home = channel_for_map(db, link.team_id, strat.map_name)
+    if home is None and link.category_id and _refresh_channels(db, link):
+        home = channel_for_map(db, link.team_id, strat.map_name)
+    return home or link.channel_id
+
+
 def _handle_strat_upsert(db: Session, payload: dict) -> None:
     """Ensure the strat's thread exists, then post the current embed into it."""
     strat = _load_strat(db, payload["strat_id"])
@@ -177,7 +219,7 @@ def _handle_strat_upsert(db: Session, payload: dict) -> None:
     if not strat.discord_thread_id:
         thread = _discord_request(
             "POST",
-            f"/channels/{link.channel_id}/threads",
+            f"/channels/{_thread_home(db, link, strat)}/threads",
             {
                 "name": f"[strat] {strat.title}"[:100],
                 "type": 11,  # public thread
@@ -208,6 +250,17 @@ def _handle_strat_status(db: Session, payload: dict) -> None:
         f"/channels/{strat.discord_thread_id}/messages",
         {"content": f"Status changed to **{payload.get('status', '?')}** (by {actor})."},
     )
+    # Submitting for review is a status change, not a new revision, so this is
+    # the only event that can put the Approve button in front of the team.
+    if StratStatus(strat.status) == StratStatus.IN_REVIEW:
+        _discord_request(
+            "POST",
+            f"/channels/{strat.discord_thread_id}/messages",
+            {
+                "embeds": [_build_embed(strat, _current_revision(db, strat))],
+                "components": _approve_button_row(strat.id),
+            },
+        )
 
 
 def _handle_discord_reply(payload: dict) -> None:

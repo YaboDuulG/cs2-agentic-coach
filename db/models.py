@@ -972,11 +972,57 @@ class TeamDiscordLink(Base):
         String(36), ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True
     )
     guild_id: Mapped[str] = mapped_column(String(32), nullable=False, unique=True, index=True)
+    # The channel `/strat bind` ran in: where strats go when no map channel matches.
     channel_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    # The channel group (Discord category) holding one channel per map. Null
+    # when bind ran outside a category: single-channel mode, everything goes
+    # to channel_id.
+    category_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     bound_by: Mapped[str] = mapped_column(String(64), nullable=False)  # discord user id
     bound_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
+
+
+class TeamDiscordChannel(Base):
+    """
+    One text channel of a team's bound channel group, matched to a map by its
+    name (#mirage, #de-inferno, #dust-2). A strat's thread opens in the channel
+    for its map. Rows are a cache of Discord's channel list, rebuilt by the
+    `channels_sync` outbox job and topped up by interactions.
+    """
+
+    __tablename__ = "team_discord_channels"
+
+    channel_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    map_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+
+class TeamDiscordIngestCursor(Base):
+    """
+    Where `/strat ingest` got to in a channel: the id of the last message read,
+    so the next run picks up right after it. One row per channel; the first
+    run of a channel starts from its first message.
+    """
+
+    __tablename__ = "team_discord_ingest_cursors"
+
+    channel_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    last_message_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    messages_read: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    strategies_saved: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class OutboxStatus(str, enum.Enum):

@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { Button, Modal } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { BoardToolbar, type Tool } from "./BoardToolbar";
+import { radarImageUrl } from "@/lib/maps";
 import { type BoardJson, type BoardPoint, MAPS, MARKER_LABEL, MARKER_TOKEN, PEN_TOKENS, emptyBoard, isBoardEmpty } from "./boardJson";
 
 // Same radar source the analysis page and Viewer3D use.
-const RADAR_BASE = "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/radars";
 const HISTORY_MAX = 20;
 /** Pen widths are stored relative to a board this many CSS px wide. */
 const REF_SIDE = 480;
@@ -133,7 +133,7 @@ export function PlanningBoard({ map, onMapChange, value, onChange, readOnly = fa
     img.crossOrigin = "anonymous";
     img.onload = () => alive && setRadar({ map, img, failed: false });
     img.onerror = () => alive && setRadar({ map, img: null, failed: true });
-    img.src = `${RADAR_BASE}/${map}_radar_psd.png`;
+    img.src = radarImageUrl(map);
     return () => {
       alive = false;
     };
