@@ -72,6 +72,44 @@ secret in Secret Manager). `docs/discord.md` is the reference: model, setup, tes
 | Replay lab fix (2026-10-05) | "2D and 3D maps not loading": the 2D radar drew dots on a dark square because no map image source was configured, and the 3D view had been dropped in the rewrite. Now: per-map radar calibration (`lib/maps.ts`, de_dust2 verified against a real demo), the real radar image under the 2D tracks, names and this round's side from the job roster, and a restored 3D kill view (three.js) sharing the same calibration, behind a 2D / 3D toggle | `lib/maps.ts`, `components/minimap/{TacticalRadar,DemoViewer,Viewer3D}.tsx`, `app/analysis/[jobId]/replay/page.tsx` | checked in the browser with the owner's dust2 match |
 | Doctor | `python scripts/discord_doctor.py [--guild id]`: read-only PASS/FAIL report of settings, application, endpoint, commands and the channel group | `scripts/discord_doctor.py` | `tests/test_discord_doctor.py` |
 
+### 2d. 2026-10-06 code-review backlog (`demosage-task-list.md`), what was done
+
+Each claim was checked against the code first. Verified and fixed:
+
+| Item | Finding on inspection | Change | Tests |
+|---|---|---|---|
+| P0 identity header trust | Real but latent: production runs in shared-secret mode (no `CLERK_PEM_PUBLIC_KEY`), so only the Next proxies can reach the API and the header is theirs. With a Clerk key set, any signed-in user could have named another user. | `api/auth.py` now has an explicit `Principal`: the proxy (shared secret, constant-time compare) may speak for anyone; a Clerk-token caller is refused (403) when the header, `user_id` query or JSON `user_id` names someone else. Both modes work together now (before, setting the key broke the proxies). | `tests/test_auth_identity.py` |
+| P0 RCON allowlist | Real: the Warlord ran whatever JSON Gemini returned. | `services/warlord/rcon_client.py`: allowlist of practice commands with argument patterns for the LLM path, denylist of lock-out commands (quit, rcon_password, sv_password, host_*, logaddress, bans, …) for everyone including the web console, no `;` chaining; a refused command refuses the batch; the Warlord reports what it refused. | `tests/test_rcon_allowlist.py` |
+| P0 FACEIT signatures fail open | Real. | `verify_faceit_signature` reads the secret at call time and refuses without it outside `LOCAL_MODE`/`APP_ENV=development`; a missing header is refused. | `tests/test_faceit_webhook.py` |
+| P0 shared-secret principal | Done with the identity change: `INTERNAL_SERVICE_USER` is a named constant and the only value a service caller resolves to. | `api/auth.py` | same |
+| P1 dead FACEIT receiver | Real: `/api/faceit/webhook` sat behind the user auth dependency. | Deleted; `/api/faceit/status` now reports the real path `/api/webhooks/faceit`. | same |
+| P1 dedupe | The surviving receiver already deduped; it now does so **before** the FACEIT lookup so retries cost nothing. | `api/routes/webhooks.py` | same |
+| P1 sync HTTP in async handler | Real. | The crawler's `requests` call runs in `asyncio.to_thread`. | same |
+| (found while testing) FACEIT match creation crashed | Both FACEIT paths set `map_name`/`status`/`gcs_demo_uri` on `Match`, whose columns moved to `Demo` in the demo/match split: every finished match would have 500'd. | `create_faceit_match()` in `services/ingestion/faceit_crawler.py` writes demo + match rows like presign. | same |
+| P1 supervisor routing | Substring matching misrouted "observed" (server), "pasted" (past), "metadata" (meta), "connector" (connect). | `classify_intent()` matches whole words; server beats general. | `tests/test_supervisor_routing.py` |
+| P2 strat reviewer prompt | Loose prompt. | Rewritten around an eight-point strat template (identity, buy, five roles, timing, utility, execution, contingencies, when not to call it) with fixed sections and a verdict that names a one-player drawing as a tip, not a strat. | prompt only |
+| P3 `ERROR` file, dead credentials, pgvector docstring | | Deleted; `VULTR_API_KEY` dropped from the deploy, `HETZNER_API_TOKEN` removed from Vercel; `db/rag.py` says Qdrant. | |
+
+Not done, with the reason:
+
+- **P1 pro baselines**: `compute_pro_baselines()` is a documented stub; the shipped
+  baselines are the seeded bootstrap values plus RAG citations. Building measured
+  pro aggregates needs pro demos through the extraction pass (backlog 3.3); the copy
+  question ("pro benchmarks") is yours. Nothing fabricated, nothing changed.
+- **P2 strat audit, MapPlaybook content**: data and product decisions, not code.
+- **P3 mypy `|| true`**: 62 pre-existing errors in 19 files would fail every build.
+  Fix them first (one sitting, mostly SQLAlchemy typing), then drop the swallow.
+- **P3 `requirements-ci.txt`**: deliberate (heavy GCP/ML packages); aligning means
+  slower CI or a two-stage install. Decision, not a fix.
+- **P3 Comms Analyst**: build or remove is yours; the endpoint still answers.
+- **P3 tactician duplicates**: `api/agents/tactician_heuristics.py` (119 lines) and
+  `api/routes/fcr.py` predate `services/tactician/` (1,500 lines); consolidation is
+  backlog 3.1.
+- **P3 `vultr_instance_id` rename**: needs a migration and a deploy window; backlog.
+- **Verification plan**: the unit side is covered by the suites above; the live
+  checks (real FACEIT demo, OAuth link, RCON probe on a test server) need your
+  accounts.
+
 ## 3. Owner to-do (OWNER)
 
 1. Stripe **test mode is done** (2026-09-29) in account `acct_1TZdVcGYeJKiKc7G` (activated:

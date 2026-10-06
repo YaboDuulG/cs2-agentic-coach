@@ -1,6 +1,7 @@
 """Module docstring."""
 import json
 import logging
+import re
 from typing import Any
 
 from agents.khan.llm import _call_gemini, _stub_coaching
@@ -9,30 +10,35 @@ from agents.state import MatchState
 
 logger = logging.getLogger("great_khan")
 
+# Whole-word (or whole-phrase) triggers: "server" must not fire on "observed",
+# nor "past" on "pasted", nor "meta" on "metadata". Order matters: a server
+# request wins over a general question.
+_SERVER_TERMS = ("server", "servers", "warlord", "connect", "rcon", "dathost", "spin up", "practice server")
+_GENERAL_TERMS = ("history", "past", "meta", "trend", "trends", "overall", "last game", "last games", "hltv")
+
+
+def _has_term(text: str, terms: tuple[str, ...]) -> bool:
+    """Docstring for _has_term."""
+    return any(re.search(rf"(?<![a-z0-9]){re.escape(t)}(?![a-z0-9])", text) for t in terms)
+
+
+def classify_intent(query: str) -> str:
+    """server_request | general | tactical_analysis for a user question.
+    Pure, so the routing table has tests (tests/test_supervisor_routing.py)."""
+    text = query.strip().lower()
+    if not text:
+        return "tactical_analysis"  # no question: analyse the uploaded match
+    if _has_term(text, _SERVER_TERMS):
+        return "server_request"
+    if _has_term(text, _GENERAL_TERMS):
+        return "general"
+    return "tactical_analysis"
+
+
 def supervisor_node(state: MatchState) -> dict[str, Any]:
     """Classifies the user query and routes to the correct node."""
     logger.info("[Supervisor] Evaluating user query...")
-    query = state.get("user_query", "").strip()
-
-    if not query:
-        # If no user query, default to tactical analysis on the uploaded match
-        return {"intent": "tactical_analysis"}
-
-    query_lower = query.lower()
-
-    # Route based on key terms
-    if any(
-        k in query_lower for k in ("server", "warlord", "connect", "rcon", "dathost", "spin up")
-    ):
-        intent = "server_request"
-    elif any(
-        k in query_lower
-        for k in ("history", "past", "meta", "trend", "overall", "last game", "hltv")
-    ):
-        intent = "general"
-    else:
-        intent = "tactical_analysis"
-
+    intent = classify_intent(state.get("user_query", ""))
     logger.info(f"[Supervisor] Classed intent: {intent}")
     return {"intent": intent}
 
@@ -465,17 +471,32 @@ Return ONLY valid JSON: {{"commands": ["cmd1", "cmd2"]}}
                 )
             }
 
-        # 4. Execute via RCON asynchronously natively
-        from services.warlord.rcon_client import execute_batch_commands
+        # 4. The model's output is untrusted: only known practice commands run,
+        # and a refused one is reported rather than silently dropped.
+        from services.warlord.rcon_client import execute_batch_commands, filter_commands
+
+        cmds, refused = filter_commands(cmds, strict=True)
+        if refused:
+            logger.warning(f"[Warlord] refused {len(refused)} LLM command(s): {refused}")
+        if not cmds:
+            why = "; ".join(f"`{c}` ({r})" for c, r in refused) or "nothing to run"
+            return {
+                "final_report": _stub_server_report(
+                    f"I won't run that on the server: {why}. Practice settings, bots, pauses "
+                    "and map changes are what I can do from here."
+                )
+            }
         host, port = server.ip_address.split(":")
 
         await execute_batch_commands(host, int(port), server.rcon_password, cmds)
 
         # 5. Return success
+        skipped = [f"Refused: {c} ({r})" for c, r in refused]
         return {
             "final_report": {
-                "summary": f"Executed {len(cmds)} server commands successfully.",
-                "key_findings": [f"Executed: {cmd}" for cmd in cmds],
+                "summary": f"Executed {len(cmds)} server commands successfully."
+                + (f" Refused {len(refused)}." if refused else ""),
+                "key_findings": [f"Executed: {cmd}" for cmd in cmds] + skipped,
                 "economy_analysis": "Server management",
                 "tactical_recommendations": [],
                 "strongest_area": "Server Online",

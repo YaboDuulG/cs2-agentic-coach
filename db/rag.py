@@ -2,7 +2,7 @@
 DemoSage — RAG Semantic Search Module
 ======================================
 Provides functions to retrieve relevant chunks from the Knowledge Base
-using vector search (pgvector in Postgres, Python-based fallback in SQLite).
+using vector search (Qdrant Cloud via db/qdrant_client.py; Python-based fallback in SQLite).
 """
 
 import logging

@@ -8,7 +8,7 @@ import requests
 from sqlalchemy.orm import Session
 
 from api.queue import enqueue_task
-from db.models import Match, MatchStatus
+from db.models import Demo, Match
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,35 @@ def _fetch_demo_url(faceit_match_id: str, headers: dict) -> str | None:
     except Exception as exc:
         logger.error(f"Error fetching match details: {exc}")
     return None
+
+def faceit_demo_filename(faceit_match_id: str) -> str:
+    """The filename FACEIT matches are deduplicated on."""
+    return f"faceit_{faceit_match_id}.dem"
+
+
+def create_faceit_match(
+    db: Session, faceit_match_id: str, demo_url: str, *, team_id: str | None = None, user_id: str | None = None
+) -> str:
+    """Demo + match rows for a FACEIT demo, the way presign does for uploads.
+    Map, status and the demo URL live on the demo since the demo/match split;
+    writing them on Match raised at runtime. Returns the match id; caller
+    commits."""
+    demo_id = str(uuid.uuid4())
+    match_id = str(uuid.uuid4())
+    db.add(Demo(demo_id=demo_id, gcs_demo_uri=demo_url, map_name="unknown"))
+    db.add(
+        Match(
+            match_id=match_id,
+            demo_id=demo_id,
+            demo_filename=faceit_demo_filename(faceit_match_id),
+            team_id=team_id,
+            user_id=user_id,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+    )
+    return match_id
+
 
 def fetch_recent_matches(faceit_id: str, access_token: str | None, db: Session, limit: int = 5) -> list[str]:
     """
@@ -63,7 +92,7 @@ def fetch_recent_matches(faceit_id: str, access_token: str | None, db: Session, 
                 continue
 
             # Deduplication
-            existing = db.query(Match).filter(Match.demo_filename == f"faceit_{faceit_match_id}.dem").first()
+            existing = db.query(Match).filter(Match.demo_filename == faceit_demo_filename(faceit_match_id)).first()
             if existing:
                 continue
 
@@ -71,18 +100,7 @@ def fetch_recent_matches(faceit_id: str, access_token: str | None, db: Session, 
             if not demo_url:
                 continue
 
-            internal_match_id = str(uuid.uuid4())
-            match = Match(
-                match_id=internal_match_id,
-                team_id=None,
-                demo_filename=f"faceit_{faceit_match_id}.dem",
-                map_name="unknown",
-                status=MatchStatus.PENDING,
-                gcs_demo_uri=demo_url,
-                created_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC),
-            )
-            db.add(match)
+            internal_match_id = create_faceit_match(db, faceit_match_id, demo_url)
             db.commit()
 
             scout_url = os.environ.get("SCOUT_SERVICE_URL", "http://localhost:8001")
