@@ -48,24 +48,3 @@ def test_upload_demo_wrong_extension():
     )
     assert response.status_code == 400
     assert "dem" in response.json()["detail"].lower()
-
-
-def test_upload_audio_no_match_id():
-    """Audio upload without match_id should return 400."""
-    response = client.post(
-        "/api/upload/audio",
-        files={"file": ("comms.mp3", b"fake audio", "audio/mpeg")},
-        data={"match_id": ""},
-    )
-    assert response.status_code == 400
-    assert "match_id" in response.json()["detail"].lower()
-
-
-def test_upload_audio_wrong_extension():
-    """Audio upload with wrong extension should return 400."""
-    response = client.post(
-        "/api/upload/audio",
-        files={"file": ("comms.avi", b"fake content", "video/avi")},
-        data={"match_id": "test-match-001"},
-    )
-    assert response.status_code == 400

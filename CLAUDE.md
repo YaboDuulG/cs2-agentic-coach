@@ -3,7 +3,8 @@
 CS2 demo analysis: upload a `.dem` → LangGraph agents produce round-by-round coaching.
 See `@README.md` for the service map and `@TECHNICAL_SPEC.md` for the full architecture.
 `TASKS.md` is the consolidated status of everything in flight (decisions, shipped, owner
-to-do, backlog). `ARCHITECTURE_REFACTOR_PLAN.md` is the reconciled backend refactor backlog.
+to-do, backlog). `docs/runbook.md` is the SOP: release procedure, environment and
+secret map, verification gate, routine operations, rollback. `ARCHITECTURE_REFACTOR_PLAN.md` is the reconciled backend refactor backlog.
 `frontend/FRONTEND_REFACTOR_PLAN.md` is the frontend plan; `frontend/UX_REVIEW.md` holds
 the evidence behind it (findings + screenshot specs). The `demosage-frontend` project
 skill (`.claude/skills/`) loads the frontend rules for any work under `frontend/`.

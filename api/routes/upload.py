@@ -1,5 +1,5 @@
 """
-Upload endpoints for demo (.dem) and audio files.
+Upload endpoints for demo (.dem) files.
 Validates → uploads to GCS → queues a demo-parser parse job via Cloud Tasks.
 """
 
@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 ALLOWED_DEMO_TYPES = {".dem", ".dem.gz"}
-ALLOWED_AUDIO_TYPES = {".mp3", ".wav", ".ogg"}
-MAX_AUDIO_SIZE_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 
 
 def _get_gcs_client():
@@ -84,54 +82,4 @@ async def upload_demo(file: UploadFile = File(...)):
             if not local_mode
             else f"LOCAL_MODE: run `python scripts/run_local.py --demo <path> --match-id {match_id}`"
         ),
-    }
-
-
-@router.post("/audio", summary="Upload team comms audio for analysis")
-async def upload_audio(file: UploadFile = File(...), match_id: str = ""):
-    """
-    Accept team audio recording, upload to GCS, and queue Comms Analyst job.
-    Requires a match_id to align transcript timestamps to demo round clock.
-    """
-    secure_filename = os.path.basename(file.filename or "")
-    suffix = os.path.splitext(secure_filename)[-1].lower()
-    if suffix not in ALLOWED_AUDIO_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported audio format. Accepted: {ALLOWED_AUDIO_TYPES}",
-        )
-
-    if not match_id:
-        raise HTTPException(
-            status_code=400,
-            detail="match_id is required to align audio to a parsed demo.",
-        )
-
-    file_bytes = await file.read()
-
-    if len(file_bytes) > MAX_AUDIO_SIZE_BYTES:
-        raise HTTPException(status_code=413, detail="File exceeds 2 GB limit.")
-
-    local_mode = os.getenv("LOCAL_MODE", "false").lower() == "true"
-    gcs_uri = None
-
-    if not local_mode:
-        gcs_path = f"audio/raw/{match_id}/{secure_filename}"
-        try:
-            gcs_uri = _upload_to_gcs(file_bytes, gcs_path, "audio/mpeg")
-            logger.info(f"Audio uploaded: {gcs_uri}")
-        except Exception as e:
-            logger.error(f"GCS upload failed: {e}")
-            raise HTTPException(status_code=500, detail="File upload failed.")
-
-        # TODO (Phase 5): Enqueue Comms Analyst job via Cloud Tasks
-        # from api.queue import enqueue_comms_job
-        # enqueue_comms_job(match_id, gcs_uri)
-
-    return {
-        "match_id": match_id,
-        "status": "queued" if not local_mode else "uploaded_local",
-        "gcs_uri": gcs_uri,
-        "local_mode": local_mode,
-        "message": "Audio uploaded. Comms Analyst job queued.",
     }

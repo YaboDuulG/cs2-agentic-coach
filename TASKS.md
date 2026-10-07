@@ -1,13 +1,17 @@
-# TASKS — everything designed on 2026-09-29, with status
+# TASKS — status of everything in flight
 
-One list. Each row says whether it is shipped in the working tree (uncommitted on
-`main` as of writing), open for the owner, or open for engineering, and where the
-detail lives. Reference documents were updated the same day: `README.md`,
-`TECHNICAL_SPEC.md` §15, `CLAUDE.md`, `.env.example`, `docs/pricing.md`,
-`frontend/FRONTEND_REFACTOR_PLAN.md`, `ARCHITECTURE_REFACTOR_PLAN.md`.
+Last updated 2026-10-07 (code at `main` = `dd068eb` plus this doc pass).
+`docs/runbook.md` is the SOP: how releases, secrets, checks and routine
+operations are done. This file is what is decided, shipped, open and yours.
 
-Legend: **DONE** = code in the tree with tests passing · **OWNER** = only you can do it
-· **OPEN** = engineering work not started · **PLANNED** = specified, not started.
+Legend: **DONE** = merged to `main`, deployed, verified as the row says ·
+**OWNER** = only you can do it · **OPEN** = engineering work not started ·
+**PLANNED** = specified, not started.
+
+**State of the tree**: nothing uncommitted. `frontend-rewrite` and
+`discord-channel-groups` are both merged into `main` (fast-forward) and
+deployed; the last three deploys (10-01, 10-06 ×2) were green. 460 backend tests
+pass on `main`; the frontend lint, type check and build are clean.
 
 ## 1. Decisions taken (do not reopen)
 
@@ -15,162 +19,128 @@ Legend: **DONE** = code in the tree with tests passing · **OWNER** = only you c
 |---|---|
 | Pricing | Free $0 · Solo Pro **$10 / mo or $96 / yr** · Team **$300 flat per ESEA season** (one-time payment, hard paywall) |
 | Seasons | ESEA calendar: S59 = 5 Oct – 20 Dec 2026, published S56–S59, projected 4 / year after; access runs until the next season starts |
-| Team paywall | Creating a team, team uploads, scouting, servers, Discord all need a season; invited members inherit the owner's season |
+| Team paywall | Creating a team, team uploads, scouting, servers, Discord all need a season; invited members inherit the owner's season. Enforced server-side (402 + upgrade metadata) |
 | Coaching mode | Chosen at upload (Coach me / Coach my team / Scout an opponent), stored on the match, never a global toggle; "Coach me" needs a linked Steam ID |
-| Scouting | Belongs to the team: uploaded from and listed in the Team Hub (Opponents tab) |
+| Scouting | Belongs to the team: uploaded from and listed in the Team Hub (Opponents tab), filed under the opponent's name |
 | Debrief stages | parse → stats → coaching, one screen per outcome; a coaching failure shows no stats |
 | Themes | CS2 default, CS:GO second, Great Khan third; fixed CT/T colours across themes |
 | Admin | `/settings/admin` returns 404 to non-admins |
 | Trials | Weekly single-use trial codes (Solo Pro or Team); referral link gives both sides 7 days of Solo Pro |
 | Metering | Every Gemini call and every server hour is metered per team; no mock servers ever count |
+| Discord | Command-only bot (HTTP interactions, no gateway): one channel per map in a bound channel group; `/strat ingest` reads history on demand instead of live listening |
+| Identity | The API trusts the Next proxy (shared secret) for the user id; a Clerk-token caller may only act as itself |
 
-## 2. Shipped in this pass (DONE, uncommitted)
+## 2. Shipped (DONE, on `main`, deployed)
 
-| Area | What | Files | Tests |
-|---|---|---|---|
-| Security | Admin routes check the Clerk admin role server-side; non-admins get 404 | `frontend/lib/server/admin.ts`, `app/api/admin/*` | — |
-| Promo codes | Trial code minting/listing (admin), redemption rules, referral codes, grants as time-boxed `trialing` rows; `trialing` now expires on its period end | `services/billing/promo.py`, `api/routes/{billing,admin}.py`, migration `a1c7e9b3d5f2` | `tests/test_promo.py` |
-| Referral UX | Invite card + redeem box on `/profile`; `/sign-up?ref=CODE` → auto-redeem after first sign-in; admin Trial codes panel | `components/InviteCard.tsx`, `ReferralRedeemer.tsx`, `components/admin/TrialCodesPanel.tsx`, `app/sign-up`, `app/api/billing/{redeem,referral,entitlements}` | — |
-| Seasons | Season calendar + projection; season purchases via `/api/billing/sync`; `/api/billing/seasons`; `subscriptions.season/season_until` outrank Stripe fields | `services/billing/seasons.py`, `api/routes/billing.py`, `db/models.py` | `tests/test_seasons.py`, `tests/test_billing_sync.py` |
-| Checkout | Solo Pro monthly/yearly subscription; Team one-time payment for the purchasable season; refuses a season already owned; webhook handles `mode: payment` | `app/api/billing/{checkout,webhook}`, `lib/flags.ts` | — |
-| Pricing page | New prices, Monthly/Yearly toggle, season on sale with dates, "You have Season N"; upgrade modal updated | `app/billing/page.tsx`, `components/paywall/UpgradeModal.tsx` | — |
-| Metering | `llm_usage` rows for every Gemini call (coach, chat, critique, RCON), priced at config rates; server hours from training sessions; per-team table with revenue and margin; editable cost rates | `services/billing/metering.py`, `agents/scribe/report_generator.py`, `agents/khan/{llm,nodes}.py`, `agents/strat_reviewer.py`, `db/config.py`, `components/admin/TeamMeteringPanel.tsx` | `tests/test_metering.py` |
-| DatHost | Mock-server fallback removed: out of credits → 402 with a clear message, no server row, no session; local/mock servers excluded from billable hours; account credits + servers-on shown on the metering panel | `services/warlord/dathost_client.py`, `api/routes/{servers,admin}.py`, `app/api/admin/dathost-account` | `tests/test_dathost_credits.py` |
-| Stripe tooling | CLI installed (winget); idempotent price setup script | `scripts/stripe_setup_prices.ps1` | — |
-| Screenshot suite | Signed-in, Team Hub and debrief captures at 1440/390; upload spec waits for coaching | `frontend/e2e/*`, `playwright.config.ts` | run manually |
-| Docs | Refactor plans, UX review with evidence, page map, pricing, this file, project skill | see §5 | — |
+Verification column: "tests" = automated suite in `tests/`; "live" = checked on
+the deployed product; "browser" = rendered locally with real or mocked data and
+looked at; "—" = reviewed only. Rows marked "—" are not covered by a test; the
+honest fix is in §4 (T1).
 
-### 2b. Frontend rewrite (DONE 2026-10-01, branch `frontend-rewrite`, uncommitted)
+### 2a. Billing, metering, infrastructure (2026-09-29 → 10-01)
 
 | Area | What | Files | Verified |
 |---|---|---|---|
-| Foundation | Tokens for three themes (CS2 root, CS:GO, Khan), fonts by role, primitives, identity marks, app shell with one navbar, footer, toaster | `app/globals.css`, `lib/theme/*`, `components/ui/*`, `components/identity/*`, `components/shell/*`, `app/layout.tsx` | tsc, lint, `next build`, screenshots in all three themes |
-| Data layer | Every read and mutation as a TanStack Query hook; `useJob` polls light then full; `HttpError` | `lib/api/hooks.ts`, `lib/api/contract.md` | tsc |
-| Upload | Two-step modal (who is it for → drop), locked Team cards, Steam-link gate, gzip + chunked upload hook | `components/upload/*`, `lib/upload/useDemoUpload.ts` | modal screenshots; pipeline spec (see below) |
-| Pages | Landing, Home, Matches, Debrief (3 stages), Teams + paywall, Team Hub (5 tabs), Training, Server, Stratbook, Settings (3 tabs + Clerk account), Admin (metering + trial codes), Billing, Sign in/up | `app/**`, `components/{home,matches,debrief,teams,stratbook,settings,admin}/*` | `shots`, `shots-mobile`, `team-shots*` suites on localhost |
-| Backend support | `mode` on match rows; `stage`/`coach_status`/`coach_error` on jobs; team analyses list includes recon rows | `api/routes/{analyses,jobs,teams}.py` | ruff, pytest (251 passed, 1 xfail) |
-| E2E | Setup creates/signs in the test user through Clerk's Backend API (no CAPTCHA); specs wait for data; `E2E_EMAIL` reuses a user | `frontend/e2e/*` | run locally |
+| Admin guard | Admin routes check the Clerk admin role server-side; non-admins get 404 | `frontend/lib/server/admin.ts`, `app/api/admin/*` | browser (404 shot) |
+| Promo codes | Trial code minting/listing, redemption rules, referral codes, time-boxed `trialing` rows | `services/billing/promo.py`, `api/routes/{billing,admin}.py`, migration `a1c7e9b3d5f2` | tests (`test_promo.py`) |
+| Referral UX | Invite card + redeem box on Settings → Plan; `/sign-up?ref=CODE` auto-redeems; admin Trial codes panel | `components/settings/PlanPanel.tsx`, `components/shell/ReferralRedeemer.tsx`, `components/admin/TrialCodesPanel.tsx` | browser |
+| Seasons | Calendar + projection; season purchases via `/api/billing/sync`; `season_until` outranks Stripe fields | `services/billing/seasons.py`, `api/routes/billing.py` | tests (`test_seasons.py`, `test_billing_sync.py`) |
+| Checkout | Solo Pro monthly/yearly subscription; Team one-time payment per season; refuses an owned season; webhook handles `mode: payment` | `app/api/billing/{checkout,webhook}`, `lib/flags.ts` | live (`--project=checkout`, test mode, 2026-09-30) |
+| Pricing page | Prices, Monthly/Yearly toggle, season on sale with dates, "You have Season N"; upgrade modal | `app/billing/page.tsx`, `components/paywall/UpgradeModal.tsx` | browser |
+| Metering | `llm_usage` for every Gemini call priced at config rates; server hours from sessions; per-team table with revenue and margin; editable rates | `services/billing/metering.py`, `components/admin/MeteringPanel.tsx` | tests (`test_metering.py`) |
+| DatHost | No mock fallback: out of credits → 402; local/mock servers never billable; credits on the admin page | `services/warlord/dathost_client.py`, `api/routes/{servers,admin}.py` | tests (`test_dathost_credits.py`) |
+| Go-live | Domain on Vercel DNS with certificates; Clerk production instance on the domain with Google OAuth; Stripe live prices and webhook; live keys on Vercel; CORS allowlist | `scripts/stripe_setup_prices.ps1`, `scripts/vercel_push_env.mjs` | live (Google sign-in and checkout tested 2026-10-01) |
+| Owner upgrades | `spacemonkeyhandy@gmail.com` and `swiftergames15@gmail.com` granted Team Season 59 (until 2027-01-04) by the sync call the webhook makes, mirrored into Clerk | — | live (entitlements endpoint) |
 
-Deleted: 25 legacy files (old pages, `components/analysis/*`, `CS2PlanningBoard`,
-`ServerControlPanel`, `AddStrategyModal`, old stratbook canvas, old paywall cards, old
-theme files). Known gaps carried in §4.
+### 2b. Frontend rewrite (2026-10-01)
 
-### 2c. Discord channel groups and test suites (DONE 2026-10-02, branch `discord-channel-groups`, uncommitted)
+Clean rewrite from `frontend/FRONTEND_REFACTOR_PLAN.md` §6; only `app/api/**`,
+`lib/api/client.ts`, the playback store, `components/minimap/*` and the e2e
+suites carried over. 25 legacy files deleted.
 
-Audit result: the Discord code was complete but **production was never configured**
-(the live endpoint answers `401 DISCORD_PUBLIC_KEY is not configured`; no `DISCORD_*`
-secret in Secret Manager). `docs/discord.md` is the reference: model, setup, testing.
-
-| Area | What | Files | Tests |
+| Area | What | Files | Verified |
 |---|---|---|---|
-| Channel groups | `/strat bind` inside a Discord category binds the whole group; each text channel named after a map is that map's channel; strat threads open there; `/strat create` and `/strat view` take the map from the channel; `/strat channels` lists the mapping | `services/discord_bot/{channels,interactions,sync}.py`, `db/models.py` (`team_discord_links.category_id`, `team_discord_channels`), migration `c5d8e2f4a7b1`, deploy migrate job | `tests/test_discord_channels.py` |
-| Review button | Submitting a strat for review now posts the embed with **Approve** (before, only a new revision did, so a first review could not be approved from Discord) | `services/discord_bot/sync.py` | same |
-| Web | Team-level status / bind code / unbind; the Discord card shows Connected and the channel → map list, and gives the right command (it used to say to bind inside a strat thread) | `api/routes/teams.py`, `app/api/teams/[teamId]/discord`, `components/teams/DiscordCard.tsx` | same |
-| Security fix | `POST /api/discord/webhook` was open in production (no secret set → no check): anyone could write into a team's knowledge base and spend Gemini calls. It now fails closed outside `LOCAL_MODE`; the Next relay passes the sender's signature through instead of adding none | `api/routes/discord.py`, `app/api/discord/webhook/route.ts` | same |
-| End-to-end suite | Plays Discord with a real Ed25519 key and enforced signatures: bind → channel mapping → create in a map channel → thread → review → Approve → ACTIVE; web-made strat landing in its map channel; outage and recovery | `tests/test_discord_e2e.py`, `tests/discord_fakes.py` | 349 backend tests pass (81 new) |
-| `/strat ingest` | Reads a channel's history since the last ingest (first run: from the beginning), Gemini extracts the strategies, saved as `team_strategy` rows with embeddings (the web's "Ingested from Discord" list and the team coach read them); cursor per channel; long channels chain runs; Gemini metered as `purpose=ingest` | `services/discord_bot/ingest.py`, `db/models.py` (`team_discord_ingest_cursors`) | `tests/test_discord_ingest.py` |
-| Replay lab fix (2026-10-05) | "2D and 3D maps not loading": the 2D radar drew dots on a dark square because no map image source was configured, and the 3D view had been dropped in the rewrite. Now: per-map radar calibration (`lib/maps.ts`, de_dust2 verified against a real demo), the real radar image under the 2D tracks, names and this round's side from the job roster, and a restored 3D kill view (three.js) sharing the same calibration, behind a 2D / 3D toggle | `lib/maps.ts`, `components/minimap/{TacticalRadar,DemoViewer,Viewer3D}.tsx`, `app/analysis/[jobId]/replay/page.tsx` | checked in the browser with the owner's dust2 match |
-| Doctor | `python scripts/discord_doctor.py [--guild id]`: read-only PASS/FAIL report of settings, application, endpoint, commands and the channel group | `scripts/discord_doctor.py` | `tests/test_discord_doctor.py` |
+| Foundation | Tokens for three themes, fonts by role, primitives, identity marks, one shell | `app/globals.css`, `lib/theme/*`, `components/{ui,identity,shell}/*` | browser, all three themes |
+| Data layer | Every read and mutation as a TanStack Query hook; `useJob` polls light then full | `lib/api/hooks.ts`, `lib/api/contract.md` | tsc |
+| Upload | Two-step modal (who is it for → drop), locked Team cards, Steam-link gate, gzip + chunked upload; the Home drop zone carries a pre-hydration drop into the modal | `components/upload/*`, `lib/upload/useDemoUpload.ts` | live (339 MB demo through the pipeline spec) |
+| Pages | Landing, Home, Matches, Debrief (3 stages), Teams + paywall, Team Hub (5 tabs), Training, Server (+ console), Stratbook, Settings, Admin, Billing, Sign in/up | `app/**`, `components/{home,matches,debrief,teams,stratbook,settings,admin}/*` | browser at 1440 and 390 |
+| Backend support | `mode` on match rows; `stage`/`coach_status`/`coach_error` on jobs; Team gate; roster leave/remove; server console; opponent names | `api/routes/{analyses,jobs,teams,servers,training_sessions}.py` | tests (`test_team_gates.py`) |
+| E2E | Setup signs the test user in through Clerk's Backend API (no CAPTCHA); specs wait for data; `E2E_EMAIL` reuses a user | `frontend/e2e/*` | run locally |
 
-### 2d. 2026-10-06 code-review backlog (`demosage-task-list.md`), what was done
+### 2c. Discord and replay lab (2026-10-02 → 10-06)
 
-Each claim was checked against the code first. Verified and fixed:
+Audit found the Discord code complete but production never configured (no
+secrets, no application). Now configured: application "Demo-Sage", secrets in
+Secret Manager and on both services, Interactions Endpoint URL verified, commands
+registered globally, the API kept warm for Discord's 3-second limit. Reference:
+`docs/discord.md`.
 
-| Item | Finding on inspection | Change | Tests |
+| Area | What | Files | Verified |
 |---|---|---|---|
-| P0 identity header trust | Real but latent: production runs in shared-secret mode (no `CLERK_PEM_PUBLIC_KEY`), so only the Next proxies can reach the API and the header is theirs. With a Clerk key set, any signed-in user could have named another user. | `api/auth.py` now has an explicit `Principal`: the proxy (shared secret, constant-time compare) may speak for anyone; a Clerk-token caller is refused (403) when the header, `user_id` query or JSON `user_id` names someone else. Both modes work together now (before, setting the key broke the proxies). | `tests/test_auth_identity.py` |
-| P0 RCON allowlist | Real: the Warlord ran whatever JSON Gemini returned. | `services/warlord/rcon_client.py`: allowlist of practice commands with argument patterns for the LLM path, denylist of lock-out commands (quit, rcon_password, sv_password, host_*, logaddress, bans, …) for everyone including the web console, no `;` chaining; a refused command refuses the batch; the Warlord reports what it refused. | `tests/test_rcon_allowlist.py` |
-| P0 FACEIT signatures fail open | Real. | `verify_faceit_signature` reads the secret at call time and refuses without it outside `LOCAL_MODE`/`APP_ENV=development`; a missing header is refused. | `tests/test_faceit_webhook.py` |
-| P0 shared-secret principal | Done with the identity change: `INTERNAL_SERVICE_USER` is a named constant and the only value a service caller resolves to. | `api/auth.py` | same |
-| P1 dead FACEIT receiver | Real: `/api/faceit/webhook` sat behind the user auth dependency. | Deleted; `/api/faceit/status` now reports the real path `/api/webhooks/faceit`. | same |
-| P1 dedupe | The surviving receiver already deduped; it now does so **before** the FACEIT lookup so retries cost nothing. | `api/routes/webhooks.py` | same |
-| P1 sync HTTP in async handler | Real. | The crawler's `requests` call runs in `asyncio.to_thread`. | same |
-| (found while testing) FACEIT match creation crashed | Both FACEIT paths set `map_name`/`status`/`gcs_demo_uri` on `Match`, whose columns moved to `Demo` in the demo/match split: every finished match would have 500'd. | `create_faceit_match()` in `services/ingestion/faceit_crawler.py` writes demo + match rows like presign. | same |
-| P1 supervisor routing | Substring matching misrouted "observed" (server), "pasted" (past), "metadata" (meta), "connector" (connect). | `classify_intent()` matches whole words; server beats general. | `tests/test_supervisor_routing.py` |
-| P2 strat reviewer prompt | Loose prompt. | Rewritten around an eight-point strat template (identity, buy, five roles, timing, utility, execution, contingencies, when not to call it) with fixed sections and a verdict that names a one-player drawing as a tip, not a strat. | prompt only |
-| P3 `ERROR` file, dead credentials, pgvector docstring | | Deleted; `VULTR_API_KEY` dropped from the deploy, `HETZNER_API_TOKEN` removed from Vercel; `db/rag.py` says Qdrant. | |
+| Channel groups | `/strat bind` in a category binds the group; channels named after maps are those maps' channels; threads open there; `/strat create` and `/strat view` take the map from the channel; `/strat channels` lists the mapping | `services/discord_bot/{channels,interactions,sync}.py`, migration `c5d8e2f4a7b1` | tests (`test_discord_channels.py`) |
+| `/strat ingest` | Reads a channel's history since the last ingest (first run from the beginning), Gemini extracts strategies, saved to the team's knowledge base; per-channel cursor; chained runs; metered | `services/discord_bot/ingest.py` | tests (`test_discord_ingest.py`) |
+| Review button | Submitting for review posts the embed with Approve | `services/discord_bot/sync.py` | tests |
+| Web | Team-level status / bind code / unbind; Discord card shows the channel → map list | `api/routes/teams.py`, `components/teams/DiscordCard.tsx` | browser |
+| Security | `/api/discord/webhook` fails closed without the secret (was open) | `api/routes/discord.py` | tests |
+| End to end | Signed with a real Ed25519 key: bind → mapping → create → thread → review → Approve → ACTIVE; outage and recovery | `tests/test_discord_e2e.py`, `tests/discord_fakes.py` | tests |
+| Doctor | `python scripts/discord_doctor.py [--guild id]`: PASS/FAIL report of settings, application, endpoint, intent, commands, channel group | `scripts/discord_doctor.py` | live (12/12 on 2026-10-06) |
+| Replay lab | Per-map radar calibration, real radar image under the 2D tracks, names and sides from the roster, 3D kill view restored behind a 2D/3D toggle | `lib/maps.ts`, `components/minimap/*` | browser (owner's dust2 match) |
 
-Not done, with the reason:
+### 2d. Code-review backlog of 2026-10-06 (`demosage-task-list.md`)
 
-- **P1 pro baselines**: `compute_pro_baselines()` is a documented stub; the shipped
-  baselines are the seeded bootstrap values plus RAG citations. Building measured
-  pro aggregates needs pro demos through the extraction pass (backlog 3.3); the copy
-  question ("pro benchmarks") is yours. Nothing fabricated, nothing changed.
-- **P2 strat audit, MapPlaybook content**: data and product decisions, not code.
-- **P3 mypy `|| true`**: 62 pre-existing errors in 19 files would fail every build.
-  Fix them first (one sitting, mostly SQLAlchemy typing), then drop the swallow.
-- **P3 `requirements-ci.txt`**: deliberate (heavy GCP/ML packages); aligning means
-  slower CI or a two-stage install. Decision, not a fix.
-- **P3 Comms Analyst**: build or remove is yours; the endpoint still answers.
-- **P3 tactician duplicates**: `api/agents/tactician_heuristics.py` (119 lines) and
-  `api/routes/fcr.py` predate `services/tactician/` (1,500 lines); consolidation is
-  backlog 3.1.
-- **P3 `vultr_instance_id` rename**: needs a migration and a deploy window; backlog.
-- **Verification plan**: the unit side is covered by the suites above; the live
-  checks (real FACEIT demo, OAuth link, RCON probe on a test server) need your
-  accounts.
+Each claim checked against the code. Fixed and deployed (`dd068eb`):
+
+| Item | Finding | Change | Verified |
+|---|---|---|---|
+| P0 identity header | Latent: production runs in shared-secret mode so only the proxies reach the API; with a Clerk key set, any user could have named another | `api/auth.py`: explicit `Principal`; a Clerk-token caller is refused when header, query or body names someone else; both modes work together | tests (`test_auth_identity.py`) |
+| P0 RCON | The Warlord ran whatever Gemini returned | Allowlist with argument patterns for the LLM path; denylist of lock-out commands for everyone incl. the web console; no chaining; refusals reported | tests (`test_rcon_allowlist.py`) |
+| P0 FACEIT signatures | Failed open without the secret | Fails closed outside local dev; missing header refused | tests (`test_faceit_webhook.py`), live (unsigned → 401) |
+| P1 dead receiver | `/api/faceit/webhook` sat behind user auth | Deleted; `/api/faceit/status` reports the real path | tests |
+| P1 dedupe, blocking HTTP | | Dedupe before the FACEIT lookup; the lookup runs off the event loop | tests |
+| Found: FACEIT crashed on every match | Both paths wrote demo columns onto `Match` after the demo/match split | `create_faceit_match()` writes demo + match rows | tests |
+| P1 supervisor routing | "observed" → server, "pasted" → past, "metadata" → meta | Whole-word `classify_intent()` | tests (`test_supervisor_routing.py`) |
+| P2 strat reviewer prompt | Loose | Eight-point strat template with a strat-vs-tip verdict | — |
+| P3 cleanup | | `ERROR` file, Vultr key in the deploy, Hetzner token on Vercel, pgvector docstring; audio upload endpoint removed (queued nothing) | — |
+
+Judged, not done, with the decision recorded in §3 or §4: pro-benchmark copy
+(§3.4), mypy swallow (§4 T2), CI requirements split (§4 T3), tactician
+consolidation (§4 3.1), `vultr_instance_id` rename (§4), strat audit and
+MapPlaybook content (§3.6).
 
 ## 3. Owner to-do (OWNER)
 
-1. Stripe **test mode is done** (2026-09-29) in account `acct_1TZdVcGYeJKiKc7G` (activated:
-   charges and payouts enabled): products, the three prices (lookup keys
-   `demosage_solo_*`, `demosage_team_season`) and a webhook endpoint for
-   `cs2-agentic-coach.vercel.app/api/billing/webhook`. Vercel **Production** holds the
-   test secret, the webhook secret and the three price ids, pushed with
-   `scripts/vercel_push_env.mjs` (a shell pipe had left a `\r` in the secret →
-   "Invalid character in header content" from Stripe). Lesson: the first restricted key
-   pointed at a different Stripe environment, so its prices were invisible to the
-   standard key; always mint prices with the same key the app runs with.
-   **Verified 2026-09-30** on production with `npx playwright test --project=checkout`:
-   Solo Pro monthly → `tier=SOLO_PRO source=stripe`; Team season → `tier=TEAM season=59
-   season_until=2027-01-04` (webhook → `/api/billing/sync` → entitlements). The spec
-   drives Stripe's hosted page (accordion, typed card fields, email typed last, guest
-   checkout without Link).
-   **Live mode is set up (2026-09-30):** live prices minted with the live restricted key
-   (`demosage_solo_monthly` $10, `demosage_solo_yearly` $96, `demosage_team_season` $300
-   one-time), live webhook endpoint at `https://demo-sage.me/api/billing/webhook`, and the
-   live secret, webhook secret and price ids pushed to Vercel **Production**. They take
-   effect on the next production deployment — after that, production charges real cards
-   and the test-card spec must run against a Preview/test deployment instead.
-   `frontend/.env.local` is now LIVE too; for local testing switch it back to the test key
-   and test ids (they are in Stripe under the same lookup keys in test mode). The old
-   $20 / $5 prices do not exist in this account; nothing to archive.
-2. `alembic upgrade head` on staging (one migration: promo tables, season columns, `llm_usage`).
-3. Set the real rates on `/settings/admin` → Cost rates: DatHost's per-hour price for the
-   server size you use (default $0.10 is a placeholder); Gemini list prices are pre-filled.
-4. Confirm DatHost's `/account` payload field for credits (the client reads `credits` and
-   `currency`; the panel says "credits not reported" if the names differ — then adjust
-   `get_account()` in `services/warlord/dathost_client.py`).
-5. Remove dead credentials: `VULTR_API_KEY` (root `.env`) and `HETZNER_API_TOKEN` (Vercel
-   env). Nothing reads them.
-6. Recreate the repo `.venv` (it points at a removed Python 3.14):
-   `py -3.13 -m venv .venv; .venv\Scripts\pip install -r requirements.txt`.
-7. **Clerk production instance** `ins_3K3lTRa4SjQMndLMGMW7AQwOoHf` on `demo-sage.me`
-   (created 2026-09-30 with `clerk deploy`). The five Clerk CNAMEs (`clerk`, `accounts`,
-   `clkmail`, `clk._domainkey`, `clk2._domainkey`) are in the Vercel DNS zone; DNS, email
-   and SSL all verified (`clerk.demo-sage.me` serves TLS). Production keys
-   (`pk_live_`/`sk_live_`) are in `frontend/.env.local` and in Vercel **Production**; they
-   take effect on the next deployment, after which the vercel.app alias no longer signs
-   in (production Clerk is bound to the domain). **Still yours:** Google sign-in needs a
-   production OAuth client from Google Cloud Console (`clerk deploy` shows the redirect URI
-   to register, then asks for the client id and secret); email/password works without it.
-9. **Domain `demo-sage.me` is live** (2026-09-30): nameservers moved to Vercel
-   (`ns1/ns2.vercel-dns.com`), both hostnames verified, certificates issued for
-   `demo-sage.me` and `*.demo-sage.me`, HTTPS 200 on apex and www. The earlier "invalid
-   configuration" was GoDaddy's parked A records living beside Vercel's; moving the
-   nameservers made them irrelevant. Playwright's default base URL is the domain now.
-   Then: Clerk
-   production instance on the domain, Stripe live webhook on the domain, and
-   `PLAYWRIGHT_BASE_URL`. The CORS allowlist already includes it (branch `domain-demo-sage`).
-8. Decide the referrer bonus: both sides get 7 days today; `REFERRER_BONUS_DAYS` in
+Open items only; done work moved to §2. In order of consequence.
+
+1. **Discord: finish the server side.** Invite the bot with the link the doctor
+   prints (scopes `bot` + `applications.commands`, permissions 309238104064),
+   let it see the map channel group, then send the server id so the commands
+   can be registered there instantly and the doctor run with `--guild`. Then
+   the five-minute walk in `docs/discord.md` §2.3.
+2. **Run the verification gate** in `docs/runbook.md` §4 once with your
+   accounts: real demo report quality, FACEIT link, RCON probe on a test
+   server, negative auth. These need a FACEIT account and a practice server.
+3. **Cost rates** on `/settings/admin` → Cost rates: DatHost's per-hour price
+   for the server size you use ($0.10 is a placeholder); confirm the DatHost
+   `/account` credits field name (the panel says "credits not reported" if it
+   differs; `get_account()` in `services/warlord/dathost_client.py`).
+4. **Decide the pro-benchmark wording.** The debrief's "Benchmark" line shows
+   seeded bootstrap values (tagged as such in the data, `agents/scribe/evidence.py`)
+   plus RAG citations, and the landing, pricing and upgrade copy say "pro
+   benchmarks". Options: label the number "estimated" in `FindingCard.tsx`, or
+   soften the copy, or schedule backlog 3.3 to measure real pro aggregates.
+5. **Referrer bonus**: both sides get 7 days today; `REFERRER_BONUS_DAYS` in
    `services/billing/promo.py` sets the referrer's share.
-10. **Discord: configure production** (`docs/discord.md` §3). Create the Discord
-    application and bot, put `DISCORD_APP_ID`, `DISCORD_PUBLIC_KEY`, `DISCORD_BOT_TOKEN`
-    and `DISCORD_WEBHOOK_SECRET` in the root `.env`, create the three secrets in Secret
-    Manager and add them to the API and worker `--set-secrets` in
-    `deploy-staging.yml`, set the Interactions Endpoint URL, switch on the Message
-    Content intent, invite the bot to the server, register the commands, then run `python scripts/discord_doctor.py --guild <id>`
-    until every line passes and walk the five-minute manual check in §2.3.
+6. **Stratbook content**: audit the existing strat entries against the
+   reviewer's template (strat / tip / mechanic) and decide the source of
+   `MapPlaybook` rows (pro demos, hand-authored, both). Data, not code.
+7. **Local hygiene**: recreate the repo `.venv` (`py -3.13 -m venv .venv`),
+   remove `VULTR_API_KEY` from the root `.env` (nothing reads it), and switch
+   `frontend/.env.local` back to Stripe test keys when testing checkout locally.
+
+Done and moved out of this list on 2026-10-07: Stripe test and live setup,
+Clerk production instance, Google OAuth, domain, Discord secrets and endpoint,
+dead credentials on Vercel and in the deploy, the staging migration (the
+migrate job runs on every deploy).
 
 ## 4. Engineering backlog (OPEN / PLANNED)
 
@@ -178,38 +148,43 @@ Backend (`ARCHITECTURE_REFACTOR_PLAN.md` §3):
 
 | # | Item | Status |
 |---|---|---|
-| B1a | `mode` on `/api/analyses` rows and `/api/jobs/{id}` | DONE 2026-10-01 (`api/routes/analyses.py` `match_mode`) |
-| B1b | Job `stage` + `coach_status` / `coach_error` on `/api/jobs/{id}` (parse / coach / done / failed) | DONE 2026-10-01 (`api/routes/jobs.py` `coach_state`) |
-| B1c | Team plan gate (402 + upgrade metadata) on team create, server spin-up and training sessions; join stays open; seats inherit the owner's season | DONE 2026-10-01 (`api/routes/{teams,servers,training_sessions}.py`, `tests/test_team_gates.py`) |
-| B1e | Practice-server console: `GET/POST /api/servers/{id}/console` through DatHost's console API; console card on the server page | DONE 2026-10-01 (`services/warlord/dathost_client.py` `send_console_command`/`read_console`, `components/teams/ServerConsole.tsx`) |
-| B1f | `DELETE /api/teams/{id}/members/{user}`: members leave, the captain removes; Team Settings has Leave and Remove with confirms | DONE 2026-10-01 |
-| B1g | Opponent name on scouting uploads (`opponent` on presign → `matches.match_name`), returned on match rows; Opponents tab groups by opponent, map as the fallback | DONE 2026-10-01 |
-| B1d | Server-hour caps per season (metering data first; see `docs/pricing.md`) | PLANNED |
-| 3.1 | Move `agents/` into `services/coaching_ai`, `db/jobs.py` into `services/ingestion`; delete `api/agents/tactician_heuristics.py` and the Steam branch of `api/routes/oauth.py` | OPEN |
-| 3.2 | import-linter contracts in CI; drop `\|\| true` from mypy | OPEN |
-| 3.3 | Per-kill `is_trade` / `trade_window_ms`; `subtick_offset`; `tick_range` on pro examples | OPEN |
+| B1d | Server-hour caps per season (metering data first; `docs/pricing.md`) | PLANNED |
+| 3.1 | Move `agents/` into `services/coaching_ai`, `db/jobs.py` into `services/ingestion`; delete `api/agents/tactician_heuristics.py` + `api/routes/fcr.py` once diffed against `services/tactician/`; delete the Steam branch of `api/routes/oauth.py` | OPEN |
+| 3.2 | import-linter contracts in CI | OPEN |
+| 3.3 | Per-kill `is_trade` / `trade_window_ms`; `subtick_offset`; `tick_range` on pro examples; measured pro baselines replacing the bootstrap rows | OPEN |
 | 3.5 | Grounding metrics on the admin page (drop-rate, citation coverage) | OPEN |
-| — | Rename `practice_servers.vultr_instance_id` → `provider_server_id` (cosmetic; migration) | PLANNED |
+| — | Rename `practice_servers.vultr_instance_id` → `provider_server_id` (migration + deploy window) | PLANNED |
+| — | Comms Analyst (Phase 5): design in `TECHNICAL_SPEC.md` §5.3; endpoint removed until the job exists | PLANNED |
 
-Frontend (`frontend/FRONTEND_REFACTOR_PLAN.md` §3, page specs in §6):
+Tests and tooling:
 
-| # | Workstream | Status |
+| # | Item | Status |
 |---|---|---|
-| W0–W5 | All shipped by the 2026-10-01 rewrite (see §2b and `FRONTEND_REFACTOR_PLAN.md` §0) | DONE |
-| W6 | Capture matrix: assertions and the three-theme switch exist; CI schedule and an 11px label lint rule do not | PARTLY |
-| D1 | Live listening (the bot reacting to messages or mentions as they are posted) needs a gateway connection in the worker plus the Message Content intent; `/strat ingest` is the chosen alternative. Revisit only if on-demand ingest proves too slow for the team | PLANNED |
-| D2 | Forum channels as map channels (threads are created differently there); only text channels are mapped today | PLANNED |
-| W7 | Clerk `UserButton` custom menu items (Settings / Plan / Theme) once `@clerk/nextjs` exposes them again; today they are navbar icons | PLANNED |
-| W8 | Debrief Players table: ADR, utility damage, flash assists, trade rate need backend fields (`3.3`) | PLANNED |
+| T1 | Automated coverage for the "—" rows in §2: checkout proxy (mock Stripe), pricing page render, referral redeem, admin 404 | OPEN |
+| T2 | Fix the 62 pre-existing mypy errors (mostly SQLAlchemy typing in `api/routes/teams.py`, `db/qdrant_client.py`, `agents/khan/nodes.py`), then drop `\|\| true` from CI | OPEN |
+| T3 | `requirements-ci.txt` omits GCP/ML packages on purpose; either a two-stage install or an import smoke test of `requirements.txt` in CI | PLANNED |
+| T4 | Screenshot suites on a CI schedule against the deployed app; 11px label lint rule (W6) | PARTLY |
+
+Frontend (`frontend/FRONTEND_REFACTOR_PLAN.md`):
+
+| # | Item | Status |
+|---|---|---|
+| D1 | Live Discord listening (gateway in the worker); revisit only if `/strat ingest` proves too slow for the team | PLANNED |
+| D2 | Forum channels as map channels | PLANNED |
+| W7 | Clerk `UserButton` custom menu items once `@clerk/nextjs` exposes them again | PLANNED |
+| W8 | Debrief Players table: ADR, utility damage, flash assists, trade rate (needs 3.3) | PLANNED |
+| R1 | Radar calibration for maps outside the active pool (only de_dust2 verified against a demo; the others use published offsets) | PLANNED |
 
 ## 5. Where the detail lives
 
 | Document | Holds |
 |---|---|
-| `frontend/FRONTEND_REFACTOR_PLAN.md` | Root causes, workstreams, upload flow, theme slots, shell, debrief state machine, page-by-page spec (§6) |
-| `frontend/UX_REVIEW.md` | Findings with screenshot evidence (§2, §6, §7), capture specs |
-| `ARCHITECTURE_REFACTOR_PLAN.md` | Backend status vs the architect prompt, deviations, remaining backend work |
-| `docs/discord.md` | Discord: channel-group model, commands, setup checklist, the three ways to test |
+| `docs/runbook.md` | SOP: topology, release procedure, secret map, rollback, go-live checklist, verification gate, routine operations, incident checks |
+| `docs/discord.md` | Discord: channel-group model, commands, `/strat ingest`, setup checklist, the three ways to test |
 | `docs/pricing.md` | Competitor prices, decided prices, season model, Stripe checklist, metering rationale |
-| `TECHNICAL_SPEC.md` §15 | One row per shipped decision (updated 2026-09-29) |
+| `frontend/FRONTEND_REFACTOR_PLAN.md` | §0 status of the rewrite; target IA, upload flow, theme slots, debrief state machine, page map (§6) |
+| `frontend/UX_REVIEW.md` | Pre-rewrite findings with screenshot evidence (superseded; kept for the ids) |
+| `frontend/lib/api/contract.md` | What every proxy route returns |
+| `ARCHITECTURE_REFACTOR_PLAN.md` | Backend status vs the architect prompt, deviations, remaining backend work |
+| `TECHNICAL_SPEC.md` §15 | One row per shipped decision |
 | `.claude/skills/demosage-frontend/SKILL.md` | Frontend rules and review checklist for future sessions |

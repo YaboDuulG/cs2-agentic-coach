@@ -364,9 +364,15 @@ SSE delivery and Parquet analytics export: not yet implemented (future).*
 Auto-fetch from Steam/FACEIT match history remains the target default UX; it will
 enqueue the same PARSE jobs as manual upload once ingestion lands.
 
-### 5.3 Audio Pipeline
+### 5.3 Audio Pipeline (not built)
+
+Design, kept for when Phase 5 is scheduled. The `POST /api/upload/audio`
+endpoint that accepted files for it was removed on 2026-10-07: it uploaded to
+GCS and queued nothing, so it advertised a feature that did not exist. The
+`matches.gcs_audio_uri` column stays (unused).
+
 ```
-POST /api/upload/audio
+POST /api/upload/audio            (to be re-added with the job)
   → Accept .mp3 / .wav / .ogg (max 2GB)
   → Gemini 2.5 Flash transcription (native audio)
   → pyannote diarization (speaker separation)
