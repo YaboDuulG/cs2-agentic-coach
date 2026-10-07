@@ -5,7 +5,6 @@ import pytest
 from services.pro_strats.rules import (
     EntryKind,
     GateDecision,
-    StratIdentity,
     StratTemplate,
     Verdict,
     classify_entry,
@@ -93,6 +92,55 @@ def test_coordination_without_contingency_is_tip():
     result = classify_entry(text)
     assert result.kind is EntryKind.TIP
     assert any("contingency" in r for r in result.reasons)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # two role words describing ONE player are not two players
+        "The entry should wait for support before peeking; if they push then back off.",
+        # one label, if/then
+        "Player 1 holds the angle; if they come then he falls back.",
+        # 'setup' alone
+        "Setup on A: if they go B then rotate.",
+        # an AWPer's own decision tree
+        "Our AWPer holds mid; if they smoke it, he falls back to window.",
+    ],
+)
+def test_one_player_with_a_contingency_is_still_a_tip(text):
+    result = classify_entry(text)
+    assert result.kind is EntryKind.TIP
+    assert any("fewer than two players" in r for r in result.reasons)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # "if X, Y" without the word "then"
+        "Player 1 smokes CT, Player 2 flashes over and entries. If they stack A, we swing to B.",
+        # five labels + "on contact"
+        "Player 1 entries, Player 2 trades, Player 3 lurks, Player 4 supports, Player 5 calls. "
+        "On contact at banana, everyone collapses B.",
+        # pair word instead of labels
+        "The entry goes first and the trader trades him; if we lose the opener, fall back to default.",
+        # short labels, "when they rotate"
+        "P1 entries and P2 trades; when they rotate, swing to A.",
+    ],
+)
+def test_two_or_more_players_with_a_contingency_is_a_strat(text):
+    assert classify_entry(text).kind is EntryKind.STRAT
+
+
+def test_mechanic_explainer_stays_a_mechanic_even_with_player_labels():
+    text = "Player 1 and Player 2 should practise counter-strafing; if you stop then shoot."
+    assert classify_entry(text).kind is EntryKind.MECHANIC
+
+
+def test_player_count_is_capped_at_five():
+    from services.pro_strats.rules import _count_coordinating_players
+
+    text = " ".join(f"Player {i} holds" for i in range(1, 10))
+    assert _count_coordinating_players(text) == 5
 
 
 # --- template validation ----------------------------------------------------

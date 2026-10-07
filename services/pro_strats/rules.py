@@ -18,8 +18,8 @@ mechanic. Neither gets stored as a strat.
 
 from __future__ import annotations
 
-import re
 from enum import Enum
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -118,7 +118,9 @@ class StratTemplate(BaseModel):
 # Classification: strat / tip / mechanic (deterministic heuristics)
 # ---------------------------------------------------------------------------
 
-# Signals that more than one player is coordinating.
+# Role words: evidence that a plan has roles at all. Several role words in one
+# sentence can describe one player ("the entry waits for support"), so they
+# count as ONE player; a second player needs a second label or a pair word.
 _ROLE_KEYWORDS = (
     "entry",
     "trader",
@@ -132,20 +134,38 @@ _ROLE_KEYWORDS = (
     "caller",
     "bait",
     "second man",
-    "trades him",
-    "trades her",
     "crossfire",
     "setup",
 )
 
-# Signals of an "if X, then Y" contingency.
+# Words that only make sense with two people involved.
+_PAIR_PATTERNS = (
+    r"\btrades? (him|her|them)\b",
+    r"\btraded by\b",
+    r"\bsecond man\b",
+    r"\bcrossfire\b",
+    r"\bwhile\b.{0,40}\b(entries|lurks|anchors|holds|throws|flashes|smokes)\b",
+    r"\b(both|everyone|the team|the rest|two of us|three of us)\b",
+)
+
+# Distinct player labels ("Player 1", "P2") and named roles ("the entry").
+_PLAYER_LABEL = re.compile(r"\b(?:player|p)\s*(\d)\b")
+_NAMED_ROLE = re.compile(
+    r"\b(?:the|our)\s+(entry|trader|lurker|anchor|support|awper|igl|caller|bait)\b"
+)
+
+# Signals of an "if X, then Y" contingency. "if X, Y" with a comma counts:
+# people rarely write "then".
 _CONTINGENCY_PATTERNS = (
     r"\bif\b.{0,60}\bthen\b",
+    r"\bif\b.{3,60},\s*(we|he|she|they|everyone|player|the)\b",
     r"\bon contact\b",
-    r"\bfallback\b",
+    r"\bfall ?back\b",
     r"\bif they\b",
     r"\bif the (ct|t)s?\b",
+    r"\bif we (lose|get|see|don.t|can.t)\b",
     r"\bcounter[- ]strat\b",
+    r"\bwhen (they|the (ct|t)s?)\b.{0,60}\b(rotate|collapse|swing|fall ?back|re-?peek|retake)\b",
 )
 
 # Signals that the text explains game mechanics, not a team plan.
@@ -163,18 +183,22 @@ _MECHANIC_KEYWORDS = (
 
 
 def _count_coordinating_players(text: str) -> int:
-    """Heuristic: how many distinct players does the text coordinate?"""
+    """Heuristic: how many distinct players does the text coordinate?
+
+    Distinct labels ("Player 1", "P2") each count. Named roles ("the entry",
+    "our AWPer") each count once. Bare role words are evidence of one player,
+    not one per word; a pair word ("trades him", "while ... lurks", "both")
+    adds the second. Never more than five.
+    """
     lowered = text.lower()
-    count = 0
-    # Explicit "Player N" labels are the strongest signal.
-    players = set(re.findall(r"player\s*(\d+)", lowered))
-    count += len(players)
-    # Role keywords add evidence when no explicit labels exist.
-    if not players:
-        for kw in _ROLE_KEYWORDS:
-            if kw in lowered:
-                count += 1
-    return count
+    labels = set(_PLAYER_LABEL.findall(lowered))
+    named = set(_NAMED_ROLE.findall(lowered))
+    count = len(labels) + len(named)
+    if count == 0 and any(kw in lowered for kw in _ROLE_KEYWORDS):
+        count = 1
+    if count < 2 and any(re.search(p, lowered) for p in _PAIR_PATTERNS):
+        count += 1
+    return min(count, 5)
 
 
 def _has_contingency(text: str) -> bool:
@@ -210,7 +234,9 @@ def classify_entry(text: str) -> Classification:
     contingency = _has_contingency(text)
     mechanic = _looks_like_mechanic(text)
 
-    if mechanic and players < 2:
+    # A mechanics explainer stays a mechanic however many players it names:
+    # "Player 1 and Player 2 should practise counter-strafing" is drill advice.
+    if mechanic:
         reasons.append("explains a game mechanic, not a team plan")
         return Classification(kind=EntryKind.MECHANIC, reasons=reasons)
 
