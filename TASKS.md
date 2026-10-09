@@ -156,6 +156,26 @@ Backend (`ARCHITECTURE_REFACTOR_PLAN.md` §3):
 | — | Rename `practice_servers.vultr_instance_id` → `provider_server_id` (migration + deploy window) | PLANNED |
 | — | Comms Analyst (Phase 5): design in `TECHNICAL_SPEC.md` §5.3; endpoint removed until the job exists | PLANNED |
 
+Pro strats (`docs/pro_strats_plan.md`; the rules module from `pro-strats-rules` is merged and unused until P2):
+
+| # | Item | Status |
+|---|---|---|
+| P0 | Turn the pro-meta pipeline on: demo source (D1), scope (D2), Actions secrets, crawler cron, seed, `scripts/pro_meta_doctor.py`. Production has zero pro rows today | OWNER + OPEN |
+| P1 | Extractor: roles, timing, utility ownership, observed branches and round/tick citations per archetype; validate labels for Anubis, Dust2, Vertigo | OPEN |
+| P2 | Template writer (deterministic fields + one cited Gemini call) → `gate_archetype_draft` → `template_json` / `gate_status` on `pro_strat_archetypes`; admin review table (D4) | OPEN |
+| P3 | Consumers: measured `ProBaseline` from pro rounds with an honest "Estimated" label for bootstrap values (settles §3.4), `MapPlaybook` regenerated from accepted strats, `tick_range` on pro examples (closes 3.3) | OPEN |
+| P4 | `GET /api/pro-strats` (Team) and the Team Hub "Pro library" tab with "Start from this" | PLANNED |
+
+In-app assistant and MCP (`docs/assistant_plan.md`; decisions E1–E4 taken 2026-10-09: paid only, testing budgets, Coach tab stays, external MCP after the pro library):
+
+| # | Item | Status |
+|---|---|---|
+| A1 | Tool registry (`services/assistant/tools.py`) + nine read tools scoped to the caller, policy (paid only, daily budgets), cross-user refusal tests | DONE 2026-10-09 (`tests/test_assistant_tools.py`) |
+| A2 | Conversations per user, Gemini function-calling loop with SSE, caps and tier budgets, metered as `assistant` | PLANNED |
+| A3 | `AssistantPanel` slide-over + `/assistant`, seeded from the debrief and Team Hub | PLANNED |
+| A4 | Write tools with confirmation (draft strat, ingest, allowlisted server command); the Coach tab stays | PLANNED |
+| A5 | MCP server at `/mcp` (same registry) + personal access tokens on Settings; verify with Claude Desktop. After pro-strats P4 | PLANNED |
+
 Tests and tooling:
 
 | # | Item | Status |
@@ -180,6 +200,8 @@ Frontend (`frontend/FRONTEND_REFACTOR_PLAN.md`):
 | Document | Holds |
 |---|---|
 | `docs/runbook.md` | SOP: topology, release procedure, secret map, rollback, go-live checklist, verification gate, routine operations, incident checks |
+| `docs/assistant_plan.md` | In-app assistant: one tool registry for the chat panel and an MCP server, phases A1–A5, guardrails, decisions E1–E4 |
+| `docs/pro_strats_plan.md` | Pro strats: current state, target pipeline, phases P0–P4, owner decisions D1–D4 |
 | `docs/discord.md` | Discord: channel-group model, commands, `/strat ingest`, setup checklist, the three ways to test |
 | `docs/pricing.md` | Competitor prices, decided prices, season model, Stripe checklist, metering rationale |
 | `frontend/FRONTEND_REFACTOR_PLAN.md` | §0 status of the rewrite; target IA, upload flow, theme slots, debrief state machine, page map (§6) |
